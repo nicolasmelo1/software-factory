@@ -57,12 +57,31 @@ echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> ~/.zshrc && exec zsh
 ### 2. Set it up — 2 min
 
 ```sh
-sf skills          # writes the agent skills to ~/.claude/skills
+cd ~/code/your-project
+sf skills
 ```
 
-Now, in your project, tell your agent:
+It asks where. There is no default on purpose — these skills are about *this*
+repository's factory, and writing them into every project on the machine is a
+decision you should make rather than one this makes for you:
 
-> **"Set up software-factory in this repo."**
+```
+Where should the skills go?
+
+  1  /Users/you/code/your-project/.claude/skills   (this repository only)
+  2  /Users/you/.claude/skills                     (every project on this machine)
+
+[1]
+```
+
+Use `--project` or `--user` to skip the question, `--dir` for anywhere else. In
+a script or CI it refuses to guess and tells you to pass one.
+
+Then invoke the skill **by name**. It will not be reached for on its own:
+
+```
+/factory-init set up software-factory in this repo
+```
 
 The [`factory-init`](skills/factory-init/SKILL.md) skill takes it from there. It
 reads your codebase first and answers whatever the code can answer itself —
@@ -473,7 +492,7 @@ violation is a visible line in a reviewed diff.
 | `sf explain <RULE>` | What the rule requires, why it exists, how to fix a violation |
 | `sf catalog` | List the rules. `--layer L0` |
 | `sf interview` | The decision tree an interview walks. `--json` for an agent |
-| `sf skills` | Write the agent skills to `~/.claude/skills`. `--dir` to place them elsewhere |
+| `sf skills` | Install the agent skills. Asks where; `--project`, `--user` or `--dir` to say |
 | `sf ratchet` | Freeze today's violations. `--months N` |
 | `sf lock` | Rewrite hash locks from disk |
 | `sf fixtures` | Write the mutation fixtures for every enabled rule |
@@ -573,13 +592,18 @@ Four agent skills for Claude Code, shipped inside the binary so they cannot
 drift out of step with the `sf` they drive. Install them once:
 
 ```sh
-sf skills                              # ~/.claude/skills
-sf skills --dir your-project/.claude/skills   # or per project
+sf skills             # asks: this repository, or every project
+sf skills --project   # <root>/.claude/skills, no question
+sf skills --user      # ~/.claude/skills, no question
 ```
 
-They load from their description when the conversation matches — you do not
-type their names, you describe the problem. Their job is to **author policy and
-produce evidence**, never to remember rules; that is what the binary is for.
+**Invoke them by name.** `/factory-init`, `/factory-triage` and so on: an agent
+may pick one up from its description when the conversation matches, but that is
+not something to rely on, and a skill that silently did not load looks exactly
+like one that did and had nothing to say.
+
+Their job is to **author policy and produce evidence**, never to remember rules;
+that is what the binary is for.
 
 One boundary runs through all four: **an agent proposes policy, a human merges
 it.** That is the only thread separating a factory from a system grading its own
@@ -589,7 +613,7 @@ homework, and no amount of tooling substitutes for it.
 
 The one you use first. It runs the interview above.
 
-> **You:** "Set up software-factory in this repo."
+> **You:** `/factory-init set up software-factory in this repo`
 
 It reads the codebase before asking anything, answers what the code can answer,
 and asks in rounds — each question numbered, each with a recommendation:
@@ -613,8 +637,9 @@ decision changes.
 You are lead on a TypeScript monorepo. It is the third time this month you have
 written *"don't import the db directly in a component, go through the API"*.
 
-> **You:** "Third PR this month where someone imports `@acme/db` inside
-> `apps/web`. I want this to stop being my comment and become a check."
+> **You:** `/factory-author` third PR this month where someone imports
+> `@acme/db` inside `apps/web`. I want this to stop being my comment and
+> become a check.
 
 It does not say "good idea, I'll remember". It checks the rule does not already
 exist (`sf catalog`), writes the YAML with a mandatory `why` — written for the
@@ -633,7 +658,8 @@ system, not claims the actor makes about itself.
 
 ### `factory-evidence` — when a gate is red and you have to prove something
 
-> **You:** "The checkout gate is `stale` and I need to merge today."
+> **You:** `/factory-evidence` the checkout gate is `stale` and I need to
+> merge today.
 
 `stale` means the code changed since the evidence was sealed. The tempting move
 — and the one the skill is explicitly told not to make — is to re-run `sf seal`
@@ -651,7 +677,7 @@ usually reporting a real defect, and the defect is worth more than the build.
 
 ### `factory-triage` — the daily one
 
-> **You:** "CI is red, 12 findings, sort it out."
+> **You:** `/factory-triage` CI is red, 12 findings, sort it out.
 
 It reads the report (which already carries each rule's reasoning) and works in a
 specific order: **`sf verify` failures first** — a rule that stopped firing

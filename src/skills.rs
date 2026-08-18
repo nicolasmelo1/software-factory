@@ -15,10 +15,42 @@ pub const SKILLS: &[(&str, &str)] = &[
     ("factory-triage", include_str!("../skills/factory-triage/SKILL.md")),
 ];
 
-/// Where Claude Code looks for personal skills.
-pub fn default_dir() -> Result<PathBuf> {
+/// Where Claude Code looks for skills, in both scopes.
+pub fn project_dir() -> PathBuf {
+    PathBuf::from(".claude/skills")
+}
+
+pub fn user_dir() -> Result<PathBuf> {
     let home = std::env::var("HOME").context("HOME is not set; pass --dir")?;
     Ok(PathBuf::from(home).join(".claude/skills"))
+}
+
+/// Ask where to install. There is deliberately no default: these skills are
+/// about *this* repository's factory, and quietly writing them into every
+/// project on the machine is a decision nobody made. When nothing can be
+/// asked — a script, CI, a pipe — say so rather than guessing.
+pub fn choose_dir(root: &Path) -> Result<PathBuf> {
+    use std::io::{IsTerminal, Write, stdin, stdout};
+    if !stdin().is_terminal() {
+        anyhow::bail!(
+            "nothing to ask on: pass --dir, or --project for {}/.claude/skills, \
+             or --user for ~/.claude/skills",
+            root.display()
+        );
+    }
+    let user = user_dir()?;
+    println!("Where should the skills go?\n");
+    println!("  1  {}/.claude/skills   (this repository only)", root.display());
+    println!("  2  {}          (every project on this machine)", user.display());
+    print!("\n[1] ");
+    stdout().flush()?;
+    let mut answer = String::new();
+    stdin().read_line(&mut answer)?;
+    match answer.trim() {
+        "" | "1" => Ok(root.join(project_dir())),
+        "2" => Ok(user),
+        other => Ok(PathBuf::from(other)),
+    }
 }
 
 pub fn install(dir: &Path) -> Result<Vec<String>> {

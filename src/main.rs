@@ -111,9 +111,16 @@ enum Cmd {
     Docs,
     /// Install the agent skills that drive this tool.
     Skills {
-        /// Where to write them. Defaults to `~/.claude/skills`.
+        /// Where to write them. Without this, and without --project or
+        /// --user, you are asked.
         #[arg(long)]
         dir: Option<PathBuf>,
+        /// This repository only: `<root>/.claude/skills`.
+        #[arg(long, conflicts_with_all = ["dir", "user"])]
+        project: bool,
+        /// Every project on this machine: `~/.claude/skills`.
+        #[arg(long, conflicts_with_all = ["dir", "project"])]
+        user: bool,
     },
     /// Print the decision tree an interview walks, and what each answer does.
     Interview {
@@ -209,7 +216,7 @@ fn dispatch_writing(command: Cmd, root: PathBuf) -> Result<i32> {
         Cmd::Fixtures => cmd_fixtures(root),
         Cmd::Docs => cmd_docs(root),
         Cmd::Seal { gate } => cmd_seal(root, gate),
-        Cmd::Skills { dir } => cmd_skills(dir),
+        Cmd::Skills { dir, project, user } => cmd_skills(root, dir, project, user),
         // Every read-only command is handled above.
         _ => unreachable!("read-only command routed to the writing dispatcher"),
     }
@@ -221,15 +228,20 @@ fn local_catalog(root: &Path) -> Result<Catalog> {
     Ok(catalog)
 }
 
-fn cmd_skills(dir: Option<PathBuf>) -> Result<i32> {
-    let dir = match dir {
-        Some(dir) => dir,
-        None => skills::default_dir()?,
+fn cmd_skills(root: PathBuf, dir: Option<PathBuf>, project: bool, user: bool) -> Result<i32> {
+    let dir = match (dir, project, user) {
+        (Some(dir), _, _) => dir,
+        (None, true, _) => root.join(skills::project_dir()),
+        (None, _, true) => skills::user_dir()?,
+        (None, false, false) => skills::choose_dir(&root)?,
     };
     for path in skills::install(&dir)? {
         println!("wrote {path}");
     }
-    println!("\nIn your project, tell your agent: \"set up software-factory in this repo\"");
+    println!(
+        "\nIn your project, invoke the skill by name — it will not be reached for on its own:\n\n  \
+         /factory-init set up software-factory in this repo"
+    );
     Ok(EXIT_OK)
 }
 
