@@ -98,6 +98,8 @@ pub enum CheckKind {
     Toolchain,
     /// The policy and the ratchet may be strengthened, never weakened. L2.
     PolicyTightening,
+    /// A check this tool cannot express, run as a command. L2.
+    Command,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize)]
@@ -215,6 +217,7 @@ const BUILTIN: &[(&str, &str)] = &[
     ("L5/no-inert-rule.yaml", include_str!("../catalog/L5/no-inert-rule.yaml")),
     ("L2/factory-config-is-locked.yaml", include_str!("../catalog/L2/factory-config-is-locked.yaml")),
     ("L2/policy-only-tightens.yaml", include_str!("../catalog/L2/policy-only-tightens.yaml")),
+    ("L2/derived-artifacts-match-their-source.yaml", include_str!("../catalog/L2/derived-artifacts-match-their-source.yaml")),
     ("L6/dependency-vulnerabilities-are-scanned.yaml", include_str!("../catalog/L6/dependency-vulnerabilities-are-scanned.yaml")),
     ("L6/secrets-are-scanned.yaml", include_str!("../catalog/L6/secrets-are-scanned.yaml")),
     ("L6/insecure-patterns-are-scanned.yaml", include_str!("../catalog/L6/insecure-patterns-are-scanned.yaml")),

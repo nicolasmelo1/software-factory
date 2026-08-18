@@ -1,6 +1,7 @@
 //! Check engines. Each catalog rule names one; the rule's options are data.
 
 pub mod cadence;
+pub mod command;
 pub mod complexity;
 pub mod evidence;
 pub mod lock;
@@ -30,6 +31,10 @@ pub struct Ctx<'a> {
     /// The git ref the work is measured against, when there is one.
     pub base: Option<String>,
     pub today: String,
+    /// Whether `command` rules may actually run. Off unless asked for: a
+    /// policy travels with a clone, and `sf check` must be safe on a
+    /// repository you have not read.
+    pub allow_commands: bool,
 }
 
 pub fn options_for(rule: &Rule, policy: &Policy) -> Result<Options> {
@@ -43,16 +48,24 @@ pub fn options_for(rule: &Rule, policy: &Policy) -> Result<Options> {
         .with_context(|| format!("options for rule {} are malformed", rule.id))
 }
 
-/// Run every enabled rule. Returns findings in stable rule order.
+/// Run every enabled rule instance. Returns findings in stable order.
 pub fn run_all(ctx: &Ctx) -> Result<Vec<Finding>> {
     let mut findings = Vec::new();
-    for (id, rule) in &ctx.catalog.rules {
-        if ctx.policy.enabled(id).is_none() {
-            continue;
-        }
-        findings.extend(run_one(rule, ctx)?);
+    for (instance, base) in ctx.policy.instances() {
+        let Some(rule) = ctx.catalog.get(&base) else {
+            anyhow::bail!("policy enables {instance}, but {base} is not a rule in the catalog");
+        };
+        findings.extend(run_one(&as_instance(rule, &instance), ctx)?);
     }
     Ok(findings)
+}
+
+/// The same rule under an instance's name, so its findings, its options and
+/// its ratchet entries stay separate from the other instances'.
+pub fn as_instance(rule: &Rule, instance: &str) -> Rule {
+    let mut copy = rule.clone();
+    copy.id = instance.to_string();
+    copy
 }
 
 pub fn run_one(rule: &Rule, ctx: &Ctx) -> Result<Vec<Finding>> {
@@ -68,5 +81,6 @@ pub fn run_one(rule: &Rule, ctx: &Ctx) -> Result<Vec<Finding>> {
         CheckKind::Nested { languages } => nested::run(rule, &opts, languages, ctx),
         CheckKind::Toolchain => toolchain::run(rule, &opts, ctx),
         CheckKind::PolicyTightening => tightening::run(rule, &opts, ctx),
+        CheckKind::Command => command::run(rule, &opts, ctx),
     }
 }

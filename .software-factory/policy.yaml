@@ -73,6 +73,16 @@ rules:
       # Nothing is locked until you say what is generated. An enabled
       # lock with an empty scope is inert, and L5.NO_INERT_RULE will say so.
       scope: []
+  # L2 — Regenerating the derived artifacts changes nothing
+  L2.DERIVED_ARTIFACTS_MATCH_THEIR_SOURCE:
+    enabled: true
+    options:
+      # docs/rules.md is generated from the catalog and then hand-edited above
+      # the first `## L` heading. `sf docs` regenerates only the generated half,
+      # so re-running it must be a no-op. This is the check the plan
+      # keep-generated-prose-in-sync.md asked for.
+      run: "./target/release/sf docs && git diff --exit-code -- docs/rules.md"
+
   # L2 — Every frozen exception carries a future review date
   L2.NO_PERMANENT_EXCEPTION:
     enabled: true

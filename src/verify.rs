@@ -20,10 +20,16 @@ pub struct Outcome {
     pub detail: String,
 }
 
-pub fn run(root: &Path, policy: &Policy, catalog: &Catalog, only: Option<&str>) -> Result<Vec<Outcome>> {
+pub fn run(
+    root: &Path,
+    policy: &Policy,
+    catalog: &Catalog,
+    only: Option<&str>,
+    allow_commands: bool,
+) -> Result<Vec<Outcome>> {
     let mut outcomes = Vec::new();
     for id in catalog.rules.keys() {
-        if policy.enabled(id).is_none() {
+        if !policy.any_instance_enabled(id) {
             continue;
         }
         if only.is_some_and(|o| o != id) {
@@ -38,12 +44,17 @@ pub fn run(root: &Path, policy: &Policy, catalog: &Catalog, only: Option<&str>) 
             });
             continue;
         }
-        outcomes.push(run_fixture(&fixture_root, id, catalog)?);
+        outcomes.push(run_fixture(&fixture_root, id, catalog, allow_commands)?);
     }
     Ok(outcomes)
 }
 
-fn run_fixture(fixture_root: &Path, rule_id: &str, catalog: &Catalog) -> Result<Outcome> {
+fn run_fixture(
+    fixture_root: &Path,
+    rule_id: &str,
+    catalog: &Catalog,
+    allow_commands: bool,
+) -> Result<Outcome> {
     let policy = match Policy::load(fixture_root) {
         Ok(p) => p,
         Err(e) => {
@@ -74,6 +85,7 @@ fn run_fixture(fixture_root: &Path, rule_id: &str, catalog: &Catalog) -> Result<
         changed: None,
         base: None,
         today: clock::today(),
+        allow_commands,
     };
     let findings = checks::run_all(&ctx)?;
     let hits: Vec<_> = findings.iter().filter(|f| f.rule == rule_id).collect();

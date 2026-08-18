@@ -89,6 +89,11 @@ enum Cmd {
         /// Run one rule only.
         #[arg(long)]
         rule: Option<String>,
+        /// Let `command` rules actually run. Off by default: a policy travels
+        /// with a clone, so `sf check` must be safe on a repository you have
+        /// not read.
+        #[arg(long, env = "SF_ALLOW_COMMANDS")]
+        allow_commands: bool,
     },
     /// Print a rule: what it requires, why it exists, how to fix a violation.
     Explain { rule: String },
@@ -134,6 +139,8 @@ enum Cmd {
     Verify {
         #[arg(long)]
         rule: Option<String>,
+        #[arg(long, env = "SF_ALLOW_COMMANDS")]
+        allow_commands: bool,
     },
 }
 
@@ -197,8 +204,10 @@ fn dispatch(cli: Cli, root: PathBuf) -> Result<i32> {
     // Split by whether the command writes: it keeps each arm list short, and
     // it is the distinction someone reading this actually wants.
     match cli.command {
-        Cmd::Check { format, changed, rule } => cmd_check(root, format, changed, rule),
-        Cmd::Verify { rule } => cmd_verify(root, rule),
+        Cmd::Check { format, changed, rule, allow_commands } => {
+            cmd_check(root, format, changed, rule, allow_commands)
+        }
+        Cmd::Verify { rule, allow_commands } => cmd_verify(root, rule, allow_commands),
         Cmd::Explain { rule } => cmd_explain(root, rule),
         Cmd::Catalog { layer } => cmd_catalog(root, layer),
         Cmd::Interview { json } => cmd_interview(json),
@@ -327,6 +336,7 @@ fn cmd_check(
     format: Format,
     changed: Option<String>,
     rule: Option<String>,
+    allow_commands: bool,
 ) -> Result<i32> {
     let loaded = load(root.clone())?;
     let base = changed.clone();
@@ -343,6 +353,7 @@ fn cmd_check(
         changed,
         base: base.clone(),
         today: clock::today(),
+        allow_commands,
     };
     let (raw, rules_run) = run_selection(&loaded, &ctx, rule.as_deref())?;
     let (findings, frozen) = loaded.ratchet.apply(raw);
@@ -365,21 +376,18 @@ fn run_selection(
         Some(id) => {
             let rule = loaded
                 .catalog
-                .get(id)
+                .get(policy::base_rule_id(id))
                 .ok_or_else(|| anyhow::anyhow!("no rule {id} in the catalog"))?;
-            Ok((checks::run_one(rule, ctx)?, 1))
+            Ok((checks::run_one(&checks::as_instance(rule, id), ctx)?, 1))
         }
-        None => Ok((
-            checks::run_all(ctx)?,
-            loaded.catalog.rules.keys().filter(|id| loaded.policy.enabled(id).is_some()).count(),
-        )),
+        None => Ok((checks::run_all(ctx)?, loaded.policy.instances().len())),
     }
 }
 
 fn cmd_explain(root: PathBuf, rule: String) -> Result<i32> {
     let catalog = local_catalog(&root)?;
     let found = catalog
-        .get(&rule)
+        .get(policy::base_rule_id(&rule))
         .ok_or_else(|| anyhow::anyhow!("no rule {rule} in the catalog"))?;
     println!(
         "{} [{}] {}\n\n{}\n\nWhy\n  {}\n\nFix\n  {}\n\nSeverity: {}  Ratchet: {}",
@@ -462,6 +470,7 @@ fn cmd_seal(root: PathBuf, gate: String) -> Result<i32> {
         changed: None,
         base: None,
         today: clock::today(),
+        allow_commands: false,
     };
     let manifest = checks::evidence::seal(&loaded.root, &gate, definition, &ctx)?;
     println!(
@@ -473,9 +482,10 @@ fn cmd_seal(root: PathBuf, gate: String) -> Result<i32> {
     Ok(EXIT_OK)
 }
 
-fn cmd_verify(root: PathBuf, rule: Option<String>) -> Result<i32> {
+fn cmd_verify(root: PathBuf, rule: Option<String>, allow_commands: bool) -> Result<i32> {
     let loaded = load(root)?;
-    let outcomes = verify::run(&loaded.root, &loaded.policy, &loaded.catalog, rule.as_deref())?;
+    let outcomes =
+        verify::run(&loaded.root, &loaded.policy, &loaded.catalog, rule.as_deref(), allow_commands)?;
     let mut broken = 0;
     for outcome in &outcomes {
         if outcome.fired {

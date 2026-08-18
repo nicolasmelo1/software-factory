@@ -150,6 +150,15 @@ pub const FIXTURES: &[Fixture] = &[
         ],
     },
     Fixture {
+        rule: "L2.DERIVED_ARTIFACTS_MATCH_THEIR_SOURCE",
+        // Fires either way: without --allow-commands because a check that did
+        // not run is not a check that passed, and with it because the command
+        // fails. `sf verify --allow-commands` exercises the second path.
+        policy_extra: "        run: \"exit 1\"\n",
+        extra_rules: "",
+        files: &[("generated/schema.json", "{\"version\": 1}\n")],
+    },
+    Fixture {
         rule: "L2.NO_PERMANENT_EXCEPTION",
         policy_extra: "",
         extra_rules: "",

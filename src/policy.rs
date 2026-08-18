@@ -61,6 +61,9 @@ pub struct Options {
     /// the same scope is the hazard", which is how nested locking is stated.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub min_inner: Option<usize>,
+    /// The command a `command` rule runs, from the repository root.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub run: Option<String>,
     /// Skip lines that are entirely a comment. Opt-in, because a rule about
     /// suppression comments needs exactly the opposite.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
@@ -139,6 +142,15 @@ pub struct Project {
     pub languages: Vec<String>,
     #[serde(default)]
     pub exclude: Vec<String>,
+    /// Other checkouts this policy governs, as paths relative to the root —
+    /// usually symlinks to sibling repositories. Symlinks are followed only
+    /// here, never during the ordinary walk, because a package manager's
+    /// symlink farm would otherwise be walked as source.
+    ///
+    /// Findings keep the declared prefix, so a rule reads the same whether the
+    /// checkout lives beside this one or somewhere else entirely.
+    #[serde(default)]
+    pub roots: Vec<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
@@ -164,9 +176,32 @@ impl Policy {
         Ok(policy)
     }
 
-    pub fn enabled(&self, rule_id: &str) -> Option<&RuleSetting> {
-        self.rules.get(rule_id).filter(|s| s.enabled)
+    /// Enabled entries as (instance id, catalog rule id).
+    ///
+    /// A monorepo needs the same rule twice with different settings — a
+    /// complexity ceiling of 12 in the new packages and 20 in the one nobody
+    /// has had time to split up. Writing the key as `RULE@name` gives that
+    /// instance its own options, its own findings and its own ratchet entries,
+    /// while still resolving to one catalog rule with one written reason.
+    pub fn instances(&self) -> Vec<(String, String)> {
+        self.rules
+            .iter()
+            .filter(|(_, setting)| setting.enabled)
+            .map(|(key, _)| (key.clone(), base_rule_id(key).to_string()))
+            .collect()
     }
+
+    /// Is any instance of this catalog rule enabled?
+    pub fn any_instance_enabled(&self, rule_id: &str) -> bool {
+        self.rules
+            .iter()
+            .any(|(key, setting)| setting.enabled && base_rule_id(key) == rule_id)
+    }
+}
+
+/// `L1.COMPLEXITY_CEILING@legacy` names the `L1.COMPLEXITY_CEILING` rule.
+pub fn base_rule_id(key: &str) -> &str {
+    key.split('@').next().unwrap_or(key)
 }
 
 /// The default noise every repo wants skipped, before policy excludes apply.

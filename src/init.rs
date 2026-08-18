@@ -198,7 +198,7 @@ fn write(root: &Path, rel: &str, body: &str, written: &mut Vec<String>) -> Resul
 pub fn refresh_fixtures(root: &Path, catalog: &Catalog) -> Result<Vec<String>> {
     let policy = Policy::load(root)?;
     let selected: Vec<&crate::catalog::Rule> =
-        catalog.rules.values().filter(|r| policy.enabled(&r.id).is_some()).collect();
+        catalog.rules.values().filter(|r| policy.any_instance_enabled(&r.id)).collect();
     let mut written = Vec::new();
     write_fixtures(root, &selected, &mut written)?;
     Ok(written)
@@ -219,14 +219,18 @@ pub fn seed_ratchet(root: &Path, catalog: &Catalog, months: i64) -> Result<(Ratc
         changed: None,
         base: None,
         today: clock::today(),
+        allow_commands: false,
     };
     let review_by = clock::plus_months(&ctx.today, months);
     let mut ratchet = Ratchet::default();
     let mut total = 0;
-    for (id, rule) in &catalog.rules {
-        if policy.enabled(id).is_none() || rule.ratchet == RatchetPolicy::None {
+    for (instance, base) in policy.instances() {
+        let Some(rule) = catalog.get(&base) else { continue };
+        if rule.ratchet == RatchetPolicy::None {
             continue;
         }
+        let rule = &checks::as_instance(rule, &instance);
+        let (id, _) = (&instance, ());
         let keys: BTreeSet<String> = checks::run_one(rule, &ctx)?
             .into_iter()
             .map(|f| f.key)
@@ -252,15 +256,15 @@ pub fn update_locks(root: &Path, catalog: &Catalog) -> Result<Vec<String>> {
         changed: None,
         base: None,
         today: clock::today(),
+        allow_commands: false,
     };
     let mut written = Vec::new();
-    for (id, rule) in &catalog.rules {
-        if policy.enabled(id).is_none() {
-            continue;
-        }
+    for (instance, base) in policy.instances() {
+        let Some(rule) = catalog.get(&base) else { continue };
         if !matches!(rule.check, crate::catalog::CheckKind::Lock) {
             continue;
         }
+        let rule = &checks::as_instance(rule, &instance);
         let opts = options_for(rule, &policy)?;
         if opts.scope.is_empty() {
             continue;
@@ -344,7 +348,7 @@ fn policy_document(opts: &InitOptions, selected: &[&crate::catalog::Rule], root:
 pub fn refresh_rules_document(root: &Path, catalog: &Catalog) -> Result<()> {
     let policy = Policy::load(root)?;
     let selected: Vec<&crate::catalog::Rule> =
-        catalog.rules.values().filter(|r| policy.enabled(&r.id).is_some()).collect();
+        catalog.rules.values().filter(|r| policy.any_instance_enabled(&r.id)).collect();
     let path = root.join("docs/rules.md");
     let existing = std::fs::read_to_string(&path).unwrap_or_default();
     let preamble: String = existing

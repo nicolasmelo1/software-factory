@@ -1,0 +1,29 @@
+id: L2.DERIVED_ARTIFACTS_MATCH_THEIR_SOURCE
+layer: L2
+title: Regenerating the derived artifacts changes nothing
+severity: critical
+statement: >-
+  A command that regenerates this repository's derived artifacts — an exported
+  API schema, a generated client, a compiled contract — runs and succeeds.
+  Configure it with `run`.
+why: >-
+  Some drift is only decidable by regenerating: export the schema, run the
+  generator, compare. No glob or query expresses that, and a hash lock cannot
+  either, because the artifact is supposed to change whenever its source does.
+  What must not happen is the two moving apart — most often when one lives in
+  a different repository from the other, so nothing in either checkout notices.
+  Running the regeneration is the only honest check, and what this adds over a
+  plain CI step is everything around it: the reason printed where it fails, a
+  mutation proving it still fails when it should, and a policy that cannot be
+  quietly loosened.
+fix: >-
+  Regenerate and commit the result, or fix the source so the regeneration
+  produces what is already committed. If the command itself is broken, that is
+  the finding — a generator nobody can run is a contract nobody can verify.
+ratchet: none
+check:
+  kind: command
+defaults:
+  # No default: the command is this repository's own. Until you set one the
+  # rule is inert, and L5.NO_INERT_RULE says so.
+  run: null

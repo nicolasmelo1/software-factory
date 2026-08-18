@@ -35,13 +35,17 @@ fn covers_a_declared_language<'a>(
 /// like a rule that is protecting you.
 fn inert_rules(rule: &Rule, ctx: &Ctx) -> Result<Vec<Finding>> {
     let mut findings = Vec::new();
-    for (id, candidate) in &ctx.catalog.rules {
-        if ctx.policy.enabled(id).is_none() {
+    for (instance, base) in ctx.policy.instances() {
+        let Some(candidate) = ctx.catalog.get(&base) else {
             continue;
-        }
+        };
+        let (id, candidate) = (&instance, &super::as_instance(candidate, &instance));
         let options = super::options_for(candidate, ctx.policy)?;
         let reason = match &candidate.check {
             CheckKind::Lock if options.scope.is_empty() => "no scope: it locks nothing",
+            CheckKind::Command if options.run.is_none() => {
+                "no command set: there is nothing for it to run"
+            }
             CheckKind::Toolchain if options.tools.is_empty() => {
                 "no tools declared: it can never find one missing"
             }
@@ -185,7 +189,7 @@ fn rule_citations(rule: &Rule, opts: &Options, ctx: &Ctx) -> Result<Vec<Finding>
     }
 
     let mut findings = Vec::new();
-    for (id, _) in ctx.catalog.rules.iter().filter(|(id, _)| ctx.policy.enabled(id).is_some()) {
+    for id in ctx.catalog.rules.keys().filter(|id| ctx.policy.any_instance_enabled(id)) {
         if !cited.contains(id) {
             findings.push(
                 Finding::new(
@@ -273,7 +277,7 @@ fn plan_cadence(rule: &Rule, opts: &Options, ctx: &Ctx) -> Result<Vec<Finding>> 
 /// is what proves it actually trips the rule.
 fn mutation_coverage(rule: &Rule, ctx: &Ctx) -> Result<Vec<Finding>> {
     let mut findings = Vec::new();
-    for (id, _) in ctx.catalog.rules.iter().filter(|(id, _)| ctx.policy.enabled(id).is_some()) {
+    for id in ctx.catalog.rules.keys().filter(|id| ctx.policy.any_instance_enabled(id)) {
         let fixture = ctx.root.join(FIXTURES_DIR).join(id);
         if !fixture.is_dir() {
             findings.push(

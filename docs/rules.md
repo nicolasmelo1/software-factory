@@ -112,6 +112,16 @@ Dependency manifests are hash-locked. A changed manifest without a matching lock
 
 **Fix.** If the dependency is intended, run `sf lock --update` in the same commit and say in the message what it buys. If it is incidental, remove it.
 
+### L2.DERIVED_ARTIFACTS_MATCH_THEIR_SOURCE
+
+**Regenerating the derived artifacts changes nothing**
+
+A command that regenerates this repository's derived artifacts — an exported API schema, a generated client, a compiled contract — runs and succeeds. Configure it with `run`.
+
+**Why.** Some drift is only decidable by regenerating: export the schema, run the generator, compare. No glob or query expresses that, and a hash lock cannot either, because the artifact is supposed to change whenever its source does. What must not happen is the two moving apart — most often when one lives in a different repository from the other, so nothing in either checkout notices. Running the regeneration is the only honest check, and what this adds over a plain CI step is everything around it: the reason printed where it fails, a mutation proving it still fails when it should, and a policy that cannot be quietly loosened.
+
+**Fix.** Regenerate and commit the result, or fix the source so the regeneration produces what is already committed. If the command itself is broken, that is the finding — a generator nobody can run is a contract nobody can verify.
+
 ### L2.FACTORY_CONFIG_IS_LOCKED
 
 **The guardrail's own configuration is hash-locked**

@@ -31,7 +31,28 @@ pub struct SourceFile {
 pub fn walk(root: &Path, policy: &Policy) -> Result<Vec<SourceFile>> {
     let excludes = globs(&policy.project.exclude)?;
     let mut files = Vec::new();
-    for entry in walkdir::WalkDir::new(root)
+    let mut seen = std::collections::BTreeSet::new();
+    collect(root, root, false, &excludes, &mut files, &mut seen)?;
+    for extra in &policy.project.roots {
+        collect(root, &root.join(extra), true, &excludes, &mut files, &mut seen)?;
+    }
+    files.sort_by(|a, b| a.rel.cmp(&b.rel));
+    Ok(files)
+}
+
+fn collect(
+    root: &Path,
+    start: &Path,
+    follow_links: bool,
+    excludes: &GlobSet,
+    files: &mut Vec<SourceFile>,
+    seen: &mut std::collections::BTreeSet<String>,
+) -> Result<()> {
+    if !start.exists() {
+        return Ok(());
+    }
+    for entry in walkdir::WalkDir::new(start)
+        .follow_links(follow_links)
         .sort_by_file_name()
         .into_iter()
         .filter_entry(|e| {
@@ -54,7 +75,7 @@ pub fn walk(root: &Path, policy: &Policy) -> Result<Vec<SourceFile>> {
             continue;
         };
         let rel = rel_path.to_string_lossy().replace('\\', "/");
-        if excludes.is_match(&rel) {
+        if excludes.is_match(&rel) || !seen.insert(rel.clone()) {
             continue;
         }
         files.push(SourceFile {
@@ -62,7 +83,7 @@ pub fn walk(root: &Path, policy: &Policy) -> Result<Vec<SourceFile>> {
             abs: entry.path().to_path_buf(),
         });
     }
-    Ok(files)
+    Ok(())
 }
 
 /// Files inside `scope` (empty scope means "everything") and outside `exclude`.

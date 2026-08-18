@@ -27,5 +27,13 @@ Candidate shapes, none obviously right yet:
 The third is the cheapest and catches the class of error that actually
 occurred. Prefer it unless a second kind of drift shows up first.
 
+**Partly closed.** `L2.DERIVED_ARTIFACTS_MATCH_THEIR_SOURCE` now runs
+`sf docs && git diff --exit-code -- docs/rules.md` on every check, so the
+document can no longer sit out of date with the catalog: adding a rule without
+regenerating fails, which is exactly how this was found again. What that does
+*not* catch is the original case — a rule whose `fix` names a command `sf` does
+not accept. The prose regenerates faithfully; it is the content of the prose
+that was wrong. The exit condition below is unchanged.
+
 **Exit condition:** a rule's `fix` naming a command that `sf` does not accept
 fails `sf check`, proven by a mutation fixture that does exactly that.
