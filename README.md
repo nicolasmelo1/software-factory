@@ -34,21 +34,20 @@ Everything else in this repository is a consequence of that sentence.
 Works on any repository, in any language. Nothing to configure first, and it
 will not change a line of your code.
 
-### 1. Install — 2 min
+### 1. Install — 1 min
 
 ```sh
-git clone https://github.com/nicolasmelo1/software-factory
-cargo install --path software-factory --locked
+cargo install --git https://github.com/nicolasmelo1/software-factory --locked
 ```
 
-One static binary, no runtime. The compile is most of the five minutes;
-everything below runs in under a second, even on a large monorepo. Keep the
-checkout — step 2 needs the skills in it.
+One static binary, no runtime, nothing to clone. It is a single compile —
+around a minute cold, a few seconds if you already have the crates cached.
+Everything below runs in well under a second, even on a large monorepo.
 
 ### 2. Set it up — 2 min
 
 ```sh
-cp -r software-factory/skills/* ~/.claude/skills/
+sf skills          # writes the agent skills to ~/.claude/skills
 ```
 
 Now, in your project, tell your agent:
@@ -463,6 +462,7 @@ violation is a visible line in a reviewed diff.
 | `sf explain <RULE>` | What the rule requires, why it exists, how to fix a violation |
 | `sf catalog` | List the rules. `--layer L0` |
 | `sf interview` | The decision tree an interview walks. `--json` for an agent |
+| `sf skills` | Write the agent skills to `~/.claude/skills`. `--dir` to place them elsewhere |
 | `sf ratchet` | Freeze today's violations. `--months N` |
 | `sf lock` | Rewrite hash locks from disk |
 | `sf fixtures` | Write the mutation fixtures for every enabled rule |
@@ -558,11 +558,12 @@ decision record stops describing what is enforced.
 
 ## The skills
 
-`skills/` holds four agent skills for Claude Code. Install them once:
+Four agent skills for Claude Code, shipped inside the binary so they cannot
+drift out of step with the `sf` they drive. Install them once:
 
 ```sh
-cp -r skills/* ~/.claude/skills/          # personal
-cp -r skills/* your-project/.claude/skills/   # or per project
+sf skills                              # ~/.claude/skills
+sf skills --dir your-project/.claude/skills   # or per project
 ```
 
 They load from their description when the conversation matches — you do not

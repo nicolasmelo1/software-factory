@@ -17,6 +17,7 @@ mod policy;
 mod ratchet;
 mod report;
 mod scan;
+mod skills;
 mod verify;
 
 use anyhow::Result;
@@ -108,6 +109,12 @@ enum Cmd {
     Fixtures,
     /// Regenerate the rule sections of docs/rules.md from the catalog.
     Docs,
+    /// Install the agent skills that drive this tool.
+    Skills {
+        /// Where to write them. Defaults to `~/.claude/skills`.
+        #[arg(long)]
+        dir: Option<PathBuf>,
+    },
     /// Print the decision tree an interview walks, and what each answer does.
     Interview {
         /// Machine-readable, for an agent conducting the interview.
@@ -180,20 +187,31 @@ fn main() {
 }
 
 fn dispatch(cli: Cli, root: PathBuf) -> Result<i32> {
+    // Split by whether the command writes: it keeps each arm list short, and
+    // it is the distinction someone reading this actually wants.
     match cli.command {
+        Cmd::Check { format, changed, rule } => cmd_check(root, format, changed, rule),
+        Cmd::Verify { rule } => cmd_verify(root, rule),
+        Cmd::Explain { rule } => cmd_explain(root, rule),
+        Cmd::Catalog { layer } => cmd_catalog(root, layer),
+        Cmd::Interview { json } => cmd_interview(json),
+        writing => dispatch_writing(writing, root),
+    }
+}
+
+fn dispatch_writing(command: Cmd, root: PathBuf) -> Result<i32> {
+    match command {
         Cmd::Init { name, language, layer, force, answers } => {
             cmd_init(root, name, language, layer, force, answers)
         }
-        Cmd::Check { format, changed, rule } => cmd_check(root, format, changed, rule),
-        Cmd::Explain { rule } => cmd_explain(root, rule),
-        Cmd::Catalog { layer } => cmd_catalog(root, layer),
         Cmd::Ratchet { months } => cmd_ratchet(root, months),
         Cmd::Lock => cmd_lock(root),
         Cmd::Fixtures => cmd_fixtures(root),
         Cmd::Docs => cmd_docs(root),
-        Cmd::Interview { json } => cmd_interview(json),
         Cmd::Seal { gate } => cmd_seal(root, gate),
-        Cmd::Verify { rule } => cmd_verify(root, rule),
+        Cmd::Skills { dir } => cmd_skills(dir),
+        // Every read-only command is handled above.
+        _ => unreachable!("read-only command routed to the writing dispatcher"),
     }
 }
 
@@ -201,6 +219,18 @@ fn local_catalog(root: &Path) -> Result<Catalog> {
     let mut catalog = Catalog::builtin()?;
     catalog.extend_from_dir(&root.join(RULES_DIR))?;
     Ok(catalog)
+}
+
+fn cmd_skills(dir: Option<PathBuf>) -> Result<i32> {
+    let dir = match dir {
+        Some(dir) => dir,
+        None => skills::default_dir()?,
+    };
+    for path in skills::install(&dir)? {
+        println!("wrote {path}");
+    }
+    println!("\nIn your project, tell your agent: \"set up software-factory in this repo\"");
+    Ok(EXIT_OK)
 }
 
 fn cmd_interview(json: bool) -> Result<i32> {

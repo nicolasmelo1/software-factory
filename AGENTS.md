@@ -41,6 +41,14 @@ ships.
 - **Rule ids are a public contract.** Every repository that adopted this tool
   pinned them. Renaming one is a breaking change.
 
+## Adding or editing a skill
+
+`skills/*/SKILL.md` are compiled into the binary and registered in
+`src/skills.rs`. A new skill needs an entry there in the same change, or
+`sf skills` silently ships three of four. They are embedded rather than copied
+from a checkout so that `cargo install --git` reaches them, and so a skill can
+never tell someone to run a subcommand their `sf` predates.
+
 ## Adding an interview decision or a template
 
 `interview/decisions.yaml` is the decision tree and `templates/` are the
