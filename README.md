@@ -44,6 +44,16 @@ One static binary, no runtime, nothing to clone. It is a single compile —
 around a minute cold, a few seconds if you already have the crates cached.
 Everything below runs in well under a second, even on a large monorepo.
 
+**If `sf` is then "command not found":** cargo installed it to `~/.cargo/bin`,
+which is not on your `PATH`. The `rustup` installer adds that directory for
+you; Homebrew, `apt` and Nix do not, and cargo says so in a warning at the end
+of the install that is easy to scroll past. Fix it once:
+
+```sh
+echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> ~/.zshrc && exec zsh
+#                                               ~/.bashrc for bash
+```
+
 ### 2. Set it up — 2 min
 
 ```sh
@@ -175,6 +185,7 @@ could not run" and "the repository has violations": `3` bootstrap failed,
 | Too many findings to face | `sf ratchet --months 6` freezes today's state. It is debt with a due date, not permission. |
 | A rule seems wrong | `sf explain <RULE>` gives the full reasoning. If it is genuinely wrong, change it — that is one of the four honest resolutions. |
 | Want to see everything available | `sf catalog`, and `sf interview` for the decisions that generate rules. |
+| `sf: command not found` after installing | `~/.cargo/bin` is not on your `PATH` — see step 1. |
 
 ---
 
