@@ -2,6 +2,33 @@
 
 **A method for building software with agents, packaged as a single binary that runs against any repository.**
 
+---
+
+## Why this exists
+
+Generating code stopped being the hard part. Generating the *right* code — code
+that fits the requirement, respects the boundary, and can be trusted without a
+senior engineer reconstructing the whole chain of intent behind it — is still
+the bottleneck. Teams solve it by hand-rolling an internal harness of prompts,
+conventions, review rituals and glue scripts, and then discover the harness has
+become a second codebase nobody budgeted for.
+
+`sf` is that harness, extracted from a working one, made language-neutral, and
+reduced to a single method:
+
+> **Every rule that matters is written twice — once as prose that says *why*,
+> once as a check that *fails*. And every check has a mutation that proves it
+> fires.**
+
+It ships 27 rules across seven layers — from where an error type may be defined
+to whether your CI still runs a vulnerability scanner — plus 4 rule templates an
+interview fills in with your own package and directory names. It protects its
+own configuration, so an agent cannot reach a green build by turning a rule off.
+
+Everything else in this repository is a consequence of that sentence.
+
+---
+
 ## Quickstart (5 minutes)
 
 Works on any repository, in any language. Nothing to configure first, and it
@@ -10,13 +37,46 @@ will not change a line of your code.
 ### 1. Install — 2 min
 
 ```sh
-cargo install --git https://github.com/nicolasmelo1/software-factory --locked
+git clone https://github.com/nicolasmelo1/software-factory
+cargo install --path software-factory --locked
 ```
 
 One static binary, no runtime. The compile is most of the five minutes;
-everything below runs in under a second, even on a large monorepo.
+everything below runs in under a second, even on a large monorepo. Keep the
+checkout — step 2 needs the skills in it.
 
-### 2. Set it up — 1 min
+### 2. Set it up — 2 min
+
+```sh
+cp -r software-factory/skills/* ~/.claude/skills/
+```
+
+Now, in your project, tell your agent:
+
+> **"Set up software-factory in this repo."**
+
+The [`factory-init`](skills/factory-init/SKILL.md) skill takes it from there. It
+reads your codebase first and answers whatever the code can answer itself —
+which framework, where the client lives, whether there are already
+`domain/`/`application/` directories. Then it asks you the rest in rounds, each
+question numbered, each with a recommendation:
+
+> ❓ **Q2** — **Architecture**: I can see `packages/*/domain/`, `application/`
+> and `infrastructure/`, so this looks domain-driven. But
+> `apps/api/src/routes/users.ts` opens a database connection directly. Is the
+> layering the intent or the reality?
+>
+> ➡️ I'd answer `ddd` and freeze today's 40 violations with a six-month review
+> date — but pick that deliberately, because it commits you to fixing them.
+
+Layered or DDD, repositories or ORM-in-services, Zod or Pydantic and where
+those schemas live, which packages the client must never import, whether
+anything shares mutable state across threads. Those answers generate rules
+carrying *your own* package names — not a generic starter set. See
+[The interview](#the-interview) for the full decision tree.
+
+<details>
+<summary><b>No agent? One command instead.</b></summary>
 
 ```sh
 cd ~/code/your-project
@@ -27,9 +87,12 @@ git config core.hooksPath .githooks
 Use `--language` for what you actually have: `python`, `typescript`, `go`,
 `rust`, or several comma-separated. `--layer L1,L4,L5,L6` is the honest day-one
 set — code quality, documentation cadence, the self-proving layer, and the
-security tooling. Structural rules come later, once you know your own shape.
+security tooling. You get the generic rules; the structural ones stay off until
+you run the interview or write them yourself.
 
-You will see something like:
+</details>
+
+Either way, you end up with something like:
 
 ```
 wrote 47 files:
@@ -105,23 +168,6 @@ Exit codes are hierarchical, so CI can tell the difference between "the tool
 could not run" and "the repository has violations": `3` bootstrap failed,
 `2` config error, `1` findings, `0` clean.
 
-### Then: let it interview you
-
-The step above gives you the generic rules. The rules that are actually about
-*your* architecture come from a five-minute conversation. If you use Claude
-Code:
-
-```sh
-cp -r skills/* ~/.claude/skills/
-```
-
-Then say **"set up software-factory in this repo"**. The
-[`factory-init`](skills/factory-init/SKILL.md) skill reads your codebase,
-answers what the code can answer, and asks you the rest — layered or DDD,
-repositories or ORM-in-services, Zod or Pydantic and where the schemas live,
-which packages the client must never import. Those answers generate rules
-carrying your own package names. See [The interview](#the-interview).
-
 ### If something goes wrong
 
 | | |
@@ -132,31 +178,6 @@ carrying your own package names. See [The interview](#the-interview).
 | Want to see everything available | `sf catalog`, and `sf interview` for the decisions that generate rules. |
 
 ---
-
----
-
-## Why this exists
-
-Generating code stopped being the hard part. Generating the *right* code — code
-that fits the requirement, respects the boundary, and can be trusted without a
-senior engineer reconstructing the whole chain of intent behind it — is still
-the bottleneck. Teams solve it by hand-rolling an internal harness of prompts,
-conventions, review rituals and glue scripts, and then discover the harness has
-become a second codebase nobody budgeted for.
-
-`sf` is that harness, extracted from a working one, made language-neutral, and
-reduced to a single method:
-
-> **Every rule that matters is written twice — once as prose that says *why*,
-> once as a check that *fails*. And every check has a mutation that proves it
-> fires.**
-
-It ships 27 rules across seven layers — from where an error type may be defined
-to whether your CI still runs a vulnerability scanner — plus 4 rule templates an
-interview fills in with your own package and directory names. It protects its
-own configuration, so an agent cannot reach a green build by turning a rule off.
-
-Everything else in this repository is a consequence of that sentence.
 
 ---
 
