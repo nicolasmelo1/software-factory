@@ -15,9 +15,11 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Install sf
-        run: cargo install --git https://github.com/nicolasmelo1/software-factory --locked
-      - name: Prove the checks still fire
-        run: sf verify
-      - name: Check the repository
-        run: sf check --changed origin/${{ github.base_ref || 'main' }}
+      # This repository builds sf from source rather than installing it: the
+      # thing under test must be the thing in the diff.
+      - name: Build
+        run: cargo build --release --locked
+      - name: Prove every check still fires
+        run: ./target/release/sf verify
+      - name: Check this repository against its own rules
+        run: ./target/release/sf check
