@@ -21,6 +21,9 @@ ratchet: allowlist
 check:
   kind: text_pattern
 defaults:
+  # A comment naming the escape hatch is usually the documentation telling you
+  # not to use it. The suppression rule deliberately does not set this.
+  ignore_comment_lines: true
   scope:
     - "**/*.py"
     - "**/*.ts"

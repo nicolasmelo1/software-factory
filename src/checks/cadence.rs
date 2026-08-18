@@ -199,8 +199,9 @@ fn rule_citations(rule: &Rule, opts: &Options, ctx: &Ctx) -> Result<Vec<Finding>
             );
         }
     }
+    let templates = crate::interview::template_rule_ids();
     for (id, location) in &where_cited {
-        if ctx.catalog.get(id).is_none() {
+        if ctx.catalog.get(id).is_none() && !templates.contains(id) {
             findings.push(
                 Finding::new(
                     &rule.id,

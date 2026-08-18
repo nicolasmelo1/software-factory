@@ -41,6 +41,19 @@ ships.
 - **Rule ids are a public contract.** Every repository that adopted this tool
   pinned them. Renaming one is a breaking change.
 
+## Adding an interview decision or a template
+
+`interview/decisions.yaml` is the decision tree and `templates/` are the
+parameterised rules it instantiates. Both are data on purpose: the mapping from
+an answer to a rule must not be a judgement any individual agent gets to make,
+or two people interviewing the same team end up with different policies.
+
+A template carries its own `fixture:` block and is validated when filled in, so
+a template that produces an unrunnable rule fails at `sf init` rather than in
+somebody's repository. Placeholders are `@@name@@`, never `${name}` — fixtures
+contain real source in four languages and `${...}` is a template literal in two
+of them.
+
 ## Adding a language
 
 A grammar in `src/lang.rs` (node kinds that open a function, node kinds that

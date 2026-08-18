@@ -61,6 +61,10 @@ pub struct Options {
     /// the same scope is the hazard", which is how nested locking is stated.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub min_inner: Option<usize>,
+    /// Skip lines that are entirely a comment. Opt-in, because a rule about
+    /// suppression comments needs exactly the opposite.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub ignore_comment_lines: bool,
 }
 
 /// Shallow merge: keys present in `over` win, everything else falls through to

@@ -1,0 +1,57 @@
+id: L0.SCHEMAS_LIVE_WITH_THEIR_HANDLER
+layer: L0
+title: Request and response schemas are defined beside the handler that uses them
+severity: medium
+statement: >-
+  A validation schema is defined in the module that handles the request, not in
+  a shared types or schemas module.
+why: >-
+  A schema is the only place a boundary is actually described. Moved into a
+  shared module it stops being about any one endpoint: the handler no longer
+  shows what it accepts, the shared file grows into a dumping ground nobody
+  owns, and changing one endpoint's shape starts looking like it might break
+  four others. An agent asked to add a field will put it wherever the other
+  fields are, so where the other fields are is the whole decision.
+fix: >-
+  Move the schema into the handler module and name it after the use case. Only
+  extract one when several handlers genuinely share a stable contract, and then
+  the extraction is the deliberate act.
+ratchet: allowlist
+check:
+  kind: shape
+  languages:
+    python:
+      query: |
+        (class_definition
+          superclasses: (argument_list (identifier) @base
+            (#match? @base "^(BaseModel|Schema)$"))
+          name: (identifier) @name) @target
+    typescript:
+      query: |
+        (variable_declarator
+          name: (identifier) @name
+          value: (call_expression
+            function: (member_expression object: (identifier) @lib
+              (#eq? @lib "z")))) @target
+defaults:
+  must_not_live_in:
+    - "**/types.py"
+    - "**/schemas.py"
+    - "**/schemas/**"
+    - "**/types.ts"
+    - "**/schemas.ts"
+fixture:
+  - path: "src/api/schemas.py"
+    body: |
+      from pydantic import BaseModel
+
+
+      class CreateOrderRequest(BaseModel):
+          """Defined in a shared dumping ground instead of beside its handler."""
+
+          sku: str
+  - path: "src/api/schemas.ts"
+    body: |
+      import { z } from "zod";
+
+      export const createOrderRequest = z.object({ sku: z.string() });

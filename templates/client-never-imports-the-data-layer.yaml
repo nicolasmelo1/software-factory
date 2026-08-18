@@ -1,0 +1,39 @@
+id: L0.CLIENT_NEVER_IMPORTS_THE_DATA_LAYER
+layer: L0
+title: Client code never imports the data layer directly
+severity: critical
+statement: >-
+  Nothing under the client application imports @@data_layer_packages@@. The
+  client talks to the server, and the server talks to the database.
+why: >-
+  This boundary is usually already true and usually nothing keeps it that way.
+  The first import of a database client into a component is not a compile
+  error: it builds, it works in development, and it either ships connection
+  credentials into a browser bundle or drags a driver into the client build. An
+  agent adding a feature reaches for the shortest path to the data, which is
+  exactly this import. Freezing a property you already satisfy costs nothing
+  and is the cheapest guardrail available.
+fix: >-
+  Read the data through the server — an API route, a server action, a loader,
+  or the shared API package. If it genuinely has to reach the client, it goes
+  as a serialised response, not as a driver.
+ratchet: allowlist
+check:
+  kind: shape
+  languages:
+    typescript:
+      query: |
+        (import_statement
+          source: (string) @name
+          (#match? @name "@@data_layer_packages_pattern@@")) @target
+defaults:
+  must_not_live_in: @@client_root_globs@@
+fixture:
+  - path: "@@client_root_first@@/factory-fixture-component.tsx"
+    body: |
+      import { db } from "@@data_layer_packages_first@@";
+
+      export async function UsageTable() {
+        const rows = await db.query.usage.findMany();
+        return <table>{rows.length}</table>;
+      }

@@ -1,0 +1,47 @@
+id: L1.NO_FETCH_INSIDE_AN_EFFECT
+layer: L1
+title: Data fetching does not happen inside an effect
+severity: high
+statement: >-
+  No `fetch`, `axios` or client call appears inside `useEffect`. Data comes
+  from the query layer.
+why: >-
+  Fetching in an effect is the single most reproduced React pattern in every
+  training corpus, so it is what an agent writes when nothing says otherwise —
+  and it reintroduces, by hand and badly, everything the query cache exists to
+  handle: double requests under strict mode, races where a slow response
+  overwrites a fast one, no deduplication, no cache, no retry, and a loading
+  flag that lies after unmount. The failures are all timing-dependent, so they
+  survive review and appear in production.
+fix: >-
+  Move the call into the query layer — `useQuery`, a loader, or a server
+  component — and let the component read the result. If the effect is genuinely
+  a subscription rather than a fetch, it is not what this rule matches.
+ratchet: allowlist
+check:
+  kind: nested
+  languages:
+    typescript:
+      outer: |
+        (call_expression
+          function: (identifier) @hook
+          (#match? @hook "^(useEffect|useLayoutEffect)$")) @target
+      inner: |
+        (call_expression function: (identifier) @fn
+          (#match? @fn "^(fetch)$")) @inner
+        (call_expression function: (member_expression object: (identifier) @obj
+          (#match? @obj "^(axios|api|client|http)$")) ) @inner
+defaults:
+  min_inner: 1
+fixture:
+  - path: "src/components/usage.tsx"
+    body: |
+      export function Usage({ id }: { id: string }) {
+        const [data, setData] = useState(null);
+        useEffect(() => {
+          fetch(`/api/usage/${id}`)
+            .then((r) => r.json())
+            .then(setData);
+        }, [id]);
+        return <pre>{JSON.stringify(data)}</pre>;
+      }

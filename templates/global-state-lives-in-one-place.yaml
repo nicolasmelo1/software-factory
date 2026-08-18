@@ -1,0 +1,42 @@
+id: L0.GLOBAL_STATE_LIVES_IN_ONE_PLACE
+layer: L0
+title: Global stores are created in one directory
+severity: medium
+statement: >-
+  A store is created only in the project's store directory, never inline in a
+  component or hook file.
+why: >-
+  A store created next to the component that first needed it is invisible to
+  everyone else, so the next person writes a second one for the same data, and
+  now two sources of truth disagree under some sequence of updates nobody
+  reproduces. In a component module it can also be recreated on re-render,
+  which silently resets the state it was supposed to preserve. One directory
+  makes the entire global state of the app answerable by listing a folder.
+fix: >-
+  Move the store into the store directory and import it. If the state is not
+  actually global, it should be component state or a query, not a store.
+ratchet: allowlist
+check:
+  kind: shape
+  languages:
+    typescript:
+      query: |
+        (call_expression
+          function: (identifier) @fn
+          (#match? @fn "^(create|createStore|configureStore|atom|atomWithStorage)$")) @target
+defaults:
+  must_live_in:
+    - "**/stores/**"
+    - "**/store/**"
+    - "**/state/**"
+fixture:
+  - path: "src/components/filter-bar.tsx"
+    body: |
+      import { create } from "zustand";
+
+      const useFilters = create((set) => ({ query: "", set }));
+
+      export function FilterBar() {
+        const query = useFilters((s) => s.query);
+        return <input value={query} />;
+      }

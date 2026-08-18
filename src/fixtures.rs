@@ -347,6 +347,16 @@ pub fn fixture_policy(fixture: &Fixture) -> String {
     )
 }
 
+/// The policy a template-generated rule's fixture runs under.
+pub fn minimal_policy(rule_id: &str) -> String {
+    format!(
+        "# Generated mutation fixture for {rule_id}. It is supposed to fail.\n\
+         version: 1\n\
+         project:\n  name: mutation\n  languages: [python, typescript, go, rust]\n\
+         rules:\n  {rule_id}:\n    enabled: true\n"
+    )
+}
+
 pub fn for_rule(rule: &str) -> Option<&'static Fixture> {
     FIXTURES.iter().find(|f| f.rule == rule)
 }

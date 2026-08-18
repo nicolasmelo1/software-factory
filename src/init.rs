@@ -9,7 +9,7 @@ use crate::catalog::{Catalog, Layer, RatchetPolicy};
 use crate::checks::{self, Ctx, options_for};
 use crate::clock;
 use crate::fixtures;
-use crate::policy::{FIXTURES_DIR, POLICY_PATH, Policy};
+use crate::policy::{FIXTURES_DIR, POLICY_PATH, Policy, RULES_DIR};
 use crate::ratchet::Ratchet;
 use crate::scan;
 use anyhow::{Result, bail};
@@ -21,6 +21,10 @@ pub struct InitOptions {
     pub languages: Vec<String>,
     pub layers: Vec<String>,
     pub force: bool,
+    /// What an interview decided, if one was run. Without it `init` scaffolds
+    /// the default layers and nothing is tailored to this repository.
+    pub plan: Option<crate::interview::Plan>,
+    pub answers: Option<crate::interview::Answers>,
 }
 
 pub fn run(root: &Path, catalog: &Catalog, opts: &InitOptions) -> Result<Vec<String>> {
@@ -29,11 +33,10 @@ pub fn run(root: &Path, catalog: &Catalog, opts: &InitOptions) -> Result<Vec<Str
         bail!("{} already exists — pass --force to overwrite", policy_path.display());
     }
 
-    let selected: Vec<&crate::catalog::Rule> = catalog
-        .rules
-        .values()
-        .filter(|r| opts.layers.iter().any(|l| l == r.layer.as_str()))
-        .collect();
+    // The interview can pull a rule in from a layer that was not selected —
+    // saying "we use repositories" enables the L0 rule even on a day-one
+    // L1/L4/L5 install, because the person just said the boundary is real.
+    let selected = select_rules(catalog, opts);
     if selected.is_empty() {
         bail!("no rules match the requested layers");
     }
@@ -41,6 +44,9 @@ pub fn run(root: &Path, catalog: &Catalog, opts: &InitOptions) -> Result<Vec<Str
     let mut written = Vec::new();
     write(root, POLICY_PATH, &policy_document(opts, &selected, root), &mut written)?;
     write(root, "docs/rules.md", &rules_document(opts, &selected), &mut written)?;
+    if let (Some(plan), Some(answers)) = (&opts.plan, &opts.answers) {
+        write_from_interview(root, plan, answers, &mut written)?;
+    }
     write_cadence_files(root, &selected, &mut written)?;
     write(
         root,
@@ -51,6 +57,63 @@ pub fn run(root: &Path, catalog: &Catalog, opts: &InitOptions) -> Result<Vec<Str
     write_automation(root, &mut written)?;
     write_fixtures(root, &selected, &mut written)?;
     Ok(written)
+}
+
+/// Rules the interview asked for that are not in the catalog: templates with
+/// this repository's own names filled in, each with the fixture that proves it
+/// fires, plus the record of who decided what.
+fn write_from_interview(
+    root: &Path,
+    plan: &crate::interview::Plan,
+    answers: &crate::interview::Answers,
+    written: &mut Vec<String>,
+) -> Result<()> {
+    for name in &plan.templates {
+        let built = crate::interview::instantiate(name, &plan.vars)?;
+        write(root, &format!("{RULES_DIR}/{name}.yaml"), &built.body, written)?;
+        let base = format!("{FIXTURES_DIR}/{}", built.rule.id);
+        write(
+            root,
+            &format!("{base}/{POLICY_PATH}"),
+            &fixtures::minimal_policy(&built.rule.id),
+            written,
+        )?;
+        for (path, body) in &built.fixture {
+            write(root, &format!("{base}/{path}"), body, written)?;
+        }
+    }
+    write(root, "docs/architecture-decisions.md", &decision_record(answers)?, written)?;
+    Ok(())
+}
+
+/// What was decided, in the words of the interview, next to the rules it
+/// produced. A rule whose reason is only in someone's memory is a rule that
+/// gets deleted the first time it is inconvenient.
+fn decision_record(answers: &crate::interview::Answers) -> Result<String> {
+    let interview = crate::interview::Interview::load()?;
+    let mut out = String::from(
+        "# Architecture decisions\n\n\
+         Answers from the `factory-init` interview, and the rules each one\n\
+         produced. Change an answer here and re-run `sf init --answers` rather\n\
+         than editing the generated policy by hand: the answer is the decision,\n\
+         the policy is its consequence.\n",
+    );
+    for (id, answer) in &answers.answers {
+        let Some(decision) = interview.get(id) else { continue };
+        let chosen = decision
+            .options
+            .iter()
+            .find(|o| o.id == *answer)
+            .map(|o| o.label.clone())
+            .unwrap_or_else(|| answer.clone());
+        out.push_str(&format!("\n## {}\n\n**{}**\n\n{}\n", decision.question, chosen, decision.why));
+        if let Some(note) =
+            decision.options.iter().find(|o| o.id == *answer).and_then(|o| o.note.clone())
+        {
+            out.push_str(&format!("\n{note}\n"));
+        }
+    }
+    Ok(out)
 }
 
 /// The files L4 rules need in order to be about anything.
@@ -99,6 +162,25 @@ fn write_fixtures(
         }
     }
     Ok(())
+}
+
+/// Rules to switch on: the requested layers, plus anything an interview
+/// answer justified, minus anything an answer ruled out. Saying "we use
+/// repositories" turns the L0 rule on even on a day-one L1/L4/L5 install,
+/// because the person just told you the boundary is real.
+fn select_rules<'a>(catalog: &'a Catalog, opts: &InitOptions) -> Vec<&'a crate::catalog::Rule> {
+    let enabled: Vec<String> =
+        opts.plan.as_ref().map(|p| p.enable.iter().cloned().collect()).unwrap_or_default();
+    let disabled: Vec<String> =
+        opts.plan.as_ref().map(|p| p.disable.iter().cloned().collect()).unwrap_or_default();
+    catalog
+        .rules
+        .values()
+        .filter(|r| {
+            (opts.layers.iter().any(|l| l == r.layer.as_str()) || enabled.contains(&r.id))
+                && !disabled.contains(&r.id)
+        })
+        .collect()
 }
 
 fn write(root: &Path, rel: &str, body: &str, written: &mut Vec<String>) -> Result<()> {
@@ -203,6 +285,14 @@ fn dependency_manifests(root: &Path) -> Vec<String> {
         .collect()
 }
 
+fn interview_options(opts: &InitOptions, rule_id: &str) -> Option<String> {
+    let value = opts.plan.as_ref()?.options.get(rule_id)?;
+    let rendered = serde_yaml::to_string(value).ok()?;
+    let indented: String =
+        rendered.lines().map(|line| format!("      {line}\n")).collect();
+    Some(format!("    options:\n{indented}"))
+}
+
 fn policy_document(opts: &InitOptions, selected: &[&crate::catalog::Rule], root: &Path) -> String {
     let mut out = String::new();
     out.push_str(
@@ -223,6 +313,10 @@ fn policy_document(opts: &InitOptions, selected: &[&crate::catalog::Rule], root:
     for rule in selected {
         out.push_str(&format!("  # {} — {}\n", rule.layer.as_str(), rule.title));
         out.push_str(&format!("  {}:\n    enabled: true\n", rule.id));
+        if let Some(block) = interview_options(opts, &rule.id) {
+            out.push_str(&block);
+            continue;
+        }
         // The guardrail's own lock ships with the right scope; the others
         // cannot be guessed, so they are filled from what is actually here.
         if rule.id == "L2.DEPENDENCIES_CHANGE_DELIBERATELY" {

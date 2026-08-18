@@ -16,7 +16,7 @@ reduced to a single method:
 > once as a check that *fails*. And every check has a mutation that proves it
 > fires.**
 
-It ships 26 rules across seven layers, from where an error type may be defined
+It ships 27 rules across seven layers, plus 4 rule templates an interview fills in with your own package and directory names,, from where an error type may be defined
 to whether your CI still runs a vulnerability scanner — and it protects its own
 configuration, so an agent cannot get to a green build by turning a rule off.
 
@@ -28,6 +28,7 @@ Everything else in this repository is a consequence of that sentence.
 
 ```sh
 cargo install --git https://github.com/nicolasmelo1/software-factory --locked
+cp -r software-factory/skills/* ~/.claude/skills/    # optional, see below
 
 cd ~/code/your-project
 sf init                    # policy, docs, CI, hooks, mutation fixtures, seeded ratchet
@@ -36,6 +37,12 @@ git config core.hooksPath .githooks
 sf verify                  # prove every enabled check actually fires
 sf check                   # see what is live
 ```
+
+Better, if you have an agent: say **"set up software-factory in this repo"** and
+let the [`factory-init`](skills/factory-init/SKILL.md) skill interview you
+first. Bare `sf init` gives you the generic rules; the interview gives you the
+ones your architecture actually justifies. See
+[The interview](#the-interview) below.
 
 `sf init` is not a config file drop. It writes the enforcement *and* the
 fixtures that prove the enforcement works, generates the document that explains
@@ -66,8 +73,10 @@ failure instead of leaving it in a document nobody opens.
 
 ## The seven layers
 
-The numbers are identity, not sequence — 26 rules, grouped by what they are
+The numbers are identity, not sequence — grouped by what they are
 about. The adoption order is below, and it is different.
+
+27 rules, plus 4 templates the interview instantiates with your own names.
 
 | | Layer | What it checks |
 |---|---|---|
@@ -343,6 +352,7 @@ violation is a visible line in a reviewed diff.
 | `sf verify` | Prove every enabled rule fires on its mutation fixture |
 | `sf explain <RULE>` | What the rule requires, why it exists, how to fix a violation |
 | `sf catalog` | List the rules. `--layer L0` |
+| `sf interview` | The decision tree an interview walks. `--json` for an agent |
 | `sf ratchet` | Freeze today's violations. `--months N` |
 | `sf lock` | Rewrite hash locks from disk |
 | `sf fixtures` | Write the mutation fixtures for every enabled rule |
@@ -355,19 +365,190 @@ findings, `0` clean.
 
 ---
 
-## Skills
+## The interview
 
-`skills/` holds three agent skills. Their job is to *author policy and produce
-evidence* — never to remember rules, which is what the binary is for.
+Bare `sf init` cannot know whether you use repositories or call the ORM from
+services, whether errors live per-module or in one file, or which package the
+client must never import. So it enables the generic rules and leaves the
+structural ones off.
 
-| Skill | Role |
-|---|---|
-| `factory-author` | Turn a requirement into policy: gates, activation paths, required assertions |
-| `factory-evidence` | Run the proof and seal a manifest that survives re-verification |
-| `factory-triage` | Read a report, explain what actually broke, fix it or argue the rule |
+The interview fixes that, and it is deliberately split in two:
 
-The rule they all enforce: **an agent proposes policy, a human merges it.** That
-is the only thread separating a factory from an agent grading its own work.
+- **The conversation belongs to the agent.** It reads your repo, answers what
+  the code can answer, and pushes back when you say "layered" and a route
+  handler opens a database connection.
+- **The mapping does not.** Which rules an answer produces lives in
+  `sf interview`, as data. Two agents interviewing the same team land on the
+  same policy — otherwise it is just each agent's taste with extra steps.
+
+```sh
+sf interview          # the decision tree, and what each answer enforces
+sf interview --json   # the same, for an agent conducting it
+```
+
+Twelve decisions, walked as a tree in rounds: what the repository is, how it is
+organised, which framework, how code reaches the database, where error types
+live, what validates the boundary and where those schemas sit, how the client
+fetches and stores state, which packages the client may never import, whether
+anything shares mutable state across threads, and what is generated rather than
+written.
+
+Answers go in a file, and the file is the decision:
+
+```yaml
+# .software-factory/answers.yaml
+version: 1
+answers:
+  kind: backend-service
+  architecture: hexagonal
+  framework: fastapi
+  data_access: repositories
+  errors_home: per-module
+  validation: pydantic
+  validation_placement: with-the-handler
+  concurrency: shared-state
+  generated: "src/generated/**, **/*_pb2.py"
+```
+
+```sh
+sf init --language python --layer L1,L4,L5,L6 --answers .software-factory/answers.yaml
+```
+
+That enables the L0 rules those answers justify (and only those), points them
+at the right directories, switches off the ones that cannot mean anything here,
+instantiates **repo-specific rules from templates** with your own package names
+filled in — each with a fixture proving it fires — and writes
+`docs/architecture-decisions.md` recording who decided what.
+
+A real example, on a TypeScript monorepo with a Next.js client:
+
+```
+$ sf init --language typescript --layer L1,L4,L5,L6 --answers answers.yaml
+  .software-factory/rules/client-never-imports-the-data-layer.yaml
+  .software-factory/rules/no-fetch-inside-an-effect.yaml
+  docs/architecture-decisions.md
+  .software-factory/ratchet.yaml (118 existing violations frozen)
+
+$ sf verify
+14/14 enabled rules proven to fire
+
+$ sf check
+✓ 14 rules, no findings (118 frozen by the ratchet)
+```
+
+The generated `L0.CLIENT_NEVER_IMPORTS_THE_DATA_LAYER` carries that repo's
+actual package names in its tree-sitter query and its own `apps/web/**` in the
+constraint. It found zero violations — the boundary already held, and now
+nothing can quietly break it.
+
+Change an answer and re-run. Do not hand-edit the generated policy, or the
+decision record stops describing what is enforced.
+
+---
+
+## The skills
+
+`skills/` holds four agent skills for Claude Code. Install them once:
+
+```sh
+cp -r skills/* ~/.claude/skills/          # personal
+cp -r skills/* your-project/.claude/skills/   # or per project
+```
+
+They load from their description when the conversation matches — you do not
+type their names, you describe the problem. Their job is to **author policy and
+produce evidence**, never to remember rules; that is what the binary is for.
+
+One boundary runs through all four: **an agent proposes policy, a human merges
+it.** That is the only thread separating a factory from a system grading its own
+homework, and no amount of tooling substitutes for it.
+
+### `factory-init` — setting up, or when the architecture changes
+
+The one you use first. It runs the interview above.
+
+> **You:** "Set up software-factory in this repo."
+
+It reads the codebase before asking anything, answers what the code can answer,
+and asks in rounds — each question numbered, each with a recommendation:
+
+> ❓ **Q2** — **Architecture**: I can see `packages/*/domain/`,
+> `application/` and `infrastructure/`, so this looks domain-driven. But
+> `apps/api/src/routes/users.ts` opens a database connection directly. Is the
+> layering the intent or the reality?
+>
+> ➡️ I'd answer `ddd` and freeze today's 40 violations with a six-month review
+> date, rather than `none-yet` — but I want you to pick that deliberately,
+> because it is a commitment to fix them.
+
+Then it applies the answers, and reads the result back to you in numbers: what
+was frozen and when it comes due, which rules were switched **off** and why,
+which repo-specific rules were generated. Re-run it whenever an architectural
+decision changes.
+
+### `factory-author` — when you hear yourself repeating a review comment
+
+You are lead on a TypeScript monorepo. It is the third time this month you have
+written *"don't import the db directly in a component, go through the API"*.
+
+> **You:** "Third PR this month where someone imports `@acme/db` inside
+> `apps/web`. I want this to stop being my comment and become a check."
+
+It does not say "good idea, I'll remember". It checks the rule does not already
+exist (`sf catalog`), writes the YAML with a mandatory `why` — written for the
+person who will want to delete this rule in a year — writes the smallest
+repository that violates it, runs `sf verify --rule`, and **if it does not fire
+it fixes the rule, not the fixture.** Then `sf ratchet` if there is existing
+debt, and it tells you how many it froze and when they come due.
+
+What you get is a pull request: a rule, a fixture, a section in the rules
+document. You read it and merge it.
+
+Its other trigger is opening a phase of work — *"I'm rewriting billing, I want a
+completion gate"* — where it designs the activation paths and required
+assertions, and insists the assertions be observations read back from the
+system, not claims the actor makes about itself.
+
+### `factory-evidence` — when a gate is red and you have to prove something
+
+> **You:** "The checkout gate is `stale` and I need to merge today."
+
+`stale` means the code changed since the evidence was sealed. The tempting move
+— and the one the skill is explicitly told not to make — is to re-run `sf seal`
+and move on. That is a lie with a hash on it.
+
+It runs the real thing: starts the app, drives it through the entry point a
+customer would use, collects the observations, writes the report, and only then
+seals. And it tells you plainly when an assertion did not pass:
+
+> *"`refund.settled` came back `unsupported` — the harness could not evaluate
+> it. That is not a pass. The finding is the product's behaviour, not the gate."*
+
+If the gate cannot go green, it stops and says so. A gate that will not pass is
+usually reporting a real defect, and the defect is worth more than the build.
+
+### `factory-triage` — the daily one
+
+> **You:** "CI is red, 12 findings, sort it out."
+
+It reads the report (which already carries each rule's reasoning) and works in a
+specific order: **`sf verify` failures first** — a rule that stopped firing
+means every green build since then proved nothing.
+
+The part that earns its disk space is the list of what is **not** a resolution:
+widening a glob, adding a ratchet key for a violation you just wrote, pushing a
+`review_by` out, disabling the rule, suppressing at the source. In a diff, each
+of those is indistinguishable from a fix. The skill is told to name which one it
+would pick, say why, **and stop**.
+
+It has four honest resolutions, and one of them is *fix the rule*. If the rule
+is wrong, you change it deliberately, update its `why`, and re-run `verify`.
+That happened while building this: the `Exit condition` marker did not accept
+`**bold**`. The rule was wrong, not the document.
+
+The safety net underneath is mechanical now — if it (or any agent) tries to
+disable a rule to go green, `L2.POLICY_ONLY_TIGHTENS` catches it, and it
+survives even if the agent runs `sf lock` to cover the trail.
 
 ---
 
@@ -388,7 +569,7 @@ method nobody will adopt.
 `sf` is written in Rust and Rust is one of its target languages, so this
 repository runs its own rules against its own source, with its own mutation
 fixtures, in its own CI: **23 rules enabled, 23 proven to fire, no findings.**
-Three of the 26 are switched off here and one is frozen with a review date,
+Three of the 27 are switched off here and one is frozen with a review date,
 each as a written decision in [`docs/rules.md`](docs/rules.md) — because
 `L5.NO_INERT_RULE` refuses to let a rule be enabled and pointed at nothing.
 

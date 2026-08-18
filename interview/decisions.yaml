@@ -1,0 +1,312 @@
+version: 1
+
+# The decision tree an interview walks. It lives here, as data, for one
+# reason: two agents interviewing the same person must produce the same
+# policy. The conversation is the agent's job; the mapping from an answer to
+# a rule is not a judgement call it gets to make.
+#
+# `detect` is a fact, not a decision. If the globs match, the agent answers it
+# by reading the repository instead of asking.
+
+decisions:
+  - id: kind
+    question: What is this repository?
+    why: >-
+      It decides which rule families can mean anything here. Half the catalog
+      is about an HTTP surface that a CLI does not have.
+    options:
+      - id: backend-service
+        label: A backend service with an HTTP or RPC surface
+      - id: web-client
+        label: A web client
+        effects:
+          disable:
+            - L0.ONE_ENTRYPOINT_PER_FILE
+            - L0.PERSISTENCE_STAYS_IN_REPOSITORIES
+            - L6.NO_BLOCKING_CALL_WHILE_HOLDING_A_LOCK
+            - L6.ONE_LOCK_AT_A_TIME
+            - L6.DATA_RACES_ARE_DETECTED
+      - id: mobile-client
+        label: A mobile client
+        effects:
+          disable:
+            - L0.ONE_ENTRYPOINT_PER_FILE
+            - L0.PERSISTENCE_STAYS_IN_REPOSITORIES
+            - L6.NO_BLOCKING_CALL_WHILE_HOLDING_A_LOCK
+            - L6.ONE_LOCK_AT_A_TIME
+            - L6.DATA_RACES_ARE_DETECTED
+      - id: cli
+        label: A command-line tool
+        effects:
+          disable:
+            - L0.ONE_ENTRYPOINT_PER_FILE
+      - id: library
+        label: A library other code imports
+        effects:
+          disable:
+            - L0.ONE_ENTRYPOINT_PER_FILE
+
+  - id: architecture
+    question: How is the code organised, or how do you intend to organise it?
+    depends_on: {kind: [backend-service, cli, library]}
+    why: >-
+      This is the single answer that produces the most rules, because every
+      layered architecture is a claim about which code may call which — and
+      that claim is exactly what erodes first under agent-heavy work.
+    detect:
+      ddd: ["**/domain/**", "**/application/**", "**/infrastructure/**"]
+      hexagonal: ["**/ports/**", "**/adapters/**"]
+      layered: ["**/controllers/**", "**/services/**", "**/repositories/**"]
+      modular-monolith: ["**/modules/*/", "**/features/*/"]
+    options:
+      - id: layered
+        label: "Layered: controllers or handlers, then services, then repositories"
+        effects:
+          enable: [L0.PERSISTENCE_STAYS_IN_REPOSITORIES, L0.ONE_ENTRYPOINT_PER_FILE, L0.EXCEPTIONS_HAVE_ONE_HOME]
+          options:
+            L0.PERSISTENCE_STAYS_IN_REPOSITORIES:
+              must_live_in: ["**/repositories/**", "**/repository/**"]
+            L0.ONE_ENTRYPOINT_PER_FILE:
+              scope: ["**/controllers/**", "**/handlers/**", "**/routes/**"]
+      - id: ddd
+        label: "Domain-driven: domain, application and infrastructure layers"
+        effects:
+          enable: [L0.PERSISTENCE_STAYS_IN_REPOSITORIES, L0.EXCEPTIONS_HAVE_ONE_HOME, L0.NO_CROSS_LAYER_IMPORT]
+          options:
+            L0.PERSISTENCE_STAYS_IN_REPOSITORIES:
+              must_live_in: ["**/infrastructure/**", "**/repositories/**"]
+            L0.EXCEPTIONS_HAVE_ONE_HOME:
+              must_live_in: ["**/domain/**/exceptions.*", "**/domain/**/errors.*"]
+      - id: hexagonal
+        label: "Hexagonal: a core with ports, and adapters at the edges"
+        effects:
+          enable: [L0.PERSISTENCE_STAYS_IN_REPOSITORIES, L0.NO_CROSS_LAYER_IMPORT, L0.EXCEPTIONS_HAVE_ONE_HOME]
+          options:
+            L0.PERSISTENCE_STAYS_IN_REPOSITORIES:
+              must_live_in: ["**/adapters/**", "**/infrastructure/**"]
+      - id: modular-monolith
+        label: "Feature modules, each owning its own layers"
+        effects:
+          enable: [L0.EXCEPTIONS_HAVE_ONE_HOME, L0.ONE_ENTRYPOINT_PER_FILE]
+          options:
+            L0.ONE_ENTRYPOINT_PER_FILE:
+              scope: ["**/modules/**", "**/features/**"]
+      - id: none-yet
+        label: "No convention yet — this is early"
+        note: >-
+          The right answer more often than people admit. Cementing a shape you
+          have seen twice is how you cement the wrong one. Come back after the
+          third occurrence of a pattern; L1, L4, L5 and L6 are worth having
+          today regardless.
+        effects:
+          disable: [L0.PERSISTENCE_STAYS_IN_REPOSITORIES, L0.ONE_ENTRYPOINT_PER_FILE, L0.NO_CROSS_LAYER_IMPORT]
+
+  - id: framework
+    question: Which HTTP framework?
+    depends_on: {kind: [backend-service]}
+    why: >-
+      It decides what a route declaration looks like, which is what the
+      one-entrypoint-per-file rule has to recognise.
+    detect:
+      fastapi: ["**/requirements*.txt", "pyproject.toml"]
+      express: ["package.json"]
+      gin: ["go.mod"]
+    options:
+      - id: fastapi
+        label: FastAPI
+      - id: django
+        label: Django
+        effects:
+          options:
+            L0.ONE_ENTRYPOINT_PER_FILE:
+              scope: ["**/views/**", "**/views.py"]
+      - id: flask
+        label: Flask
+      - id: express
+        label: Express or Fastify
+      - id: nest
+        label: NestJS
+        effects:
+          options:
+            L0.ONE_ENTRYPOINT_PER_FILE:
+              scope: ["**/*.controller.ts"]
+      - id: hono
+        label: Hono
+      - id: gin
+        label: Gin, Echo or chi
+      - id: other
+        label: Something else, or none
+
+  - id: data_access
+    question: How does code reach the database?
+    depends_on: {kind: [backend-service]}
+    why: >-
+      Reaching for the session directly is always the shortest diff, so this is
+      the boundary agents erode fastest. It is also the one whose loss is most
+      expensive to recover.
+    options:
+      - id: repositories
+        label: Through repository or gateway objects only
+        effects:
+          enable: [L0.PERSISTENCE_STAYS_IN_REPOSITORIES]
+      - id: orm-in-services
+        label: The ORM is called from services, deliberately
+        effects:
+          options:
+            L0.PERSISTENCE_STAYS_IN_REPOSITORIES:
+              must_live_in: ["**/services/**", "**/repositories/**"]
+      - id: no-database
+        label: There is no database
+        effects:
+          disable: [L0.PERSISTENCE_STAYS_IN_REPOSITORIES]
+
+  - id: errors_home
+    question: Where do error types get defined?
+    why: >-
+      So that "what can this fail with?" is one file read rather than a search
+      across services, repositories and handlers.
+    options:
+      - id: per-module
+        label: One errors module per domain or feature
+        effects:
+          enable: [L0.EXCEPTIONS_HAVE_ONE_HOME]
+      - id: single-shared
+        label: One shared errors module for the whole codebase
+        effects:
+          enable: [L0.EXCEPTIONS_HAVE_ONE_HOME]
+          options:
+            L0.EXCEPTIONS_HAVE_ONE_HOME:
+              must_live_in: ["**/errors.*", "**/exceptions.*", "**/core/**"]
+      - id: no-convention
+        label: No convention
+        effects:
+          disable: [L0.EXCEPTIONS_HAVE_ONE_HOME]
+
+  - id: validation
+    question: What validates data crossing the boundary?
+    why: >-
+      A schema is the only place a boundary is actually described. Where the
+      schemas live decides whether that description is findable.
+    options:
+      - id: pydantic
+        label: Pydantic
+      - id: zod
+        label: Zod
+      - id: go-playground
+        label: go-playground/validator or similar
+      - id: none
+        label: Nothing, or hand-written checks
+
+  - id: validation_placement
+    question: Where do request and response schemas live?
+    depends_on: {validation: [pydantic, zod, go-playground]}
+    why: >-
+      Schemas dumped in a shared types module stop being about any one
+      endpoint, and the boundary they described becomes unfindable from the
+      handler that owns it.
+    options:
+      - id: with-the-handler
+        label: In the module that handles the request
+        effects:
+          templates: [schemas-live-with-their-handler]
+      - id: central-module
+        label: In one central schemas module
+        effects: {}
+      - id: no-convention
+        label: No convention
+        effects: {}
+
+  - id: client_data
+    question: How does the client fetch server data?
+    depends_on: {kind: [web-client, mobile-client]}
+    why: >-
+      Fetching inside an effect is the pattern that produces the race
+      conditions, duplicate requests and stale reads a query cache exists to
+      prevent — and it is what an agent writes when nothing says otherwise.
+    options:
+      - id: react-query
+        label: TanStack Query, SWR or RTK Query
+        effects:
+          templates: [no-fetch-inside-an-effect]
+      - id: server-components
+        label: Server components or loaders only
+        effects:
+          templates: [no-fetch-inside-an-effect]
+      - id: manual
+        label: Hand-rolled fetching
+        effects: {}
+
+  - id: client_state
+    question: Where does global client state live?
+    depends_on: {kind: [web-client, mobile-client]}
+    why: >-
+      A store created inline in a component is invisible to everyone else and
+      duplicates on re-render. One directory makes the whole of global state
+      answerable by listing it.
+    options:
+      - id: single-directory
+        label: Zustand, Jotai or Redux, with every store in one directory
+        effects:
+          templates: [global-state-lives-in-one-place]
+      - id: context-only
+        label: React context only
+        effects: {}
+      - id: no-convention
+        label: No convention
+        effects: {}
+
+  - id: client_root
+    question: Where does the client application live?
+    depends_on: {kind: [web-client, mobile-client]}
+    free_text: true
+    why: >-
+      The boundary rules need to know which directory is the client half, and
+      a wrong answer makes them either silent or unbearable.
+    example: "apps/web"
+
+  - id: data_layer_packages
+    question: Which packages must the client never import directly?
+    depends_on: {kind: [web-client, mobile-client]}
+    free_text: true
+    why: >-
+      In a monorepo the first import of a database client into a component is
+      not a compile error. It builds, it works in dev, and it either ships
+      credentials into a browser bundle or drags a driver into the build.
+    example: "@acme/db, @acme/clickhouse, prisma"
+    effects:
+      templates: [client-never-imports-the-data-layer]
+
+  - id: concurrency
+    question: Does this code share mutable state across threads or tasks?
+    depends_on: {kind: [backend-service, cli, library]}
+    why: >-
+      No checker decides whether a program deadlocks. The lock-shape rules and
+      the race detector are the decidable parts, and they are noise in code
+      that has no concurrency at all.
+    options:
+      - id: shared-state
+        label: Yes, with locks or mutexes
+        effects:
+          enable: [L6.NO_BLOCKING_CALL_WHILE_HOLDING_A_LOCK, L6.ONE_LOCK_AT_A_TIME, L6.DATA_RACES_ARE_DETECTED]
+      - id: message-passing
+        label: Concurrent, but through channels or queues rather than shared state
+        effects:
+          enable: [L6.DATA_RACES_ARE_DETECTED]
+          disable: [L6.ONE_LOCK_AT_A_TIME]
+      - id: single-threaded
+        label: No concurrency
+        effects:
+          disable: [L6.NO_BLOCKING_CALL_WHILE_HOLDING_A_LOCK, L6.ONE_LOCK_AT_A_TIME, L6.DATA_RACES_ARE_DETECTED]
+
+  - id: generated
+    question: Which files are generated, vendored or otherwise not hand-written?
+    free_text: true
+    why: >-
+      Editing a generated file by hand is the smallest possible fix and it
+      silently forks the artifact from its source. The lock makes that
+      impossible rather than discouraged.
+    example: "src/generated/**, openapi/client/**, **/*.pb.go"
+    effects:
+      enable: [L2.GENERATED_FILES_ARE_LOCKED]
+      options_from_answer:
+        L2.GENERATED_FILES_ARE_LOCKED: scope

@@ -15,6 +15,14 @@ use anyhow::{Context, Result};
 use regex::Regex;
 use crate::digest;
 
+/// A line that is nothing but a comment. Deliberately prefix-based rather
+/// than parsed: this engine runs on files no grammar covers, and a trailing
+/// comment after real code is worth flagging anyway.
+fn is_comment(line: &str) -> bool {
+    let trimmed = line.trim_start();
+    ["//", "#", "*", "/*", "--", "\"\"\"", "'''"].iter().any(|marker| trimmed.starts_with(marker))
+}
+
 pub fn run(rule: &Rule, opts: &Options, ctx: &Ctx) -> Result<Vec<Finding>> {
     let selected = scan::select(ctx.files, &opts.scope, &opts.exclude)?;
     let compiled: Vec<(Regex, Option<Regex>, &str)> = opts
@@ -34,6 +42,9 @@ pub fn run(rule: &Rule, opts: &Options, ctx: &Ctx) -> Result<Vec<Finding>> {
             continue;
         };
         for (number, line) in source.lines().enumerate() {
+            if opts.ignore_comment_lines && is_comment(line) {
+                continue;
+            }
             for (forbidden, unless, message) in &compiled {
                 if !forbidden.is_match(line) {
                     continue;

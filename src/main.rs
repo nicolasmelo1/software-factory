@@ -11,6 +11,7 @@ mod digest;
 mod finding;
 mod fixtures;
 mod init;
+mod interview;
 mod lang;
 mod policy;
 mod ratchet;
@@ -70,6 +71,11 @@ enum Cmd {
         /// Overwrite an existing policy.
         #[arg(long)]
         force: bool,
+        /// Answers from a `factory-init` interview. Without them `init`
+        /// scaffolds the default layers and nothing is tailored to this
+        /// repository.
+        #[arg(long)]
+        answers: Option<PathBuf>,
     },
     /// Run every enabled rule.
     Check {
@@ -102,6 +108,12 @@ enum Cmd {
     Fixtures,
     /// Regenerate the rule sections of docs/rules.md from the catalog.
     Docs,
+    /// Print the decision tree an interview walks, and what each answer does.
+    Interview {
+        /// Machine-readable, for an agent conducting the interview.
+        #[arg(long)]
+        json: bool,
+    },
     /// Recompute the digests in a gate's evidence manifest.
     Seal { gate: String },
     /// Prove every enabled rule fires on its mutation fixture.
@@ -169,7 +181,9 @@ fn main() {
 
 fn dispatch(cli: Cli, root: PathBuf) -> Result<i32> {
     match cli.command {
-        Cmd::Init { name, language, layer, force } => cmd_init(root, name, language, layer, force),
+        Cmd::Init { name, language, layer, force, answers } => {
+            cmd_init(root, name, language, layer, force, answers)
+        }
         Cmd::Check { format, changed, rule } => cmd_check(root, format, changed, rule),
         Cmd::Explain { rule } => cmd_explain(root, rule),
         Cmd::Catalog { layer } => cmd_catalog(root, layer),
@@ -177,6 +191,7 @@ fn dispatch(cli: Cli, root: PathBuf) -> Result<i32> {
         Cmd::Lock => cmd_lock(root),
         Cmd::Fixtures => cmd_fixtures(root),
         Cmd::Docs => cmd_docs(root),
+        Cmd::Interview { json } => cmd_interview(json),
         Cmd::Seal { gate } => cmd_seal(root, gate),
         Cmd::Verify { rule } => cmd_verify(root, rule),
     }
@@ -188,14 +203,54 @@ fn local_catalog(root: &Path) -> Result<Catalog> {
     Ok(catalog)
 }
 
+fn cmd_interview(json: bool) -> Result<i32> {
+    let interview = interview::Interview::load()?;
+    if json {
+        println!("{}", serde_json::to_string_pretty(&interview)?);
+        return Ok(EXIT_OK);
+    }
+    for decision in &interview.decisions {
+        println!("\n{} — {}", decision.id, decision.question);
+        if !decision.depends_on.is_empty() {
+            let gates: Vec<String> = decision
+                .depends_on
+                .iter()
+                .map(|(k, v)| format!("{k} in [{}]", v.join(", ")))
+                .collect();
+            println!("  asked when: {}", gates.join(" and "));
+        }
+        if decision.free_text {
+            println!("  free text, e.g. {}", decision.example.as_deref().unwrap_or(""));
+        }
+        for option in &decision.options {
+            println!("  - {:<18} {}", option.id, option.label);
+        }
+    }
+    println!(
+        "\nAnswers go in a file like:\n\n\
+         version: 1\nanswers:\n  kind: backend-service\n  architecture: layered\n\n\
+         then: sf init --answers answers.yaml"
+    );
+    Ok(EXIT_OK)
+}
+
 fn cmd_init(
     root: PathBuf,
     name: Option<String>,
     language: Vec<String>,
     layer: Vec<String>,
     force: bool,
+    answers_path: Option<PathBuf>,
 ) -> Result<i32> {
     let catalog = Catalog::builtin()?;
+    let (plan, answers) = match &answers_path {
+        Some(path) => {
+            let answers = interview::Answers::load(path)?;
+            let tree = interview::Interview::load()?;
+            (Some(interview::plan(&tree, &answers)?), Some(answers))
+        }
+        None => (None, None),
+    };
     let name = name.unwrap_or_else(|| {
         root.file_name()
             .map(|n| n.to_string_lossy().to_string())
@@ -204,7 +259,7 @@ fn cmd_init(
     let written = init::run(
         &root,
         &catalog,
-        &init::InitOptions { name, languages: language, layers: layer, force },
+        &init::InitOptions { name, languages: language, layers: layer, force, plan, answers },
     )?;
     println!("wrote {} files:", written.len());
     for path in &written {

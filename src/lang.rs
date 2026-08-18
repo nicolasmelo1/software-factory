@@ -121,7 +121,11 @@ impl Lang {
                 "loop_expression",
                 "match_arm",
                 "let_condition",
-                "try_expression",
+                // `?` is deliberately absent. It is an early return, so a
+                // strict McCabe count includes it — but in Rust it is what you
+                // write *instead of* branching, and counting it penalises the
+                // idiom while rewarding `.unwrap()`, which another rule bans.
+                // A rule that pushes toward worse code is miscalibrated.
             ],
         }
     }
