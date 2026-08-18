@@ -44,44 +44,51 @@ fn collect(
     root: &Path,
     start: &Path,
     follow_links: bool,
-    excludes: &GlobSet,
+    excludes: &globset::GlobSet,
     files: &mut Vec<SourceFile>,
     seen: &mut std::collections::BTreeSet<String>,
 ) -> Result<()> {
     if !start.exists() {
         return Ok(());
     }
-    for entry in walkdir::WalkDir::new(start)
+    // `.gitignore` is respected, and that is not a convenience. Build output,
+    // run artifacts and caches are ignored precisely because they are not the
+    // repository's work, and scanning them produces findings nobody can act on
+    // — worse, a seeded ratchet full of them, committed.
+    let mut builder = ignore::WalkBuilder::new(start);
+    builder
         .follow_links(follow_links)
-        .sort_by_file_name()
-        .into_iter()
-        .filter_entry(|e| {
-            let name = e.file_name().to_string_lossy();
-            if ALWAYS_SKIP.contains(&name.as_ref()) {
-                return false;
-            }
-            // Mutation fixtures are deliberately broken repositories. Walking
-            // them here would make every fixture a finding in its host.
-            !e.path()
-                .strip_prefix(root)
-                .is_ok_and(|rel| rel.to_string_lossy().replace('\\', "/") == "\u{002e}software-factory/mutations")
-        })
-    {
-        let entry = entry?;
-        if !entry.file_type().is_file() {
+        .git_ignore(true)
+        .git_global(false)
+        .require_git(false)
+        .hidden(false)
+        .sort_by_file_name(|a, b| a.cmp(b))
+        .filter_entry(|entry| {
+            let name = entry.file_name().to_string_lossy();
+            !ALWAYS_SKIP.contains(&name.as_ref())
+        });
+    for entry in builder.build() {
+        // A dangling symlink, or a directory this user cannot read, is not a
+        // reason to abandon the scan. Following links makes both ordinary.
+        let Ok(entry) = entry else {
+            continue;
+        };
+        if !entry.file_type().is_some_and(|t| t.is_file()) {
             continue;
         }
         let Ok(rel_path) = entry.path().strip_prefix(root) else {
             continue;
         };
         let rel = rel_path.to_string_lossy().replace('\\', "/");
+        // Mutation fixtures are deliberately broken repositories. Walking them
+        // here would make every fixture a finding in its host.
+        if rel.starts_with(".software-factory/mutations/") {
+            continue;
+        }
         if excludes.is_match(&rel) || !seen.insert(rel.clone()) {
             continue;
         }
-        files.push(SourceFile {
-            rel,
-            abs: entry.path().to_path_buf(),
-        });
+        files.push(SourceFile { rel, abs: entry.path().to_path_buf() });
     }
     Ok(())
 }
