@@ -16,6 +16,10 @@ reduced to a single method:
 > once as a check that *fails*. And every check has a mutation that proves it
 > fires.**
 
+It ships 26 rules across seven layers, from where an error type may be defined
+to whether your CI still runs a vulnerability scanner — and it protects its own
+configuration, so an agent cannot get to a green build by turning a rule off.
+
 Everything else in this repository is a consequence of that sentence.
 
 ---
@@ -60,16 +64,20 @@ failure instead of leaving it in a document nobody opens.
 
 ---
 
-## The six layers
+## The seven layers
 
-| | Layer | What it checks | Cost to adopt |
-|---|---|---|---|
-| **L0** | Shape | Where things live — error types, data access, entrypoints, layer boundaries | Needs a known shape |
-| **L1** | Grain | How code reads — complexity ceiling, banned escape hatches, no blanket suppressions | One hour |
-| **L2** | Contract | No drift between a source of truth and what derives from it — hash locks, dated exceptions | Needs a second surface |
-| **L3** | Effect | A real actor achieved the observable outcome, and the evidence has not gone stale | Needs a customer-visible flow |
-| **L4** | Cadence | Docs, plans and rules stay attached to each other | Three markdown files |
-| **L5** | Meta | Every check is proven to fire | Free, and everything else depends on it |
+The numbers are identity, not sequence — 26 rules, grouped by what they are
+about. The adoption order is below, and it is different.
+
+| | Layer | What it checks |
+|---|---|---|
+| **L0** | Shape | Where things live — error types, data access, entrypoints, layer boundaries |
+| **L1** | Grain | How code reads — complexity ceiling, banned escape hatches, no blanket suppressions |
+| **L2** | Contract | No drift from the source of truth — hash locks, dated exceptions, and the guardrail's own protection |
+| **L3** | Effect | A real actor achieved the observable outcome, and the evidence has not gone stale |
+| **L4** | Cadence | Docs, plans and rules stay attached to each other |
+| **L5** | Meta | Every check is proven to fire, and none is enabled but inert |
+| **L6** | Hazard | The defect classes this repository hunts — vulnerabilities, secrets, dead code, races, deadlock shapes |
 
 Run `sf catalog` for the rules, `sf explain <RULE>` for the reasoning behind any
 one of them.
@@ -84,12 +92,102 @@ markdown files. L5 is what makes either of them mean anything.
 twice is how you cement the wrong one. Wait until the repetition tells you what
 the shape actually is.
 
-**L2 when a second surface derives from a first** — a generated client, a
-schema and its migrations, a design token and its stylesheet.
+**L6 as soon as you have CI** — `sf init --layer L1,L4,L5,L6` writes the steps
+for you. It is the cheapest large win here: the tools already exist and are
+better than anything this could contain, and what actually rots is whether they
+are still wired in.
+
+**L2's guardrail lock immediately, the rest when a second surface derives from
+a first** — a generated client, a schema and its migrations, a design token and
+its stylesheet.
+
+**L0 after the third occurrence of a pattern.** Cementing a shape you have seen
+twice is how you cement the wrong one. Wait until the repetition tells you what
+the shape actually is.
 
 **L3 when there is a customer-visible flow worth proving.** It is the most
 valuable layer and the most expensive one; it earns its cost only once
 something real can break.
+
+---
+
+## Stopping an agent from relaxing the rules
+
+Every rule here is enforced by a file an agent can edit. The shortest path from
+a red build to a green one is not fixing the code — it is disabling the rule,
+widening a glob, or deleting a workflow step, and at the diff level all three
+are indistinguishable from a fix. Two rules close that door.
+
+**`L2.FACTORY_CONFIG_IS_LOCKED`** hash-locks the policy, the ratchet, the local
+rules, the root allowlist, the CI workflow and the hooks. Editing any of them
+without `sf lock` in the same commit fails. The lock does not make the edit
+impossible — it makes it undeniable, as a second deliberate line in the diff on
+a path a code owner watches.
+
+**`L2.POLICY_ONLY_TIGHTENS`** reads the edit and decides which direction it
+went:
+
+```sh
+sf check --changed origin/main
+```
+
+A rule disabled or removed, an exclusion added, a scope narrowed, a ceiling
+raised, a gate weakened, a new violation frozen, a review date pushed out — all
+fail. Tightening passes silently, so the rule never taxes the direction you
+want.
+
+Alongside them, `.allowed-root-files` blocks the `NOTES.md` / `PLAN.md` reflex,
+the dependency lock turns adding a package into a reviewable act, and
+`L2.NO_PERMANENT_EXCEPTION` fails the build when a frozen exception outlives its
+review date.
+
+---
+
+## L6: hunting defect classes
+
+`sf` does not reimplement a vulnerability database, a secret scanner or a race
+detector. Those tools exist, they are better than anything that could live
+here, and they differ per language. What is missing in most repositories is not
+the tool — it is the guarantee that the tool is *still wired in*. So a rule
+names a concern, and the check asserts that something covering it actually runs
+in your CI or task runner.
+
+| Concern | Python | TypeScript | Go | Rust |
+|---|---|---|---|---|
+| Dependency vulnerabilities | pip-audit | npm audit, osv-scanner | govulncheck | cargo audit |
+| Committed secrets | gitleaks, detect-secrets, trufflehog (language-independent) | ← | ← | ← |
+| Insecure patterns | bandit, semgrep | semgrep, eslint-plugin-security | gosec | clippy, cargo-geiger |
+| Dead code | vulture | knip, ts-prune | staticcheck | dead_code, cargo udeps |
+| Data races | — | — | go test -race | ThreadSanitizer, loom |
+| Performance regression | pytest-benchmark | vitest bench | go test -bench | criterion |
+
+`sf init` writes these steps into the generated workflow for the languages you
+selected. A concern with no listed tool for a language is not a violation —
+that is a statement about the ecosystem, not about your repository.
+
+### What static analysis cannot do
+
+**Nothing decides whether a program deadlocks.** It is undecidable in general,
+and a tool claiming otherwise teaches you to trust it wrongly. What *is*
+decidable is the shape that causes the deadlocks and starvation people actually
+ship, and two rules enforce exactly that:
+
+- **`L6.NO_BLOCKING_CALL_WHILE_HOLDING_A_LOCK`** — a network call, a sleep, a
+  subprocess or an `await` inside a region that holds a lock. Holding a lock
+  across something slow turns mutual exclusion into a queue, which is
+  starvation; awaiting while holding a synchronous lock can park the
+  continuation on a thread that then blocks on that same lock, and nothing
+  moves again.
+- **`L6.ONE_LOCK_AT_A_TIME`** — a second lock acquired while the first is held.
+  It cannot tell a correctly ordered pair from a dangerous one; ordering is a
+  global property and the rule sees one function. It makes the second
+  acquisition *visible*, which is the part that is otherwise invisible. If the
+  pair is genuinely correct, freeze it in the ratchet with the ordering written
+  beside it — now the ordering is documented, which is the only thing that ever
+  prevents the inversion.
+
+Data races get the same honesty: no static check finds them, so the rule
+requires the dynamic detector to run instead.
 
 ---
 
@@ -213,6 +311,9 @@ fixture under `.software-factory/mutations/<RULE_ID>/`.
 
 Languages today: **Python, TypeScript/TSX, Go, Rust.**
 
+`sf verify` requires every language a rule declares to be shown tripping it,
+otherwise three broken queries hide behind one that works.
+
 ---
 
 ## Adopting rules a repository already breaks
@@ -244,6 +345,8 @@ violation is a visible line in a reviewed diff.
 | `sf catalog` | List the rules. `--layer L0` |
 | `sf ratchet` | Freeze today's violations. `--months N` |
 | `sf lock` | Rewrite hash locks from disk |
+| `sf fixtures` | Write the mutation fixtures for every enabled rule |
+| `sf docs` | Regenerate the rule sections of `docs/rules.md`, preserving your own prose |
 | `sf seal <gate>` | Recompute the digests in a gate's evidence manifest |
 
 Exit codes are hierarchical, so a caller can tell "the tool could not run" from
@@ -284,9 +387,12 @@ method nobody will adopt.
 
 `sf` is written in Rust and Rust is one of its target languages, so this
 repository runs its own rules against its own source, with its own mutation
-fixtures, in its own CI. See [`docs/rules.md`](docs/rules.md) for what is
-enabled here and [`docs/method.md`](docs/method.md) for the reasoning behind
-the layering.
+fixtures, in its own CI: **23 rules enabled, 23 proven to fire, no findings.**
+Three of the 26 are switched off here and one is frozen with a review date,
+each as a written decision in [`docs/rules.md`](docs/rules.md) — because
+`L5.NO_INERT_RULE` refuses to let a rule be enabled and pointed at nothing.
+
+See [`docs/method.md`](docs/method.md) for the reasoning behind the layering.
 
 ## License
 

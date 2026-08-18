@@ -21,8 +21,13 @@ mutation means every green run since it broke proved nothing. Fix the rule
 until the fixture trips it again. Never adjust the fixture to match a broken
 rule — the fixture is the specification.
 
-**Then findings, by severity.** `critical` is L2/L3/L5: drift, unproven
-effect, or an unproven guardrail. Those are never style.
+**Then findings, by severity.** `critical` is L2/L3/L5: drift, a weakened
+guardrail, an unproven effect, or a rule nothing proves. Those are never style.
+
+**`L5.NO_INERT_RULE` is not a nuisance.** It means a rule is switched on and
+looking at nothing — it has been passing every run and reading like protection.
+Either point it at something or switch it off and write down why in the rules
+document. Do not leave it enabled and inert.
 
 ## The four honest resolutions
 
@@ -47,8 +52,11 @@ effect, or an unproven guardrail. Those are never style.
   `L1.NO_BLANKET_SUPPRESSION` will catch the blanket form anyway.
 
 Each of these is indistinguishable from a fix in the diff and destroys the
-thing the rule was protecting. If one of them is genuinely right, it is a
-human's call: say which one you would pick, and why, and stop.
+thing the rule was protecting. Most of them are now caught mechanically —
+`L2.FACTORY_CONFIG_IS_LOCKED` sees the guardrail file change and
+`L2.POLICY_ONLY_TIGHTENS` sees which direction it went — but do not treat
+"the checker did not catch it" as permission. If one of these is genuinely
+right, it is a human's call: say which one you would pick, and why, and stop.
 
 ## When someone asks whether a rule is worth keeping
 

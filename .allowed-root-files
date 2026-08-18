@@ -1,5 +1,6 @@
 # Files allowed at the repository root. Adding a line here is the
 # deliberate act; NOTES.md appearing without one is the reflex.
+.allowed-root-files
 .gitignore
 AGENTS.md
 Cargo.lock

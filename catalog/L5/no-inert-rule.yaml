@@ -1,0 +1,25 @@
+id: L5.NO_INERT_RULE
+layer: L5
+title: An enabled rule must be capable of producing a finding
+severity: high
+statement: >-
+  A rule that is switched on must be configured to look at something: a lock
+  rule needs a scope, a toolchain rule needs tools, a gate rule needs a gate.
+why: >-
+  `sf verify` proves a rule *can* fire, by running it against a fixture built
+  to trip it. It says nothing about whether the rule is pointed at anything in
+  *this* repository. An enabled lock with an empty scope, or a hazard rule with
+  no tools declared, passes every run forever and appears in every report as a
+  rule that found nothing — indistinguishable from a rule that is protecting
+  you. This was not hypothetical: the tool's own scaffolding wrote an empty
+  scope over a critical lock, and nothing noticed until the lock file failed to
+  appear.
+fix: >-
+  Give the rule something to look at, or switch it off in policy and say why in
+  the rules document. Disabled and documented is honest; enabled and inert is
+  a rule that lies about its own coverage.
+ratchet: none
+check:
+  kind: cadence
+  mode: inert_rules
+defaults: {}

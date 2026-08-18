@@ -25,7 +25,7 @@ use clap::{Parser, Subcommand, ValueEnum};
 use finding::{EXIT_BOOTSTRAP, EXIT_CONFIG, EXIT_OK};
 use policy::{Policy, RULES_DIR};
 use ratchet::Ratchet;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 #[derive(Parser)]
@@ -75,7 +75,8 @@ enum Cmd {
     Check {
         #[arg(long, value_enum, default_value = "text")]
         format: Format,
-        /// Git ref to diff against, so gates activate from touched paths.
+        /// Git ref to diff against, so gates activate from touched paths and
+        /// the policy can be compared with the one being replaced.
         #[arg(long)]
         changed: Option<String>,
         /// Run one rule only.
@@ -97,6 +98,10 @@ enum Cmd {
     },
     /// Rewrite the hash locks from what is on disk.
     Lock,
+    /// Write the mutation fixtures for every enabled rule.
+    Fixtures,
+    /// Regenerate the rule sections of docs/rules.md from the catalog.
+    Docs,
     /// Recompute the digests in a gate's evidence manifest.
     Seal { gate: String },
     /// Prove every enabled rule fires on its mutation fixture.
@@ -123,7 +128,7 @@ fn load(root: PathBuf) -> Result<Loaded> {
     Ok(Loaded { root, policy, catalog, ratchet, files })
 }
 
-fn changed_paths(root: &PathBuf, base: &str) -> Result<Vec<String>> {
+fn changed_paths(root: &Path, base: &str) -> Result<Vec<String>> {
     let output = Command::new("git")
         .arg("-C")
         .arg(root)
@@ -170,12 +175,14 @@ fn dispatch(cli: Cli, root: PathBuf) -> Result<i32> {
         Cmd::Catalog { layer } => cmd_catalog(root, layer),
         Cmd::Ratchet { months } => cmd_ratchet(root, months),
         Cmd::Lock => cmd_lock(root),
+        Cmd::Fixtures => cmd_fixtures(root),
+        Cmd::Docs => cmd_docs(root),
         Cmd::Seal { gate } => cmd_seal(root, gate),
         Cmd::Verify { rule } => cmd_verify(root, rule),
     }
 }
 
-fn local_catalog(root: &PathBuf) -> Result<Catalog> {
+fn local_catalog(root: &Path) -> Result<Catalog> {
     let mut catalog = Catalog::builtin()?;
     catalog.extend_from_dir(&root.join(RULES_DIR))?;
     Ok(catalog)
@@ -225,8 +232,9 @@ fn cmd_check(
     rule: Option<String>,
 ) -> Result<i32> {
     let loaded = load(root.clone())?;
-    let changed = match changed {
-        Some(base) => Some(changed_paths(&root, &base)?),
+    let base = changed.clone();
+    let changed = match &base {
+        Some(reference) => Some(changed_paths(&root, reference)?),
         None => None,
     };
     let ctx = Ctx {
@@ -236,6 +244,7 @@ fn cmd_check(
         files: &loaded.files,
         ratchet: &loaded.ratchet,
         changed,
+        base: base.clone(),
         today: clock::today(),
     };
     let (raw, rules_run) = run_selection(&loaded, &ctx, rule.as_deref())?;
@@ -326,6 +335,20 @@ fn cmd_lock(root: PathBuf) -> Result<i32> {
     Ok(EXIT_OK)
 }
 
+fn cmd_fixtures(root: PathBuf) -> Result<i32> {
+    let catalog = local_catalog(&root)?;
+    let written = init::refresh_fixtures(&root, &catalog)?;
+    println!("wrote {} fixture file(s)", written.len());
+    Ok(EXIT_OK)
+}
+
+fn cmd_docs(root: PathBuf) -> Result<i32> {
+    let catalog = local_catalog(&root)?;
+    init::refresh_rules_document(&root, &catalog)?;
+    println!("regenerated docs/rules.md (everything above the first `## L` heading was preserved)");
+    Ok(EXIT_OK)
+}
+
 fn cmd_seal(root: PathBuf, gate: String) -> Result<i32> {
     let loaded = load(root)?;
     let definition = loaded
@@ -340,6 +363,7 @@ fn cmd_seal(root: PathBuf, gate: String) -> Result<i32> {
         files: &loaded.files,
         ratchet: &loaded.ratchet,
         changed: None,
+        base: None,
         today: clock::today(),
     };
     let manifest = checks::evidence::seal(&loaded.root, &gate, definition, &ctx)?;

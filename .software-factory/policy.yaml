@@ -4,7 +4,7 @@
 version: 1
 project:
   name: software-factory
-  languages: [rust, python, typescript, go]
+  languages: [rust]
   exclude: []
 
 docs:
@@ -25,10 +25,16 @@ rules:
     enabled: true
   # L0 — One HTTP entrypoint per file
   L0.ONE_ENTRYPOINT_PER_FILE:
-    enabled: true
+    # Disabled: sf is a command-line tool with no HTTP surface, and the rule
+    # ships no Rust query because "one entrypoint per file" has no Rust
+    # meaning yet. It stays proven by its fixtures; it is simply not about
+    # this repository.
+    enabled: false
   # L0 — Data-access calls stay in the persistence layer
   L0.PERSISTENCE_STAYS_IN_REPOSITORIES:
-    enabled: true
+    # Disabled: sf has no database and no persistence layer to keep anything
+    # out of. Same reasoning as L0.ONE_ENTRYPOINT_PER_FILE above.
+    enabled: false
   # L1 — No function exceeds the cyclomatic ceiling
   L1.COMPLEXITY_CEILING:
     enabled: true
@@ -46,22 +52,32 @@ rules:
     enabled: true
     options:
       # Same reason as L1.NO_BLANKET_SUPPRESSION above.
-      exclude: ["src/fixtures.rs", "**/*.test.ts", "**/*.spec.ts", "**/tests/**", "**/*_test.go"]
+      exclude: ["src/fixtures.rs", "**/tests/**"]
   # L2 — Dependency manifests move only with an explicit lock update
   L2.DEPENDENCIES_CHANGE_DELIBERATELY:
     enabled: true
     options:
-      # Cargo.lock is included deliberately: it is the artifact that actually
-      # pins what gets compiled, so it is the one worth a reviewer's attention.
-      scope: ["Cargo.toml", "Cargo.lock"]
+      scope:
+        - "Cargo.toml"
+        - "Cargo.lock"
+  # L2 — The guardrail's own configuration is hash-locked
+  L2.FACTORY_CONFIG_IS_LOCKED:
+    enabled: true
   # L2 — Generated artifacts are hash-locked and not hand-edited
   L2.GENERATED_FILES_ARE_LOCKED:
-    enabled: true
+    # Disabled: nothing in this repository is generated. Enabling a lock over
+    # an empty scope is exactly what L5.NO_INERT_RULE exists to catch, so
+    # saying so here is the honest form.
+    enabled: false
     options:
-      # Nothing is locked until you say what is generated.
+      # Nothing is locked until you say what is generated. An enabled
+      # lock with an empty scope is inert, and L5.NO_INERT_RULE will say so.
       scope: []
   # L2 — Every frozen exception carries a future review date
   L2.NO_PERMANENT_EXCEPTION:
+    enabled: true
+  # L2 — The guardrail may be strengthened, never quietly weakened
+  L2.POLICY_ONLY_TIGHTENS:
     enabled: true
   # L3 — A gate activated by touched paths needs digest-verified, non-stale evidence
   L3.GATE_HAS_FRESH_EVIDENCE:
@@ -80,4 +96,34 @@ rules:
     enabled: true
   # L5 — Every enabled rule has a mutation that proves it fires
   L5.EVERY_CHECK_HAS_A_MUTATION_TEST:
+    enabled: true
+  # L5 — An enabled rule must be capable of producing a finding
+  L5.NO_INERT_RULE:
+    enabled: true
+  # L6 — Concurrent code is exercised under a race detector
+  L6.DATA_RACES_ARE_DETECTED:
+    # Disabled: sf spawns no threads, holds no locks and shares no mutable
+    # state — there is nothing for a race detector to observe. This stops
+    # being true the moment anything here becomes concurrent.
+    enabled: false
+  # L6 — Something detects code nothing reaches
+  L6.DEAD_CODE_IS_DETECTED:
+    enabled: true
+  # L6 — Something audits dependencies for known vulnerabilities
+  L6.DEPENDENCY_VULNERABILITIES_ARE_SCANNED:
+    enabled: true
+  # L6 — Something scans the code for known-insecure patterns
+  L6.INSECURE_PATTERNS_ARE_SCANNED:
+    enabled: true
+  # L6 — Nothing blocks while a lock is held
+  L6.NO_BLOCKING_CALL_WHILE_HOLDING_A_LOCK:
+    enabled: true
+  # L6 — A function does not acquire a second lock while holding the first
+  L6.ONE_LOCK_AT_A_TIME:
+    enabled: true
+  # L6 — Something would notice the code getting slower
+  L6.PERFORMANCE_REGRESSION_IS_GUARDED:
+    enabled: true
+  # L6 — Something scans for committed secrets
+  L6.SECRETS_ARE_SCANNED:
     enabled: true

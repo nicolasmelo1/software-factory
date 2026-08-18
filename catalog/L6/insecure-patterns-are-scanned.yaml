@@ -1,0 +1,34 @@
+id: L6.INSECURE_PATTERNS_ARE_SCANNED
+layer: L6
+title: Something scans the code for known-insecure patterns
+severity: high
+statement: >-
+  A static security analyser for each of this repository's languages runs
+  somewhere the repository actually executes.
+why: >-
+  Shell interpolation, string-built SQL, disabled certificate verification,
+  weak hashes, unsafe deserialization — these are the defects that look
+  entirely normal in review, because the code reads exactly like the safe
+  version. An agent reproduces them faithfully from the enormous amount of
+  training data that contains them. A static analyser recognises the shapes a
+  reviewer skims past.
+fix: >-
+  Wire in `bandit` or `semgrep` for Python, `semgrep` or `eslint-plugin-security`
+  for TypeScript, `gosec` for Go, `cargo-geiger` or `clippy` for Rust.
+ratchet: allowlist
+check:
+  kind: toolchain
+defaults:
+  scope:
+    - ".github/workflows/**"
+    - ".gitlab-ci.yml"
+    - "Makefile"
+    - "justfile"
+    - "Taskfile.yml"
+    - "package.json"
+    - "noxfile.py"
+  tools:
+    python: ["bandit", "semgrep", "codeql"]
+    typescript: ["semgrep", "eslint-plugin-security", "codeql"]
+    go: ["gosec", "semgrep", "staticcheck", "codeql"]
+    rust: ["cargo-geiger", "cargo clippy", "clippy", "semgrep"]

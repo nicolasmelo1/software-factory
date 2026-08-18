@@ -21,16 +21,26 @@ That is a rule. Write it.
 3. Write the smallest repository that violates it under
    `.software-factory/mutations/<RULE_ID>/`, with its own tiny
    `.software-factory/policy.yaml` enabling only that rule.
-4. `sf verify --rule <RULE_ID>`. **If it does not fire, the rule is broken —
-   fix the rule, not the fixture.** A tree-sitter query that matches nothing is
-   the easiest bug to ship here and it looks identical to a rule that works.
+4. `sf fixtures`, then `sf verify --rule <RULE_ID>`. **If it does not fire, the
+   rule is broken — fix the rule, not the fixture.** A tree-sitter query that
+   matches nothing is the easiest bug to ship here and it looks identical to a
+   rule that works. If the rule declares queries for several languages, the
+   fixture needs a file in each: `verify` rejects a rule proven in only some of
+   them, because three broken queries hide behind one that works.
 5. Add the rule's section to the repository's rules document.
 6. If the repository already violates it: `sf ratchet --months 6`. Say in the
    pull request how many violations were frozen and when they come due.
 
 Choosing a layer: **L0** where things live, **L1** how code reads, **L2** a
 derived artifact must not drift from its source, **L3** a real actor must
-achieve an effect, **L4** docs and plans, **L5** the guardrail itself.
+achieve an effect, **L4** docs and plans, **L5** the guardrail itself, **L6** a
+class of defect worth hunting.
+
+For L6, prefer wiring an existing tool over writing a rule: a `toolchain` rule
+that asserts the scanner still runs is worth more than a bespoke check that
+reimplements a fraction of it. Write a structural L6 rule only for a hazard no
+tool covers — the concurrency shapes are the example, because no checker can
+decide deadlock and the shapes that cause it are the decidable part.
 
 ## When a phase of work needs a completion gate
 

@@ -1,0 +1,35 @@
+id: L6.PERFORMANCE_REGRESSION_IS_GUARDED
+layer: L6
+title: Something would notice the code getting slower
+severity: medium
+statement: >-
+  A benchmark harness for each of this repository's languages runs somewhere
+  the repository actually executes.
+why: >-
+  Correctness has a test suite and performance usually has nothing, so a change
+  that is ten times slower ships green. This is a specifically agent-shaped
+  risk: asked to make code correct or readable, an agent will happily replace a
+  single indexed query with a loop of queries, or a set lookup with a list
+  scan, and every test still passes. A committed baseline is what turns that
+  from an incident into a failed build.
+fix: >-
+  Wire in `pytest-benchmark` for Python, `vitest bench` or `benchmark.js` for
+  TypeScript, `go test -bench` for Go, `criterion` for Rust — and commit the
+  baseline, because a benchmark with nothing to compare against measures
+  nothing.
+ratchet: allowlist
+check:
+  kind: toolchain
+defaults:
+  scope:
+    - ".github/workflows/**"
+    - ".gitlab-ci.yml"
+    - "Makefile"
+    - "justfile"
+    - "Taskfile.yml"
+    - "package.json"
+  tools:
+    python: ["pytest-benchmark", "asv", "richbench"]
+    typescript: ["vitest bench", "benchmark.js", "tinybench", "hyperfine"]
+    go: ["go test -bench", "benchstat", "-bench"]
+    rust: ["criterion", "cargo bench", "divan"]

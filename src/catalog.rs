@@ -25,6 +25,9 @@ pub enum Layer {
     L4,
     /// Meta — the guardrail is itself proven to fire.
     L5,
+    /// Hazard — the classes of defect this repository actively hunts, and
+    /// proof that the hunt runs.
+    L6,
 }
 
 impl Layer {
@@ -36,6 +39,7 @@ impl Layer {
             Layer::L3 => "L3",
             Layer::L4 => "L4",
             Layer::L5 => "L5",
+            Layer::L6 => "L6",
         }
     }
 }
@@ -44,6 +48,15 @@ impl Layer {
 pub struct LangQuery {
     /// A tree-sitter query. It must bind `@target`, and may bind `@name`.
     pub query: String,
+}
+
+/// A containment rule: `inner` must not appear anywhere inside `outer`.
+/// This is what makes the concurrency hazards checkable — "no blocking call
+/// while holding a lock" is a statement about nesting, not about placement.
+#[derive(Debug, Clone, Deserialize)]
+pub struct NestedQuery {
+    pub outer: String,
+    pub inner: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Default)]
@@ -76,6 +89,15 @@ pub enum CheckKind {
     Cadence { mode: CadenceMode },
     /// A gate activated by touched paths has digest-verified, non-stale evidence. L3.
     Evidence,
+    /// A node kind that must not appear inside another. L6.
+    Nested {
+        #[serde(default)]
+        languages: BTreeMap<String, NestedQuery>,
+    },
+    /// A hazard the repository declares it hunts must have a tool that runs. L6.
+    Toolchain,
+    /// The policy and the ratchet may be strengthened, never weakened. L2.
+    PolicyTightening,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize)]
@@ -91,6 +113,8 @@ pub enum CadenceMode {
     PlanCadence,
     /// Every enabled rule has a mutation fixture that proves the check fires.
     MutationCoverage,
+    /// No enabled rule is configured so it cannot produce a finding.
+    InertRules,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -121,8 +145,15 @@ impl Rule {
         let options: crate::policy::Options = serde_yaml::from_value(self.defaults.clone())
             .context("`defaults` do not match the option schema")?;
         validate_patterns(&options)?;
-        if let CheckKind::Shape { languages } = &self.check {
-            validate_queries(languages)?;
+        match &self.check {
+            CheckKind::Shape { languages } => validate_queries(languages)?,
+            CheckKind::Nested { languages } => {
+                for (name, spec) in languages {
+                    validate_query(name, &spec.outer)?;
+                    validate_query(name, &spec.inner)?;
+                }
+            }
+            _ => {}
         }
         Ok(())
     }
@@ -144,11 +175,16 @@ fn validate_patterns(options: &crate::policy::Options) -> Result<()> {
 
 fn validate_queries(languages: &BTreeMap<String, LangQuery>) -> Result<()> {
     for (name, spec) in languages {
-        let lang = crate::lang::Lang::from_name(name)
-            .with_context(|| format!("unknown language {name:?}"))?;
-        tree_sitter::Query::new(&lang.grammar(), &spec.query)
-            .with_context(|| format!("invalid {name} query"))?;
+        validate_query(name, &spec.query)?;
     }
+    Ok(())
+}
+
+fn validate_query(name: &str, source: &str) -> Result<()> {
+    let lang =
+        crate::lang::Lang::from_name(name).with_context(|| format!("unknown language {name:?}"))?;
+    tree_sitter::Query::new(&lang.grammar(), source)
+        .with_context(|| format!("invalid {name} query"))?;
     Ok(())
 }
 
@@ -176,6 +212,17 @@ const BUILTIN: &[(&str, &str)] = &[
     ("L4/every-rule-has-a-why.yaml", include_str!("../catalog/L4/every-rule-has-a-why.yaml")),
     ("L4/plan-declares-exit-condition.yaml", include_str!("../catalog/L4/plan-declares-exit-condition.yaml")),
     ("L5/every-check-has-a-mutation-test.yaml", include_str!("../catalog/L5/every-check-has-a-mutation-test.yaml")),
+    ("L5/no-inert-rule.yaml", include_str!("../catalog/L5/no-inert-rule.yaml")),
+    ("L2/factory-config-is-locked.yaml", include_str!("../catalog/L2/factory-config-is-locked.yaml")),
+    ("L2/policy-only-tightens.yaml", include_str!("../catalog/L2/policy-only-tightens.yaml")),
+    ("L6/dependency-vulnerabilities-are-scanned.yaml", include_str!("../catalog/L6/dependency-vulnerabilities-are-scanned.yaml")),
+    ("L6/secrets-are-scanned.yaml", include_str!("../catalog/L6/secrets-are-scanned.yaml")),
+    ("L6/insecure-patterns-are-scanned.yaml", include_str!("../catalog/L6/insecure-patterns-are-scanned.yaml")),
+    ("L6/dead-code-is-detected.yaml", include_str!("../catalog/L6/dead-code-is-detected.yaml")),
+    ("L6/data-races-are-detected.yaml", include_str!("../catalog/L6/data-races-are-detected.yaml")),
+    ("L6/performance-regression-is-guarded.yaml", include_str!("../catalog/L6/performance-regression-is-guarded.yaml")),
+    ("L6/no-blocking-call-while-holding-a-lock.yaml", include_str!("../catalog/L6/no-blocking-call-while-holding-a-lock.yaml")),
+    ("L6/one-lock-at-a-time.yaml", include_str!("../catalog/L6/one-lock-at-a-time.yaml")),
 ];
 
 impl Catalog {

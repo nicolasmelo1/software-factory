@@ -1,0 +1,57 @@
+id: L6.ONE_LOCK_AT_A_TIME
+layer: L6
+title: A function does not acquire a second lock while holding the first
+severity: high
+statement: >-
+  A function acquires at most one lock. Taking a second one inside the same
+  scope is a finding.
+why: >-
+  Nested locking is the precondition for essentially every deadlock that is not
+  a self-deadlock: two functions take the same two locks in opposite orders and
+  the program stops, usually in production, usually under load, usually not
+  reproducibly. Nobody writes it deliberately — it happens when a function that
+  already holds a lock calls something that takes another, three layers down
+  where the acquisition is invisible.
+  This rule cannot tell a correctly ordered pair from a dangerous one; ordering
+  is a global property and this only sees one function. It makes the second
+  acquisition visible, which is the part that is otherwise invisible. If the
+  pair is genuinely correct, freeze it in the ratchet with the ordering written
+  next to it — now the ordering is documented, which is the only thing that
+  ever prevents the inversion.
+fix: >-
+  Restructure so one lock covers the operation, or split the work so each lock
+  is taken and released independently. If you truly need both, take them in the
+  same order everywhere and write that order down.
+ratchet: allowlist
+check:
+  kind: nested
+  languages:
+    python:
+      outer: |
+        (function_definition body: (block)) @target
+      inner: |
+        (with_statement
+          (with_clause (with_item value: (_) @c))
+          (#match? @c "(?i)(lock|mutex|semaphore)")) @inner
+        (call function: (attribute attribute: (identifier) @m)
+          (#match? @m "^acquire$")) @inner
+    go:
+      outer: |
+        (function_declaration body: (block)) @target
+        (method_declaration body: (block)) @target
+      inner: |
+        (call_expression
+          function: (selector_expression
+            field: (field_identifier) @l
+            (#match? @l "^(Lock|RLock)$"))) @inner
+    rust:
+      outer: |
+        (function_item body: (block)) @target
+      inner: |
+        (call_expression
+          function: (field_expression
+            field: (field_identifier) @m
+            (#match? @m "^(lock|write)$"))) @inner
+defaults:
+  # The second acquisition is the hazard, not the first.
+  min_inner: 2

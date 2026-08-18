@@ -1,0 +1,9 @@
+version: 1
+project:
+  name: baseline
+  languages: [python]
+rules:
+  L2.POLICY_ONLY_TIGHTENS:
+    enabled: true
+  L1.NO_BLANKET_SUPPRESSION:
+    enabled: true

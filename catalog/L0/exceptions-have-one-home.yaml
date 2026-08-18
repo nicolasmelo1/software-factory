@@ -46,3 +46,4 @@ defaults:
     - "**/errors.py"
     - "**/errors.ts"
     - "**/errors.go"
+    - "**/errors.rs"

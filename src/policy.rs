@@ -48,6 +48,19 @@ pub struct Options {
     // evidence
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub forbidden_in_goal: Vec<String>,
+    // toolchain: language -> any one of these tool invocations must appear
+    // somewhere the repository actually runs.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub tools: BTreeMap<String, Vec<String>>,
+    // policy tightening: where to read the previous policy from when git
+    // history is not available (fixtures, shallow checkouts).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub baseline: Option<String>,
+    /// How many `inner` matches inside one `outer` are tolerated. The default
+    /// of 1 means "any occurrence is a finding"; 2 expresses "a second one in
+    /// the same scope is the hazard", which is how nested locking is stated.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub min_inner: Option<usize>,
 }
 
 /// Shallow merge: keys present in `over` win, everything else falls through to

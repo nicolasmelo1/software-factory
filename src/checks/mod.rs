@@ -4,8 +4,11 @@ pub mod cadence;
 pub mod complexity;
 pub mod evidence;
 pub mod lock;
+pub mod nested;
 pub mod shape;
 pub mod text_pattern;
+pub mod tightening;
+pub mod toolchain;
 
 use crate::catalog::{Catalog, CheckKind, Rule};
 use crate::finding::Finding;
@@ -24,6 +27,8 @@ pub struct Ctx<'a> {
     /// Repo-relative paths changed by the work under review. `None` means
     /// "unknown", and every gate activates — unknown must never mean skipped.
     pub changed: Option<Vec<String>>,
+    /// The git ref the work is measured against, when there is one.
+    pub base: Option<String>,
     pub today: String,
 }
 
@@ -60,5 +65,8 @@ pub fn run_one(rule: &Rule, ctx: &Ctx) -> Result<Vec<Finding>> {
         CheckKind::Expiry => lock::expiry(rule, ctx),
         CheckKind::Cadence { mode } => cadence::run(rule, &opts, ctx, *mode),
         CheckKind::Evidence => evidence::run(rule, &opts, ctx),
+        CheckKind::Nested { languages } => nested::run(rule, &opts, languages, ctx),
+        CheckKind::Toolchain => toolchain::run(rule, &opts, ctx),
+        CheckKind::PolicyTightening => tightening::run(rule, &opts, ctx),
     }
 }

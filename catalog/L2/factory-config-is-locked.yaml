@@ -1,0 +1,31 @@
+id: L2.FACTORY_CONFIG_IS_LOCKED
+layer: L2
+title: The guardrail's own configuration is hash-locked
+severity: critical
+statement: >-
+  The policy, the ratchet, the local rules, the root allowlist, the CI
+  workflow and the hooks are all recorded in a lock. Any edit to them without
+  a matching lock update fails.
+why: >-
+  Every other rule in this catalog is enforced by files an agent can edit. The
+  shortest path from a red build to a green one is not fixing the code — it is
+  disabling the rule, widening a glob, or deleting a workflow step, and at the
+  diff level those are indistinguishable from a fix. The lock does not make
+  the edit impossible; it makes it undeniable. A guardrail change becomes a
+  second, deliberate line in the diff, on a path a code owner watches.
+fix: >-
+  If the change to the guardrail is intended, run `sf lock` in the same commit
+  and say in the message what it buys. If it is not, revert it — the finding
+  underneath is the real work.
+ratchet: none
+check:
+  kind: lock
+defaults:
+  lock_file: ".software-factory/locks/factory.lock.json"
+  scope:
+    - ".software-factory/policy.yaml"
+    - ".software-factory/ratchet.yaml"
+    - ".software-factory/rules/**"
+    - ".allowed-root-files"
+    - ".github/workflows/software-factory.yml"
+    - ".githooks/pre-commit"

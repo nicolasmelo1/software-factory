@@ -1,0 +1,23 @@
+id: L2.POLICY_ONLY_TIGHTENS
+layer: L2
+title: The guardrail may be strengthened, never quietly weakened
+severity: critical
+statement: >-
+  Compared with the revision under review, no rule may be disabled or removed,
+  no exclusion added, no scope narrowed, no ceiling raised, no gate weakened,
+  no new violation frozen, and no review date pushed out.
+why: >-
+  The lock makes a guardrail edit visible; this reads the edit and decides
+  which direction it went. Weakening is the specific move an agent makes when
+  a check stands between it and a green build, and it is the one that costs
+  nothing to write and everything to notice six months later. Strengthening
+  passes silently, so the rule never taxes the direction you want.
+fix: >-
+  Restore what was weakened. If the loosening is genuinely right — the rule
+  was wrong, the exclusion is narrower than the alternative — that is a human's
+  call to merge, with the reasoning in the pull request, not a line an agent
+  slips into a diff about something else.
+ratchet: none
+check:
+  kind: policy_tightening
+defaults: {}

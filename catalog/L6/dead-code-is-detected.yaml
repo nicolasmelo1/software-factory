@@ -1,0 +1,34 @@
+id: L6.DEAD_CODE_IS_DETECTED
+layer: L6
+title: Something detects code nothing reaches
+severity: medium
+statement: >-
+  A dead-code detector for each of this repository's languages runs somewhere
+  the repository actually executes.
+why: >-
+  Dead code is the residue of agent-heavy work: a helper written for an
+  approach that was abandoned two iterations later, a branch that became
+  unreachable when a condition upstream changed. It is worse than clutter,
+  because the next agent reads it as an example of how this codebase does
+  things and extends it. Nobody deletes it manually, because nobody can prove
+  it is unreachable — which is precisely what a detector does prove.
+fix: >-
+  Wire in `vulture` for Python, `ts-prune` or `knip` for TypeScript,
+  `staticcheck` for Go, `cargo udeps` or the `dead_code` lint for Rust. Then
+  delete what it finds; a detector nobody acts on is worse than none.
+ratchet: allowlist
+check:
+  kind: toolchain
+defaults:
+  scope:
+    - ".github/workflows/**"
+    - ".gitlab-ci.yml"
+    - "Makefile"
+    - "justfile"
+    - "Taskfile.yml"
+    - "package.json"
+  tools:
+    python: ["vulture", "deadcode"]
+    typescript: ["ts-prune", "knip", "depcheck"]
+    go: ["staticcheck", "deadcode", "unused"]
+    rust: ["cargo udeps", "cargo-udeps", "dead_code"]

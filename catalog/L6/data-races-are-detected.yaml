@@ -1,0 +1,32 @@
+id: L6.DATA_RACES_ARE_DETECTED
+layer: L6
+title: Concurrent code is exercised under a race detector
+severity: high
+statement: >-
+  Where the language has a dynamic race detector, the test suite runs under it
+  somewhere the repository actually executes.
+why: >-
+  A data race is the defect that passes every review and every deterministic
+  test, then appears once a week in production under load. No static check
+  finds it, and reading the code does not either — interleaving is not visible
+  in the text. The dynamic detectors do find it, they are one flag away, and
+  almost nobody turns them on. Agents make this worse by adding concurrency
+  where it was not asked for, because parallelism reads as an improvement.
+fix: >-
+  `go test -race` for Go, ThreadSanitizer for Rust, `pytest-xdist` plus
+  `faulthandler` and a stress run for Python. If your code is genuinely
+  single-threaded, disable this rule in policy and say so in the rules
+  document — that is a decision, not a gap.
+ratchet: allowlist
+check:
+  kind: toolchain
+defaults:
+  scope:
+    - ".github/workflows/**"
+    - ".gitlab-ci.yml"
+    - "Makefile"
+    - "justfile"
+    - "Taskfile.yml"
+  tools:
+    go: ["-race", "go test -race"]
+    rust: ["thread-sanitizer", "-Zsanitizer=thread", "loom"]

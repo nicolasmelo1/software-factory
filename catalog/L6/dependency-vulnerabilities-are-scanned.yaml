@@ -1,0 +1,37 @@
+id: L6.DEPENDENCY_VULNERABILITIES_ARE_SCANNED
+layer: L6
+title: Something audits dependencies for known vulnerabilities
+severity: high
+statement: >-
+  At least one dependency vulnerability scanner for each of this repository's
+  languages runs somewhere the repository actually executes — a CI workflow, a
+  Makefile, a task runner, a package script.
+why: >-
+  An agent adding a dependency is making a supply-chain decision in a one-line
+  diff, usually while solving something else entirely, and it has no way to
+  know what that package shipped last week. This check does not audit anything
+  itself — the ecosystem tools are far better than anything that could live
+  here. What it guarantees is the thing that actually rots: that the audit is
+  still wired in. A scanner someone removed to make CI faster fails exactly
+  like one that was never added.
+fix: >-
+  Add the scanner to your CI workflow or task runner. `pip-audit` for Python,
+  `npm audit` or `osv-scanner` for TypeScript, `govulncheck` for Go,
+  `cargo audit` for Rust.
+ratchet: allowlist
+check:
+  kind: toolchain
+defaults:
+  scope:
+    - ".github/workflows/**"
+    - ".gitlab-ci.yml"
+    - "Makefile"
+    - "justfile"
+    - "Taskfile.yml"
+    - "package.json"
+    - "noxfile.py"
+  tools:
+    python: ["pip-audit", "osv-scanner", "safety", "snyk"]
+    typescript: ["npm audit", "pnpm audit", "yarn audit", "osv-scanner", "snyk"]
+    go: ["govulncheck", "osv-scanner", "nancy", "snyk"]
+    rust: ["cargo audit", "cargo-audit", "cargo-deny", "osv-scanner"]

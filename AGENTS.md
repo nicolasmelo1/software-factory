@@ -16,14 +16,28 @@ ships.
 - **A rule needs `why` and `fix`.** The catalog refuses to load without them,
   and `L4.EVERY_RULE_HAS_A_WHY` fails when enforcement and prose come apart.
   A new rule means a new section in `docs/rules.md` in the same commit.
-- **A rule needs a mutation fixture.** Add it to `src/fixtures.rs` in the same
-  change. `L5.EVERY_CHECK_HAS_A_MUTATION_TEST` fails without one, and
-  `sf verify` fails if the fixture does not actually trip the rule.
+- **A rule needs a mutation fixture, in every language it claims.** Add it to
+  `src/fixtures.rs` in the same change, then `sf fixtures`.
+  `L5.EVERY_CHECK_HAS_A_MUTATION_TEST` fails without one, and `sf verify` fails
+  both if the fixture does not trip the rule and if it trips it in only some of
+  the languages the rule declares a query for.
+- **A rule must be pointed at something, or switched off in writing.**
+  `L5.NO_INERT_RULE` fails an enabled lock with no scope, a hazard rule with no
+  tools, or a structural rule with no query for any language this repository
+  declares. Disabled with a reason in `docs/rules.md` is honest; enabled and
+  inert is a rule lying about its own coverage.
 - **Never widen a rule to make a finding disappear.** If a rule is wrong, argue
   it in the prose and change it deliberately. Silently loosening a glob is
   indistinguishable from a fix at the diff level, which is exactly the failure
   mode this repository exists to catch.
 - **Never hand-edit a digest or a lock.** Run `sf lock` or `sf seal <gate>`.
+- **Never weaken the policy to go green.** `L2.FACTORY_CONFIG_IS_LOCKED` will
+  notice the edit and `L2.POLICY_ONLY_TIGHTENS` will notice its direction. If a
+  rule genuinely needs loosening, that is a pull request about the rule, with
+  the reasoning in the body — not a line inside a change about something else.
+- **Order of operations after touching the guardrail:** `sf fixtures`,
+  `sf docs`, `sf ratchet`, then `sf lock` last. The lock covers the ratchet, so
+  locking before re-seeding leaves the build red.
 - **Rule ids are a public contract.** Every repository that adopted this tool
   pinned them. Renaming one is a breaking change.
 

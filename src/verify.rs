@@ -4,10 +4,11 @@
 //! rule that reports nothing there is broken, and every green build it has
 //! ever produced meant nothing.
 
-use crate::catalog::Catalog;
+use crate::catalog::{Catalog, CheckKind};
 use crate::checks::{self, Ctx};
 use crate::clock;
 use crate::policy::{FIXTURES_DIR, Policy};
+use crate::lang::Lang;
 use crate::ratchet::Ratchet;
 use crate::scan;
 use anyhow::Result;
@@ -71,17 +72,59 @@ fn run_fixture(fixture_root: &Path, rule_id: &str, catalog: &Catalog) -> Result<
         files: &files,
         ratchet: &ratchet,
         changed: None,
+        base: None,
         today: clock::today(),
     };
     let findings = checks::run_all(&ctx)?;
     let hits: Vec<_> = findings.iter().filter(|f| f.rule == rule_id).collect();
+    if hits.is_empty() {
+        return Ok(Outcome {
+            rule: rule_id.to_string(),
+            fired: false,
+            detail: "the mutation did not trip the rule".to_string(),
+        });
+    }
+    // A rule that carries a query per language passes here if *any* of them
+    // fires, which would let three broken queries hide behind one working one.
+    // Every language the rule claims has to be shown tripping it.
+    if let Some(missing) = untested_languages(&fixture_catalog, rule_id, &hits) {
+        return Ok(Outcome {
+            rule: rule_id.to_string(),
+            fired: false,
+            detail: format!(
+                "fires in some languages but the fixture never trips it in: {missing}"
+            ),
+        });
+    }
     Ok(Outcome {
         rule: rule_id.to_string(),
-        fired: !hits.is_empty(),
-        detail: if hits.is_empty() {
-            "the mutation did not trip the rule".to_string()
-        } else {
-            format!("{} finding(s): {}", hits.len(), hits[0].message)
-        },
+        fired: true,
+        detail: format!("{} finding(s): {}", hits.len(), hits[0].message),
     })
+}
+
+/// Languages a rule declares a query for but whose fixture files never fired.
+fn untested_languages(
+    catalog: &Catalog,
+    rule_id: &str,
+    hits: &[&crate::finding::Finding],
+) -> Option<String> {
+    let declared: Vec<String> = match catalog.get(rule_id).map(|r| &r.check) {
+        Some(CheckKind::Shape { languages }) => languages.keys().cloned().collect(),
+        Some(CheckKind::Nested { languages }) => languages.keys().cloned().collect(),
+        _ => return None,
+    };
+    let fired: Vec<&str> = hits
+        .iter()
+        .filter_map(|f| {
+            let path = f.location.split(':').next().unwrap_or("");
+            Lang::from_path(Path::new(path)).map(|l| l.name())
+        })
+        .collect();
+    let missing: Vec<String> =
+        declared.into_iter().filter(|name| !fired.contains(&name.as_str())).collect();
+    if missing.is_empty() {
+        return None;
+    }
+    Some(missing.join(", "))
 }

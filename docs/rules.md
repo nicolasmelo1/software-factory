@@ -14,6 +14,17 @@ pattern before cementing a shape. It is deliberate here for one reason: this
 repository is the demonstration, so every rule it ships must be running
 somewhere. Do not copy this choice into a new project — copy the advice.
 
+**Three rules are switched off, each because it is not about this repository.**
+`L0.ONE_ENTRYPOINT_PER_FILE` and `L0.PERSISTENCE_STAYS_IN_REPOSITORIES` ship no
+Rust query, because neither concept has a Rust meaning yet and inventing one so
+a coverage table looks full is how a rule starts producing findings nobody
+believes. `L2.GENERATED_FILES_ARE_LOCKED` is off because nothing here is
+generated. `L6.DATA_RACES_ARE_DETECTED` is off because `sf` spawns no threads,
+holds no locks and shares no mutable state — and that stops being true the
+moment any of it becomes concurrent. All four remain proven by their fixtures;
+they are simply pointed at nothing here, and `L5.NO_INERT_RULE` is what forced
+each of them to become a written decision instead of a silent pass.
+
 **`src/fixtures.rs` is excluded from the two text-pattern rules.** It holds the
 mutation fixtures as string literals, so it contains violating text on purpose.
 A line-based rule cannot tell a suppression from a string that quotes one, and
@@ -24,13 +35,16 @@ weakening the rule for everyone.
 lock is what actually pins what gets compiled, so it is the file worth a
 reviewer's attention.
 
+**`L6.PERFORMANCE_REGRESSION_IS_GUARDED` is frozen, not fixed.** There is no
+benchmark baseline here yet. Wiring `cargo bench` so the check goes green
+without a committed baseline would be a green light measuring nothing, so it
+carries a review date instead. That is what the ratchet is for.
+
 **No L3 gate is defined yet.** `L3.GATE_HAS_FRESH_EVIDENCE` is enabled and
-`gates:` is empty, so it currently reports nothing here. The effect this
-repository would gate on is `sf verify` passing against a repository in a
-language it has never parsed — see
-[the language adapter plan](../plans/expand-language-adapters.md). Enabling a
-rule with nothing for it to check is honest only because L5 proves the rule
-still fires on its fixture.
+`gates:` is empty, so it currently reports nothing here. The effect worth
+gating on is `sf verify` passing against a repository in a language it has
+never parsed — see
+[the language adapter plan](../plans/expand-language-adapters.md).
 
 ## L0 — Shape: where things live
 
@@ -53,26 +67,6 @@ Modules marked private or generated are imported only from inside the package th
 **Why.** Generated and internal modules are the parts you intend to be free to replace. Every import from outside quietly converts one into public API, and the cost only shows up the day you regenerate. An agent has no way to know which modules were meant to be replaceable unless the boundary is executable.
 
 **Fix.** Import from the package's public surface instead. If the symbol you need is not exposed there, exposing it deliberately is the change to make.
-
-### L0.ONE_ENTRYPOINT_PER_FILE
-
-**One HTTP entrypoint per file**
-
-A file that declares an HTTP route declares exactly one.
-
-**Why.** A file per use case makes the unit of work addressable: a plan can name it, a diff touches it alone, and two agents working on two endpoints never collide in the same file. Router files that accumulate twelve handlers are the single most common source of agent merge conflicts and of reviewers missing a route that changed.
-
-**Fix.** Split each route into its own module named after the use case, and keep the router file as an aggregator that only imports and mounts them.
-
-### L0.PERSISTENCE_STAYS_IN_REPOSITORIES
-
-**Data-access calls stay in the persistence layer**
-
-Session/ORM/query calls may only appear in files under the persistence layer. Everything above it goes through a repository.
-
-**Why.** This is the boundary agents erode fastest, because reaching for the session directly is always the shortest diff. Once a controller runs its own query, transaction scope, N+1 behaviour and test seams stop being properties of one layer and become properties of the whole codebase. Enforcing placement is cheap; recovering the boundary afterwards is not.
-
-**Fix.** Move the query into a repository method that names the intent (`find_active_orders_for`, not `execute`) and call that instead.
 
 ## L1 — Grain: how the code reads
 
@@ -118,15 +112,15 @@ Dependency manifests are hash-locked. A changed manifest without a matching lock
 
 **Fix.** If the dependency is intended, run `sf lock --update` in the same commit and say in the message what it buys. If it is incidental, remove it.
 
-### L2.GENERATED_FILES_ARE_LOCKED
+### L2.FACTORY_CONFIG_IS_LOCKED
 
-**Generated artifacts are hash-locked and not hand-edited**
+**The guardrail's own configuration is hash-locked**
 
-Every generated or vendored file is recorded in a lock with its SHA-256. Content that drifts from the lock, and files that appear in scope without being listed, both fail.
+The policy, the ratchet, the local rules, the root allowlist, the CI workflow and the hooks are all recorded in a lock. Any edit to them without a matching lock update fails.
 
-**Why.** A generated file is a derivative of a source of truth somewhere else. Editing it by hand looks like the smallest possible fix and silently forks the derivative from its source — the next regeneration destroys the edit, usually in a different pull request, where nobody connects the two. The lock makes the fork impossible instead of merely discouraged.
+**Why.** Every other rule in this catalog is enforced by files an agent can edit. The shortest path from a red build to a green one is not fixing the code — it is disabling the rule, widening a glob, or deleting a workflow step, and at the diff level those are indistinguishable from a fix. The lock does not make the edit impossible; it makes it undeniable. A guardrail change becomes a second, deliberate line in the diff, on a path a code owner watches.
 
-**Fix.** Change the source and regenerate, then run `sf lock --update` in the same commit so the lock diff is visible to the reviewer as a deliberate act.
+**Fix.** If the change to the guardrail is intended, run `sf lock` in the same commit and say in the message what it buys. If it is not, revert it — the finding underneath is the real work.
 
 ### L2.NO_PERMANENT_EXCEPTION
 
@@ -137,6 +131,16 @@ Each ratchet entry and each policy exclusion declares a `review_by` date, and an
 **Why.** A ratchet without expiry is how a temporary allowance becomes the permanent shape of the codebase. The date does not force the fix — it forces the conversation, on a day someone chose in advance rather than never. This is what keeps an adoption ratchet from turning into a second, invisible standard.
 
 **Fix.** Fix the entries you can, delete the ones that no longer exist, and push the date out deliberately for what is left — with the reason recorded next to it.
+
+### L2.POLICY_ONLY_TIGHTENS
+
+**The guardrail may be strengthened, never quietly weakened**
+
+Compared with the revision under review, no rule may be disabled or removed, no exclusion added, no scope narrowed, no ceiling raised, no gate weakened, no new violation frozen, and no review date pushed out.
+
+**Why.** The lock makes a guardrail edit visible; this reads the edit and decides which direction it went. Weakening is the specific move an agent makes when a check stands between it and a green build, and it is the one that costs nothing to write and everything to notice six months later. Strengthening passes silently, so the rule never taxes the direction you want.
+
+**Fix.** Restore what was weakened. If the loosening is genuinely right — the rule was wrong, the exclusion is narrower than the alternative — that is a human's call to merge, with the reasoning in the pull request, not a line an agent slips into a diff about something else.
 
 ## L3 — Effect: a real actor achieved the outcome
 
@@ -203,3 +207,85 @@ For each enabled rule there is a mutation fixture that violates it, and `sf veri
 **Why.** Without this layer every other layer is theatre. A check with a typo in its query, a glob that matches nothing, or a scope that excludes the whole source tree passes silently forever and reads exactly like a check that works — a green build proves nothing about a rule that never ran. The mutation is the only thing that distinguishes enforcement from decoration.
 
 **Fix.** Write the smallest file that violates the rule under the mutations directory and run `sf verify`. If the rule does not fire on it, the rule is broken — fix the rule, not the fixture.
+
+### L5.NO_INERT_RULE
+
+**An enabled rule must be capable of producing a finding**
+
+A rule that is switched on must be configured to look at something: a lock rule needs a scope, a toolchain rule needs tools, a gate rule needs a gate.
+
+**Why.** `sf verify` proves a rule *can* fire, by running it against a fixture built to trip it. It says nothing about whether the rule is pointed at anything in *this* repository. An enabled lock with an empty scope, or a hazard rule with no tools declared, passes every run forever and appears in every report as a rule that found nothing — indistinguishable from a rule that is protecting you. This was not hypothetical: the tool's own scaffolding wrote an empty scope over a critical lock, and nothing noticed until the lock file failed to appear.
+
+**Fix.** Give the rule something to look at, or switch it off in policy and say why in the rules document. Disabled and documented is honest; enabled and inert is a rule that lies about its own coverage.
+
+## L6 — Hazard: the defect classes this repository hunts
+
+### L6.DEAD_CODE_IS_DETECTED
+
+**Something detects code nothing reaches**
+
+A dead-code detector for each of this repository's languages runs somewhere the repository actually executes.
+
+**Why.** Dead code is the residue of agent-heavy work: a helper written for an approach that was abandoned two iterations later, a branch that became unreachable when a condition upstream changed. It is worse than clutter, because the next agent reads it as an example of how this codebase does things and extends it. Nobody deletes it manually, because nobody can prove it is unreachable — which is precisely what a detector does prove.
+
+**Fix.** Wire in `vulture` for Python, `ts-prune` or `knip` for TypeScript, `staticcheck` for Go, `cargo udeps` or the `dead_code` lint for Rust. Then delete what it finds; a detector nobody acts on is worse than none.
+
+### L6.DEPENDENCY_VULNERABILITIES_ARE_SCANNED
+
+**Something audits dependencies for known vulnerabilities**
+
+At least one dependency vulnerability scanner for each of this repository's languages runs somewhere the repository actually executes — a CI workflow, a Makefile, a task runner, a package script.
+
+**Why.** An agent adding a dependency is making a supply-chain decision in a one-line diff, usually while solving something else entirely, and it has no way to know what that package shipped last week. This check does not audit anything itself — the ecosystem tools are far better than anything that could live here. What it guarantees is the thing that actually rots: that the audit is still wired in. A scanner someone removed to make CI faster fails exactly like one that was never added.
+
+**Fix.** Add the scanner to your CI workflow or task runner. `pip-audit` for Python, `npm audit` or `osv-scanner` for TypeScript, `govulncheck` for Go, `cargo audit` for Rust.
+
+### L6.INSECURE_PATTERNS_ARE_SCANNED
+
+**Something scans the code for known-insecure patterns**
+
+A static security analyser for each of this repository's languages runs somewhere the repository actually executes.
+
+**Why.** Shell interpolation, string-built SQL, disabled certificate verification, weak hashes, unsafe deserialization — these are the defects that look entirely normal in review, because the code reads exactly like the safe version. An agent reproduces them faithfully from the enormous amount of training data that contains them. A static analyser recognises the shapes a reviewer skims past.
+
+**Fix.** Wire in `bandit` or `semgrep` for Python, `semgrep` or `eslint-plugin-security` for TypeScript, `gosec` for Go, `cargo-geiger` or `clippy` for Rust.
+
+### L6.NO_BLOCKING_CALL_WHILE_HOLDING_A_LOCK
+
+**Nothing blocks while a lock is held**
+
+A network call, a sleep, a subprocess, or an await must not appear inside a region that holds a lock.
+
+**Why.** No checker can decide whether a program deadlocks — that is undecidable, and claiming otherwise is how a tool teaches you to trust it wrongly. What is decidable is the shape that causes most real ones. Holding a lock across something slow converts a fast mutual exclusion into a queue: every other thread waits on network latency, which is starvation, and if the blocked call needs a lock someone else holds, it is a deadlock. Awaiting while holding a synchronous lock is worse — the runtime can schedule the continuation onto a thread that then blocks on the same lock, and nothing ever moves again.
+
+**Fix.** Do the slow thing outside the lock. Take the lock, read what you need, drop it, make the call, take it again to write. If the value must be consistent across the call, that is a transaction or a queue, not a longer critical section.
+
+### L6.ONE_LOCK_AT_A_TIME
+
+**A function does not acquire a second lock while holding the first**
+
+A function acquires at most one lock. Taking a second one inside the same scope is a finding.
+
+**Why.** Nested locking is the precondition for essentially every deadlock that is not a self-deadlock: two functions take the same two locks in opposite orders and the program stops, usually in production, usually under load, usually not reproducibly. Nobody writes it deliberately — it happens when a function that already holds a lock calls something that takes another, three layers down where the acquisition is invisible. This rule cannot tell a correctly ordered pair from a dangerous one; ordering is a global property and this only sees one function. It makes the second acquisition visible, which is the part that is otherwise invisible. If the pair is genuinely correct, freeze it in the ratchet with the ordering written next to it — now the ordering is documented, which is the only thing that ever prevents the inversion.
+
+**Fix.** Restructure so one lock covers the operation, or split the work so each lock is taken and released independently. If you truly need both, take them in the same order everywhere and write that order down.
+
+### L6.PERFORMANCE_REGRESSION_IS_GUARDED
+
+**Something would notice the code getting slower**
+
+A benchmark harness for each of this repository's languages runs somewhere the repository actually executes.
+
+**Why.** Correctness has a test suite and performance usually has nothing, so a change that is ten times slower ships green. This is a specifically agent-shaped risk: asked to make code correct or readable, an agent will happily replace a single indexed query with a loop of queries, or a set lookup with a list scan, and every test still passes. A committed baseline is what turns that from an incident into a failed build.
+
+**Fix.** Wire in `pytest-benchmark` for Python, `vitest bench` or `benchmark.js` for TypeScript, `go test -bench` for Go, `criterion` for Rust — and commit the baseline, because a benchmark with nothing to compare against measures nothing.
+
+### L6.SECRETS_ARE_SCANNED
+
+**Something scans for committed secrets**
+
+A secret scanner runs somewhere the repository actually executes.
+
+**Why.** A leaked credential is the one class of defect that cannot be fixed by a revert: once it is in the history it is compromised, and the remedy is rotation under time pressure. Agents produce this failure in a specific way — they inline a working value while debugging, then write the config indirection afterwards, and the debugging commit is already pushed. The scan is cheap and it is the only check here whose absence is unrecoverable.
+
+**Fix.** Wire in `detect-secrets`, `gitleaks` or `trufflehog`. Scanners are mostly language-independent, so one covers the whole repository.

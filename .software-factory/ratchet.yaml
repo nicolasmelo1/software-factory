@@ -1,0 +1,11 @@
+# Frozen violations, one key per line, per rule.
+# These are debt with a due date, not permission. Adding a key by hand
+# to silence a new violation is the one move this file exists to make
+# visible in review.
+version: 1
+rules:
+  L6.PERFORMANCE_REGRESSION_IS_GUARDED:
+    review_by: 2027-02-18
+    note: null
+    allow:
+    - rust

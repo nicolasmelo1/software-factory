@@ -39,9 +39,15 @@ pub fn run(root: &Path, catalog: &Catalog, opts: &InitOptions) -> Result<Vec<Str
     }
 
     let mut written = Vec::new();
-    write(root, POLICY_PATH, &policy_document(opts, &selected), &mut written)?;
+    write(root, POLICY_PATH, &policy_document(opts, &selected, root), &mut written)?;
     write(root, "docs/rules.md", &rules_document(opts, &selected), &mut written)?;
     write_cadence_files(root, &selected, &mut written)?;
+    write(
+        root,
+        ".github/workflows/software-factory.yml",
+        &workflow(&opts.languages, &selected),
+        &mut written,
+    )?;
     write_automation(root, &mut written)?;
     write_fixtures(root, &selected, &mut written)?;
     Ok(written)
@@ -65,7 +71,6 @@ fn write_cadence_files(
 }
 
 fn write_automation(root: &Path, written: &mut Vec<String>) -> Result<()> {
-    write(root, ".github/workflows/software-factory.yml", WORKFLOW, written)?;
     write(root, ".githooks/pre-commit", PRE_COMMIT, written)?;
     #[cfg(unix)]
     {
@@ -106,6 +111,17 @@ fn write(root: &Path, rel: &str, body: &str, written: &mut Vec<String>) -> Resul
     Ok(())
 }
 
+/// Write the mutation fixtures for every enabled rule, without touching the
+/// policy. Adding a rule should not mean re-scaffolding the repository.
+pub fn refresh_fixtures(root: &Path, catalog: &Catalog) -> Result<Vec<String>> {
+    let policy = Policy::load(root)?;
+    let selected: Vec<&crate::catalog::Rule> =
+        catalog.rules.values().filter(|r| policy.enabled(&r.id).is_some()).collect();
+    let mut written = Vec::new();
+    write_fixtures(root, &selected, &mut written)?;
+    Ok(written)
+}
+
 /// Freeze today's violations so the rules can be adopted by a repository that
 /// already breaks them. New violations still fail from the first run.
 pub fn seed_ratchet(root: &Path, catalog: &Catalog, months: i64) -> Result<(Ratchet, usize)> {
@@ -119,6 +135,7 @@ pub fn seed_ratchet(root: &Path, catalog: &Catalog, months: i64) -> Result<(Ratc
         files: &files,
         ratchet: &empty,
         changed: None,
+        base: None,
         today: clock::today(),
     };
     let review_by = clock::plus_months(&ctx.today, months);
@@ -151,6 +168,7 @@ pub fn update_locks(root: &Path, catalog: &Catalog) -> Result<Vec<String>> {
         files: &files,
         ratchet: &ratchet,
         changed: None,
+        base: None,
         today: clock::today(),
     };
     let mut written = Vec::new();
@@ -175,7 +193,17 @@ pub fn update_locks(root: &Path, catalog: &Catalog) -> Result<Vec<String>> {
     Ok(written)
 }
 
-fn policy_document(opts: &InitOptions, selected: &[&crate::catalog::Rule]) -> String {
+/// Dependency manifests that actually exist here. A lock over files that are
+/// not present is the same as no lock at all.
+fn dependency_manifests(root: &Path) -> Vec<String> {
+    ["package.json", "pyproject.toml", "requirements.txt", "go.mod", "Cargo.toml", "Cargo.lock", "Gemfile"]
+        .iter()
+        .filter(|name| root.join(name).exists())
+        .map(|name| name.to_string())
+        .collect()
+}
+
+fn policy_document(opts: &InitOptions, selected: &[&crate::catalog::Rule], root: &Path) -> String {
     let mut out = String::new();
     out.push_str(
         "# Which rules this repository enforces, and how its paths map onto the\n\
@@ -195,23 +223,73 @@ fn policy_document(opts: &InitOptions, selected: &[&crate::catalog::Rule]) -> St
     for rule in selected {
         out.push_str(&format!("  # {} — {}\n", rule.layer.as_str(), rule.title));
         out.push_str(&format!("  {}:\n    enabled: true\n", rule.id));
-        if matches!(rule.check, crate::catalog::CheckKind::Lock) {
-            out.push_str("    options:\n      # Nothing is locked until you say what is generated.\n      scope: []\n");
+        // The guardrail's own lock ships with the right scope; the others
+        // cannot be guessed, so they are filled from what is actually here.
+        if rule.id == "L2.DEPENDENCIES_CHANGE_DELIBERATELY" {
+            let manifests = dependency_manifests(root);
+            out.push_str("    options:\n      scope:\n");
+            for manifest in &manifests {
+                out.push_str(&format!("        - \"{manifest}\"\n"));
+            }
+            if manifests.is_empty() {
+                out.push_str("        # No dependency manifest found. Add yours, or disable the rule.\n");
+            }
+        } else if rule.id == "L2.GENERATED_FILES_ARE_LOCKED" {
+            out.push_str(
+                "    options:\n      # Nothing is locked until you say what is generated. An enabled\n      \
+                 # lock with an empty scope is inert, and L5.NO_INERT_RULE will say so.\n      scope: []\n",
+            );
         }
     }
     out
 }
 
-fn rules_document(opts: &InitOptions, selected: &[&crate::catalog::Rule]) -> String {
-    let mut out = format!(
+/// Regenerate the rule sections, preserving whatever a human wrote above them.
+/// Everything before the first `## L` heading is this repository's own
+/// reasoning and is never touched.
+pub fn refresh_rules_document(root: &Path, catalog: &Catalog) -> Result<()> {
+    let policy = Policy::load(root)?;
+    let selected: Vec<&crate::catalog::Rule> =
+        catalog.rules.values().filter(|r| policy.enabled(&r.id).is_some()).collect();
+    let path = root.join("docs/rules.md");
+    let existing = std::fs::read_to_string(&path).unwrap_or_default();
+    let preamble: String = existing
+        .lines()
+        .take_while(|line| !line.starts_with("## L"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let mut out = if preamble.trim().is_empty() {
+        rules_preamble(&policy.project.name)
+    } else {
+        preamble.trim_end().to_string()
+    };
+    out.push('\n');
+    out.push_str(&rule_sections(&selected));
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    std::fs::write(&path, out)?;
+    Ok(())
+}
+
+fn rules_preamble(name: &str) -> String {
+    format!(
         "# Rules {} enforces\n\n\
          Generated by `sf init`. Every rule below is enforced in CI; this document\n\
          is the other half of the pair — the half that says why. Replace the\n\
          generic reasoning with this repository's own decision as it acquires one,\n\
          but do not delete a rule's section while the rule is enabled:\n\
          `L4.EVERY_RULE_HAS_A_WHY` fails when enforcement and prose come apart.\n",
-        opts.name
-    );
+        name
+    )
+}
+
+fn rules_document(opts: &InitOptions, selected: &[&crate::catalog::Rule]) -> String {
+    format!("{}\n{}", rules_preamble(&opts.name), rule_sections(selected))
+}
+
+fn rule_sections(selected: &[&crate::catalog::Rule]) -> String {
+    let mut out = String::new();
     let mut layer = None;
     for rule in selected {
         if layer != Some(rule.layer) {
@@ -234,6 +312,7 @@ fn layer_title(layer: Layer) -> &'static str {
         Layer::L3 => "Effect: a real actor achieved the outcome",
         Layer::L4 => "Cadence: docs, plans and rules stay attached",
         Layer::L5 => "Meta: the guardrail is proven to fire",
+        Layer::L6 => "Hazard: the defect classes this repository hunts",
     }
 }
 
@@ -259,14 +338,67 @@ precondition exists. Park it in the second table rather than deleting it.\n\n\
 | # | Work | Exit condition |\n| --- | --- | --- |\n| 1 | _first plan_ | _the externally visible effect that ends it_ |\n\n\
 ## Parked\n\n| Work | Waiting on |\n| --- | --- |\n";
 
-const WORKFLOW: &str = "name: software factory\n\n\
-on:\n  pull_request:\n  push:\n    branches: [main]\n\n\
-permissions:\n  contents: read\n\n\
-jobs:\n  check:\n    runs-on: ubuntu-latest\n    steps:\n      \
-- uses: actions/checkout@v4\n        with:\n          fetch-depth: 0\n      \
-- name: Install sf\n        run: cargo install --git https://github.com/nicolasmelo1/software-factory --locked\n      \
-- name: Prove the checks still fire\n        run: sf verify\n      \
-- name: Check the repository\n        run: sf check --changed origin/${{ github.base_ref || 'main' }}\n";
+/// The workflow, with the hazard tooling wired in for the languages this
+/// repository actually uses. Tools that need a toolchain the runner does not
+/// have by default — thread sanitizers, benchmark baselines — are deliberately
+/// left out: their rules will fire, get a review date, and become a decision
+/// somebody made rather than a step nobody reads.
+fn workflow(languages: &[String], selected: &[&crate::catalog::Rule]) -> String {
+    let mut out = String::from(
+        "name: software factory\n\n\
+         on:\n  pull_request:\n  push:\n    branches: [main]\n\n\
+         permissions:\n  contents: read\n\n\
+         jobs:\n  factory:\n    runs-on: ubuntu-latest\n    steps:\n      \
+         - uses: actions/checkout@v4\n        with:\n          fetch-depth: 0\n      \
+         - name: Install sf\n        run: cargo install --git https://github.com/nicolasmelo1/software-factory --locked\n      \
+         # verify first: a check that stopped firing makes the run below\n      \
+         # meaningless, and it is the cheaper failure to discover.\n      \
+         - name: Prove the checks still fire\n        run: sf verify\n      \
+         - name: Check the repository\n        run: sf check --changed origin/${{ github.base_ref || 'main' }}\n",
+    );
+    if !selected.iter().any(|r| r.layer == crate::catalog::Layer::L6) {
+        return out;
+    }
+    out.push_str("\n  hazards:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n");
+    out.push_str(
+        "      - name: Committed secrets\n        uses: gitleaks/gitleaks-action@v2\n",
+    );
+    for language in languages {
+        out.push_str(hazard_steps(language));
+    }
+    out
+}
+
+fn hazard_steps(language: &str) -> &'static str {
+    match language {
+        "python" => concat!(
+            "      - uses: actions/setup-python@v5\n        with:\n          python-version: '3.12'\n",
+            "      - run: pip install pip-audit bandit vulture\n",
+            "      - name: Dependency vulnerabilities\n        run: pip-audit\n",
+            "      - name: Insecure patterns\n        run: bandit -r . -c pyproject.toml\n",
+            "      - name: Dead code\n        run: vulture .\n",
+        ),
+        "typescript" => concat!(
+            "      - uses: actions/setup-node@v4\n        with:\n          node-version: '22'\n",
+            "      - name: Dependency vulnerabilities\n        run: npm audit --audit-level=high\n",
+            "      - name: Insecure patterns\n        run: npx --yes semgrep --config auto --error\n",
+            "      - name: Dead code\n        run: npx --yes knip\n",
+        ),
+        "go" => concat!(
+            "      - uses: actions/setup-go@v5\n        with:\n          go-version: stable\n",
+            "      - name: Dependency vulnerabilities\n        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...\n",
+            "      - name: Insecure patterns\n        run: go run github.com/securego/gosec/v2/cmd/gosec@latest ./...\n",
+            "      - name: Dead code\n        run: go run honnef.co/go/tools/cmd/staticcheck@latest ./...\n",
+            "      - name: Data races\n        run: go test -race ./...\n",
+        ),
+        "rust" => concat!(
+            "      - name: Dependency vulnerabilities\n        uses: taiki-e/install-action@cargo-audit\n",
+            "      - run: cargo audit\n",
+            "      - name: Insecure patterns and dead code\n        run: cargo clippy --all-targets -- -D warnings -D dead_code\n",
+        ),
+        _ => "",
+    }
+}
 
 const PRE_COMMIT: &str = "#!/bin/sh\n\
 # Enable with: git config core.hooksPath .githooks\n\

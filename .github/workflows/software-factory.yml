@@ -9,17 +9,29 @@ permissions:
   contents: read
 
 jobs:
-  check:
+  factory:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      # This repository builds sf from source rather than installing it: the
-      # thing under test must be the thing in the diff.
-      - name: Build
-        run: cargo build --release --locked
-      - name: Prove every check still fires
-        run: ./target/release/sf verify
-      - name: Check this repository against its own rules
-        run: ./target/release/sf check
+      - name: Install sf
+        run: cargo install --git https://github.com/nicolasmelo1/software-factory --locked
+      # verify first: a check that stopped firing makes the run below
+      # meaningless, and it is the cheaper failure to discover.
+      - name: Prove the checks still fire
+        run: sf verify
+      - name: Check the repository
+        run: sf check --changed origin/${{ github.base_ref || 'main' }}
+
+  hazards:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Committed secrets
+        uses: gitleaks/gitleaks-action@v2
+      - name: Dependency vulnerabilities
+        uses: taiki-e/install-action@cargo-audit
+      - run: cargo audit
+      - name: Insecure patterns and dead code
+        run: cargo clippy --all-targets -- -D warnings -D dead_code

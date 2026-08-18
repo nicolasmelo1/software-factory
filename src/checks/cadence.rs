@@ -5,7 +5,7 @@
 //! keeps the other layers from drifting into folklore.
 
 use super::Ctx;
-use crate::catalog::{CadenceMode, Rule};
+use crate::catalog::{CadenceMode, CheckKind, Rule};
 use crate::finding::Finding;
 use crate::policy::{FIXTURES_DIR, Options};
 use crate::scan;
@@ -20,7 +20,55 @@ pub fn run(rule: &Rule, opts: &Options, ctx: &Ctx, mode: CadenceMode) -> Result<
         CadenceMode::RuleCitations => rule_citations(rule, opts, ctx),
         CadenceMode::PlanCadence => plan_cadence(rule, opts, ctx),
         CadenceMode::MutationCoverage => mutation_coverage(rule, ctx),
+        CadenceMode::InertRules => inert_rules(rule, ctx),
     }
+}
+
+fn covers_a_declared_language<'a>(
+    mut languages: impl Iterator<Item = &'a String>,
+    ctx: &Ctx,
+) -> bool {
+    languages.any(|name| ctx.policy.project.languages.contains(name))
+}
+
+/// An enabled rule pointed at nothing. It passes every run and reads exactly
+/// like a rule that is protecting you.
+fn inert_rules(rule: &Rule, ctx: &Ctx) -> Result<Vec<Finding>> {
+    let mut findings = Vec::new();
+    for (id, candidate) in &ctx.catalog.rules {
+        if ctx.policy.enabled(id).is_none() {
+            continue;
+        }
+        let options = super::options_for(candidate, ctx.policy)?;
+        let reason = match &candidate.check {
+            CheckKind::Lock if options.scope.is_empty() => "no scope: it locks nothing",
+            CheckKind::Toolchain if options.tools.is_empty() => {
+                "no tools declared: it can never find one missing"
+            }
+            CheckKind::Shape { languages }
+                if !covers_a_declared_language(languages.keys(), ctx) =>
+            {
+                "no query for any language this repository declares"
+            }
+            CheckKind::Nested { languages }
+                if !covers_a_declared_language(languages.keys(), ctx) =>
+            {
+                "no query for any language this repository declares"
+            }
+            _ => continue,
+        };
+        findings.push(
+            Finding::new(
+                &rule.id,
+                rule.severity,
+                crate::policy::POLICY_PATH,
+                format!("inert:{id}"),
+                format!("{id} is enabled but cannot produce a finding — {reason}"),
+            )
+            .expected("a configured rule, or an honest `enabled: false`"),
+        );
+    }
+    Ok(findings)
 }
 
 /// Markdown link targets: `[text](target)` and reference definitions.

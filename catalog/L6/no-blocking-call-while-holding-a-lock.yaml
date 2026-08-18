@@ -1,0 +1,57 @@
+id: L6.NO_BLOCKING_CALL_WHILE_HOLDING_A_LOCK
+layer: L6
+title: Nothing blocks while a lock is held
+severity: high
+statement: >-
+  A network call, a sleep, a subprocess, or an await must not appear inside a
+  region that holds a lock.
+why: >-
+  No checker can decide whether a program deadlocks — that is undecidable, and
+  claiming otherwise is how a tool teaches you to trust it wrongly. What is
+  decidable is the shape that causes most real ones. Holding a lock across
+  something slow converts a fast mutual exclusion into a queue: every other
+  thread waits on network latency, which is starvation, and if the blocked call
+  needs a lock someone else holds, it is a deadlock. Awaiting while holding a
+  synchronous lock is worse — the runtime can schedule the continuation onto a
+  thread that then blocks on the same lock, and nothing ever moves again.
+fix: >-
+  Do the slow thing outside the lock. Take the lock, read what you need, drop
+  it, make the call, take it again to write. If the value must be consistent
+  across the call, that is a transaction or a queue, not a longer critical
+  section.
+ratchet: allowlist
+check:
+  kind: nested
+  languages:
+    python:
+      outer: |
+        (with_statement
+          (with_clause (with_item value: (_) @ctx))
+          (#match? @ctx "(?i)(lock|mutex|semaphore)")) @target
+      inner: |
+        (call function: (_) @fn
+          (#match? @fn "(time\\.sleep|requests\\.|urlopen|subprocess\\.|socket\\.|\\.recv\\(|\\.join\\(\\)|input\\()")) @inner
+        (await) @inner
+    go:
+      outer: |
+        (block
+          (statement_list
+            (expression_statement
+              (call_expression
+                function: (selector_expression
+                  field: (field_identifier) @l
+                  (#match? @l "^(Lock|RLock)$")))))) @target
+      inner: |
+        (call_expression function: (_) @fn
+          (#match? @fn "^(time\\.Sleep|http\\.(Get|Post|Do)|exec\\.Command|os\\.ReadFile|ioutil\\.ReadFile)")) @inner
+    rust:
+      outer: |
+        (block
+          (let_declaration value: (_) @v
+            (#match? @v "\\.(lock|write|read)\\(\\)"))) @target
+      inner: |
+        (await_expression) @inner
+        (call_expression function: (_) @fn
+          (#match? @fn "(thread::sleep|sleep\\()")) @inner
+defaults:
+  min_inner: 1
