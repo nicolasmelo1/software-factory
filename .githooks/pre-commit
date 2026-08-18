@@ -1,0 +1,8 @@
+#!/bin/sh
+# Enable with: git config core.hooksPath .githooks
+set -eu
+
+# verify first: a check that no longer fires would make the run below
+# meaningless, and it is the cheaper failure to discover.
+sf verify
+sf check

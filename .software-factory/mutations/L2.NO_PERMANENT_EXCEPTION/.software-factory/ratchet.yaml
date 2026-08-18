@@ -1,0 +1,6 @@
+version: 1
+rules:
+  L1.NO_BLANKET_SUPPRESSION:
+    review_by: '2020-01-01'
+    allow:
+      - src/legacy.py:deadbeefdead

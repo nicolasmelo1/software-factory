@@ -1,0 +1,23 @@
+name: software factory
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install sf
+        run: cargo install --git https://github.com/nicolasmelo1/software-factory --locked
+      - name: Prove the checks still fire
+        run: sf verify
+      - name: Check the repository
+        run: sf check --changed origin/${{ github.base_ref || 'main' }}

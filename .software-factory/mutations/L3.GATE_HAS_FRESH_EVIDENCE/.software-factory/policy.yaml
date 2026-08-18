@@ -1,0 +1,14 @@
+# Generated mutation fixture for L3.GATE_HAS_FRESH_EVIDENCE. It is supposed to fail.
+version: 1
+project:
+  name: mutation-L3.GATE_HAS_FRESH_EVIDENCE
+  languages: [python, typescript, go]
+docs:
+  scan: ["docs/**/*.md"]
+gates:
+  checkout:
+    activation: ["src/checkout/**"]
+    evidence: "evidence/checkout.json"
+rules:
+  L3.GATE_HAS_FRESH_EVIDENCE:
+    enabled: true

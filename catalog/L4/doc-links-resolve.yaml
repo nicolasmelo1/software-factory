@@ -1,0 +1,21 @@
+id: L4.DOC_LINKS_RESOLVE
+layer: L4
+title: Repo-relative documentation links resolve
+severity: medium
+statement: >-
+  Every repo-relative link in tracked markdown points at a path that exists.
+why: >-
+  A fabricated file path in a document is the most reliable tell that a
+  document was written about code that does not exist — and it is the exact
+  failure mode of a confident agent writing docs. It is also the cheapest
+  possible check for whether a doc has drifted since the code moved.
+fix: >-
+  Fix the path, or delete the reference. If the target is planned but not
+  built, say so in the sentence instead of linking to it.
+ratchet: allowlist
+check:
+  kind: cadence
+  mode: doc_links
+defaults:
+  scope:
+    - "**/*.md"

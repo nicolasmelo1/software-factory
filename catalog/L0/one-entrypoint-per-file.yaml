@@ -1,0 +1,48 @@
+id: L0.ONE_ENTRYPOINT_PER_FILE
+layer: L0
+title: One HTTP entrypoint per file
+severity: medium
+statement: >-
+  A file that declares an HTTP route declares exactly one.
+why: >-
+  A file per use case makes the unit of work addressable: a plan can name it, a
+  diff touches it alone, and two agents working on two endpoints never collide
+  in the same file. Router files that accumulate twelve handlers are the single
+  most common source of agent merge conflicts and of reviewers missing a route
+  that changed.
+fix: >-
+  Split each route into its own module named after the use case, and keep the
+  router file as an aggregator that only imports and mounts them.
+ratchet: allowlist
+check:
+  kind: shape
+  languages:
+    python:
+      query: |
+        (decorator
+          (call
+            function: (attribute
+              attribute: (identifier) @name
+              (#match? @name "^(get|post|put|patch|delete|head|options)$")))) @target
+    typescript:
+      query: |
+        (call_expression
+          function: (member_expression
+            property: (property_identifier) @name
+            (#match? @name "^(get|post|put|patch|delete|head|options|all)$"))) @target
+    go:
+      query: |
+        (call_expression
+          function: (selector_expression
+            field: (field_identifier) @name
+            (#match? @name "^(GET|POST|PUT|PATCH|DELETE|HandleFunc|Handle)$"))) @target
+defaults:
+  max_per_file: 1
+  scope:
+    - "**/controllers/**"
+    - "**/routes/**"
+    - "**/handlers/**"
+  exclude:
+    - "**/router.*"
+    - "**/routes.*"
+    - "**/index.*"

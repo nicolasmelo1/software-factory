@@ -1,0 +1,27 @@
+id: L4.EVERY_RULE_HAS_A_WHY
+layer: L4
+title: Every enabled rule is cited in prose, and every citation resolves
+severity: medium
+statement: >-
+  Each enabled rule is referenced at least once from documentation by its id,
+  and every rule id appearing in documentation exists in the catalog.
+why: >-
+  A check with no prose is a wall an agent hits with no way to tell whether it
+  is protecting something or just old. A prose rule with no check is advice
+  that drifts the day someone ignores it. Requiring the pair in both directions
+  is what keeps the documentation and the enforcement from becoming two
+  separate, disagreeing standards — which is the failure this whole method
+  exists to prevent.
+fix: >-
+  Cite the rule id in the document that explains the decision, or write that
+  document. To retire a rule, disable it in policy and remove the citation in
+  the same commit.
+ratchet: allowlist
+check:
+  kind: cadence
+  mode: rule_citations
+defaults:
+  scope:
+    - "docs/**/*.md"
+    - "*.md"
+  marker: "[A-Z][0-9]\\.[A-Z_]+"

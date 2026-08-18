@@ -1,0 +1,21 @@
+id: L1.COMPLEXITY_CEILING
+layer: L1
+title: No function exceeds the cyclomatic ceiling
+severity: medium
+statement: >-
+  Every function stays at or under the configured number of independent paths.
+why: >-
+  A ceiling is not a style preference: it is the only cheap, language-neutral
+  proxy for "a reviewer can hold this in their head". Agents are especially
+  prone to growing a working function by one more branch instead of splitting
+  it, because appending a branch is a smaller diff than a refactor. The ceiling
+  makes the refactor the cheaper option.
+fix: >-
+  Extract the branch cluster into a named function. Naming it is the point: the
+  name is what the next reader (and the next agent) gets to reason with instead
+  of the branches.
+ratchet: allowlist
+check:
+  kind: complexity
+defaults:
+  max: 12

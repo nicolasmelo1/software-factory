@@ -1,0 +1,51 @@
+id: L1.NO_BLANKET_SUPPRESSION
+layer: L1
+title: Every suppression names a code and a reason
+severity: high
+statement: >-
+  A linter, type-checker or test suppression must name the specific rule it
+  disables and carry a written reason on the same line.
+why: >-
+  A blanket suppression is the cheapest way for an agent to turn a red build
+  green, and it is indistinguishable from a fix at the diff level. Requiring
+  the code plus a reason costs one honest sentence when the suppression is
+  legitimate, and is very hard to write convincingly when it is not — which is
+  exactly the signal a reviewer needs.
+fix: >-
+  Narrow the suppression to the specific code and append the reason inline. If
+  the reason is "I could not make it pass", that is the finding, not the fix.
+ratchet: allowlist
+check:
+  kind: text_pattern
+defaults:
+  scope:
+    - "**/*.py"
+    - "**/*.ts"
+    - "**/*.tsx"
+    - "**/*.go"
+    - "**/*.rs"
+  # Every pattern is `regex` (the shape that is not acceptable) plus an
+  # optional `unless` (the shape that is). Two positive patterns rather than
+  # one negative lookahead: it keeps the rules readable and portable to any
+  # regex engine.
+  forbidden:
+    - regex: "#\\s*noqa"
+      unless: "#\\s*noqa:\\s*\\S"
+      message: "Bare `# noqa` disables every rule on the line. Write `# noqa: RULE  # reason`."
+    - regex: "#\\s*type:\\s*ignore"
+      unless: "#\\s*type:\\s*ignore\\["
+      message: "Bare `# type: ignore` hides every error on the line. Write `# type: ignore[code]  # reason`."
+    - regex: "@ts-ignore"
+      message: "`@ts-ignore` suppresses silently and never expires. Use `@ts-expect-error <reason>`, which fails once the underlying error is gone."
+    - regex: "eslint-disable"
+      unless: "eslint-disable(-next-line)?\\s+[\\w@/-]+\\s*(--|//|/\\*)\\s*\\S"
+      message: "Disable one named rule and give a reason: `// eslint-disable-next-line rule-name -- why`."
+    - regex: "//\\s*nolint"
+      unless: "//\\s*nolint:\\s*\\S"
+      message: "Bare `//nolint` disables every linter. Write `//nolint:linter // reason`."
+    - regex: "#\\[allow\\("
+      unless: "#\\[allow\\([^)]*\\)\\]\\s*//\\s*\\S"
+      message: "`#[allow(...)]` with no trailing `// reason` hides a lint forever. Say why on the same line."
+    - regex: "(@pytest\\.mark\\.(skip|xfail)|pytest\\.skip)\\("
+      unless: "reason\\s*="
+      message: "A skipped test with no `reason=` is an untracked hole in coverage. State why."

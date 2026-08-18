@@ -1,0 +1,29 @@
+id: L4.PLAN_DECLARES_EXIT_CONDITION
+layer: L4
+title: Every plan declares its exit condition and sits in the execution order
+severity: medium
+statement: >-
+  Each document in the plans directory contains an explicit exit condition, and
+  is either listed in the execution-order document or explicitly parked there.
+why: >-
+  A plan without an exit condition cannot be finished, only abandoned — and an
+  agent handed one will declare completion at whatever point the code compiles.
+  The exit condition should name an externally visible effect, not a merge: the
+  merge is the thing you can produce without the effect ever happening. Listing
+  plans in one ordered document is what stops parallel agents from each
+  choosing their own next priority.
+fix: >-
+  Add an `Exit condition:` line naming the observable effect, and put the plan
+  in the execution order — or park it there with the precondition it waits on.
+ratchet: allowlist
+check:
+  kind: cadence
+  mode: plan_cadence
+defaults:
+  scope:
+    - "plans/*.md"
+  execution_order: "plans/next-steps.md"
+  # Leading markdown emphasis, heading marks, quote marks and table pipes are
+  # all normal ways to write this line. The rule is about the plan declaring an
+  # exit condition, not about the syntax it declares it in.
+  marker: "(?i)^[\\s*_#>|-]*exit condition[\\s*_]*[:|]"

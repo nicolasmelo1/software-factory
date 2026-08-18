@@ -1,0 +1,22 @@
+id: L5.EVERY_CHECK_HAS_A_MUTATION_TEST
+layer: L5
+title: Every enabled rule has a mutation that proves it fires
+severity: critical
+statement: >-
+  For each enabled rule there is a mutation fixture that violates it, and
+  `sf verify` confirms the rule reports a finding on that fixture.
+why: >-
+  Without this layer every other layer is theatre. A check with a typo in its
+  query, a glob that matches nothing, or a scope that excludes the whole source
+  tree passes silently forever and reads exactly like a check that works — a
+  green build proves nothing about a rule that never ran. The mutation is the
+  only thing that distinguishes enforcement from decoration.
+fix: >-
+  Write the smallest file that violates the rule under the mutations directory
+  and run `sf verify`. If the rule does not fire on it, the rule is broken —
+  fix the rule, not the fixture.
+ratchet: none
+check:
+  kind: cadence
+  mode: mutation_coverage
+defaults: {}

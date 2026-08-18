@@ -1,0 +1,29 @@
+id: L2.DEPENDENCIES_CHANGE_DELIBERATELY
+layer: L2
+title: Dependency manifests move only with an explicit lock update
+severity: critical
+statement: >-
+  Dependency manifests are hash-locked. A changed manifest without a matching
+  lock update in the same commit fails.
+why: >-
+  Adding a dependency is a supply-chain decision wearing the costume of a
+  one-line diff, and it is the single easiest thing for an agent to do while
+  solving something else. Forcing the lock to move in the same commit turns the
+  reviewer's attention on at exactly the moment it is worth spending.
+fix: >-
+  If the dependency is intended, run `sf lock --update` in the same commit and
+  say in the message what it buys. If it is incidental, remove it.
+ratchet: none
+check:
+  kind: lock
+defaults:
+  lock_file: ".software-factory/locks/dependencies.lock.json"
+  scope:
+    - "package.json"
+    - "**/package.json"
+    - "pyproject.toml"
+    - "**/pyproject.toml"
+    - "go.mod"
+    - "**/go.mod"
+    - "Cargo.toml"
+    - "**/Cargo.toml"

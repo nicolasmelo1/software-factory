@@ -1,0 +1,45 @@
+id: L0.NO_CROSS_LAYER_IMPORT
+layer: L0
+title: Private and generated modules are not imported across the boundary
+severity: high
+statement: >-
+  Modules marked private or generated are imported only from inside the package
+  that owns them.
+why: >-
+  Generated and internal modules are the parts you intend to be free to
+  replace. Every import from outside quietly converts one into public API, and
+  the cost only shows up the day you regenerate. An agent has no way to know
+  which modules were meant to be replaceable unless the boundary is executable.
+fix: >-
+  Import from the package's public surface instead. If the symbol you need is
+  not exposed there, exposing it deliberately is the change to make.
+ratchet: allowlist
+check:
+  kind: shape
+  languages:
+    python:
+      query: |
+        (import_from_statement
+          module_name: (dotted_name) @name
+          (#match? @name "(^|\\.)(_internal|_generated|internal|generated)(\\.|$)")) @target
+    typescript:
+      query: |
+        (import_statement
+          source: (string) @name
+          (#match? @name "(/_internal/|/_generated/|/internal/|/generated/)")) @target
+    go:
+      query: |
+        (import_spec
+          path: (interpreted_string_literal) @name
+          (#match? @name "/internal/")) @target
+    rust:
+      query: |
+        (use_declaration
+          argument: (_) @name
+          (#match? @name "(^|::)(_internal|internal|generated)(::|$)")) @target
+defaults:
+  must_live_in:
+    - "**/_internal/**"
+    - "**/_generated/**"
+    - "**/internal/**"
+    - "**/generated/**"

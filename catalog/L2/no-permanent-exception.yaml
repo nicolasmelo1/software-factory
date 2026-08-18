@@ -1,0 +1,19 @@
+id: L2.NO_PERMANENT_EXCEPTION
+layer: L2
+title: Every frozen exception carries a future review date
+severity: high
+statement: >-
+  Each ratchet entry and each policy exclusion declares a `review_by` date, and
+  an expired date fails the build.
+why: >-
+  A ratchet without expiry is how a temporary allowance becomes the permanent
+  shape of the codebase. The date does not force the fix — it forces the
+  conversation, on a day someone chose in advance rather than never. This is
+  what keeps an adoption ratchet from turning into a second, invisible
+  standard.
+fix: >-
+  Fix the entries you can, delete the ones that no longer exist, and push the
+  date out deliberately for what is left — with the reason recorded next to it.
+ratchet: none
+check:
+  kind: expiry

@@ -1,0 +1,49 @@
+id: L0.PERSISTENCE_STAYS_IN_REPOSITORIES
+layer: L0
+title: Data-access calls stay in the persistence layer
+severity: high
+statement: >-
+  Session/ORM/query calls may only appear in files under the persistence layer.
+  Everything above it goes through a repository.
+why: >-
+  This is the boundary agents erode fastest, because reaching for the session
+  directly is always the shortest diff. Once a controller runs its own query,
+  transaction scope, N+1 behaviour and test seams stop being properties of one
+  layer and become properties of the whole codebase. Enforcing placement is
+  cheap; recovering the boundary afterwards is not.
+fix: >-
+  Move the query into a repository method that names the intent
+  (`find_active_orders_for`, not `execute`) and call that instead.
+ratchet: allowlist
+check:
+  kind: shape
+  languages:
+    python:
+      query: |
+        (call
+          function: (attribute
+            object: (_) @recv
+            attribute: (identifier) @name
+            (#match? @name "^(execute|query|scalar|scalars|add|add_all|delete|merge|flush|get)$"))
+          (#match? @recv "^(db|session|self\\.db|self\\.session)$")) @target
+    typescript:
+      query: |
+        (call_expression
+          function: (member_expression
+            object: (_) @recv
+            property: (property_identifier) @name
+            (#match? @name "^(query|raw|execute|transaction|insert|update|delete|select)$"))
+          (#match? @recv "^(db|knex|prisma|sql|this\\.db|this\\.knex|this\\.prisma)$")) @target
+    go:
+      query: |
+        (call_expression
+          function: (selector_expression
+            operand: (_) @recv
+            field: (field_identifier) @name
+            (#match? @name "^(Query|QueryRow|Exec|Begin|Prepare)$"))
+          (#match? @recv "^(db|tx|conn|s\\.db|r\\.db)$")) @target
+defaults:
+  must_live_in:
+    - "**/repositories/**"
+    - "**/repository/**"
+    - "**/dal/**"

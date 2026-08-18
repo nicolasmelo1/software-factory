@@ -1,0 +1,11 @@
+# Generated mutation fixture for L2.NO_PERMANENT_EXCEPTION. It is supposed to fail.
+version: 1
+project:
+  name: mutation-L2.NO_PERMANENT_EXCEPTION
+  languages: [python, typescript, go]
+docs:
+  scan: ["docs/**/*.md"]
+gates: {}
+rules:
+  L2.NO_PERMANENT_EXCEPTION:
+    enabled: true

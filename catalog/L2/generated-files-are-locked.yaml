@@ -1,0 +1,23 @@
+id: L2.GENERATED_FILES_ARE_LOCKED
+layer: L2
+title: Generated artifacts are hash-locked and not hand-edited
+severity: critical
+statement: >-
+  Every generated or vendored file is recorded in a lock with its SHA-256.
+  Content that drifts from the lock, and files that appear in scope without
+  being listed, both fail.
+why: >-
+  A generated file is a derivative of a source of truth somewhere else. Editing
+  it by hand looks like the smallest possible fix and silently forks the
+  derivative from its source — the next regeneration destroys the edit, usually
+  in a different pull request, where nobody connects the two. The lock makes
+  the fork impossible instead of merely discouraged.
+fix: >-
+  Change the source and regenerate, then run `sf lock --update` in the same
+  commit so the lock diff is visible to the reviewer as a deliberate act.
+ratchet: none
+check:
+  kind: lock
+defaults:
+  lock_file: ".software-factory/locks/generated.lock.json"
+  scope: []

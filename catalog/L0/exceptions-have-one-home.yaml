@@ -1,0 +1,48 @@
+id: L0.EXCEPTIONS_HAVE_ONE_HOME
+layer: L0
+title: Error types live in one canonical module per domain
+severity: high
+statement: >-
+  Define every error/exception type in its domain's canonical errors module.
+  Re-exporting or importing one from anywhere else is fine — the rule is about
+  where the type is *defined*.
+why: >-
+  An agent asked to "add an error for X" will define it wherever it is already
+  editing. Three months later the same domain raises errors from services,
+  repositories and controllers, and nobody — human or agent — can answer "what
+  can this domain fail with?" without reading every file. One canonical home
+  turns that question into one file read.
+fix: >-
+  Move the class definition into the domain's errors module and import it back
+  where it is raised. If the type is genuinely shared infrastructure, put it in
+  the shared root listed in this rule's `must_live_in`.
+ratchet: allowlist
+check:
+  kind: shape
+  languages:
+    python:
+      query: |
+        (class_definition
+          name: (identifier) @name
+          (#match? @name "(Error|Exception)$")) @target
+    typescript:
+      query: |
+        (class_declaration
+          name: (type_identifier) @name
+          (#match? @name "(Error|Exception)$")) @target
+    go:
+      query: |
+        (type_declaration
+          (type_spec
+            name: (type_identifier) @name
+            (#match? @name "(Error|Err)$"))) @target
+    rust:
+      query: |
+        (enum_item name: (type_identifier) @name (#match? @name "Error$")) @target
+        (struct_item name: (type_identifier) @name (#match? @name "Error$")) @target
+defaults:
+  must_live_in:
+    - "**/exceptions.py"
+    - "**/errors.py"
+    - "**/errors.ts"
+    - "**/errors.go"

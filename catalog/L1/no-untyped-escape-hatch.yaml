@@ -1,0 +1,44 @@
+id: L1.NO_UNTYPED_ESCAPE_HATCH
+layer: L1
+title: The untyped escape hatch is banned, and the message names the alternative
+severity: high
+statement: >-
+  Do not introduce the language's "anything goes" type. Ban it where it is
+  introduced — at the import or the annotation — not only at function
+  boundaries.
+why: >-
+  One `Any` does not stay one `Any`: it propagates through every call site that
+  touches it, and the type checker stops being able to answer any question
+  about that path. Agents reach for it precisely when the shape is unclear —
+  which is exactly the moment the shape needed to be decided. Banning it forces
+  a five-minute decision now instead of an untyped subsystem later.
+fix: >-
+  Use a TypedDict/interface/struct for a known shape, a generic parameter for
+  genuine passthrough, or the project's JSON value type at a serialization
+  boundary. If a third-party stub truly forces it, suppress that one line with
+  a reason.
+ratchet: allowlist
+check:
+  kind: text_pattern
+defaults:
+  scope:
+    - "**/*.py"
+    - "**/*.ts"
+    - "**/*.tsx"
+    - "**/*.go"
+    - "**/*.rs"
+  exclude:
+    - "**/*.test.ts"
+    - "**/*.spec.ts"
+    - "**/tests/**"
+    - "**/*_test.go"
+    - "**/tests/**"
+  forbidden:
+    - regex: "^\\s*from\\s+typing\\s+import\\s+(.*,\\s*)?Any\\b"
+      message: "Banning the *import* is what makes this stick: it kills `dict[str, Any]`, `-> Any` and bare `x: Any` in one rule. Use a TypedDict/dataclass for a known shape, a TypeVar for passthrough, or your JSON value type at the boundary."
+    - regex: ":\\s*any\\b|<any>|as\\s+any\\b|Array<any>|:\\s*any\\[\\]"
+      message: "`any` opts the whole call chain out of type checking. `unknown` plus a narrowing check keeps the checker working; an interface keeps it useful."
+    - regex: "interface\\{\\}"
+      message: "`interface{}` defers the decision to runtime. Define the interface you actually need, or use a type parameter."
+    - regex: "\\.unwrap\\(\\)"
+      message: "`.unwrap()` converts a case you have not handled into a crash with no message. Use `?` to propagate, or `.context(\"what was being attempted\")` so the failure says something."

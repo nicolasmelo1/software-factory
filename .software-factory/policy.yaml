@@ -1,0 +1,83 @@
+# Which rules this repository enforces, and how its paths map onto the
+# catalog's neutral vocabulary. `sf explain <RULE>` prints the reasoning
+# behind any rule below.
+version: 1
+project:
+  name: software-factory
+  languages: [rust, python, typescript, go]
+  exclude: []
+
+docs:
+  scan:
+    - "docs/**/*.md"
+    - "*.md"
+
+# A gate activates from the paths a change touches, never from a label
+# or a sentence in a pull request. See L3.GATE_HAS_FRESH_EVIDENCE.
+gates: {}
+
+rules:
+  # L0 — Error types live in one canonical module per domain
+  L0.EXCEPTIONS_HAVE_ONE_HOME:
+    enabled: true
+  # L0 — Private and generated modules are not imported across the boundary
+  L0.NO_CROSS_LAYER_IMPORT:
+    enabled: true
+  # L0 — One HTTP entrypoint per file
+  L0.ONE_ENTRYPOINT_PER_FILE:
+    enabled: true
+  # L0 — Data-access calls stay in the persistence layer
+  L0.PERSISTENCE_STAYS_IN_REPOSITORIES:
+    enabled: true
+  # L1 — No function exceeds the cyclomatic ceiling
+  L1.COMPLEXITY_CEILING:
+    enabled: true
+  # L1 — Every suppression names a code and a reason
+  L1.NO_BLANKET_SUPPRESSION:
+    enabled: true
+    options:
+      # src/fixtures.rs holds the mutation fixtures as string literals, so it
+      # contains violating text on purpose. A line-based rule cannot tell a
+      # suppression from a string that quotes one; excluding the one file that
+      # is deliberately full of them is narrower than weakening the rule.
+      exclude: ["src/fixtures.rs"]
+  # L1 — The untyped escape hatch is banned, and the message names the alternative
+  L1.NO_UNTYPED_ESCAPE_HATCH:
+    enabled: true
+    options:
+      # Same reason as L1.NO_BLANKET_SUPPRESSION above.
+      exclude: ["src/fixtures.rs", "**/*.test.ts", "**/*.spec.ts", "**/tests/**", "**/*_test.go"]
+  # L2 — Dependency manifests move only with an explicit lock update
+  L2.DEPENDENCIES_CHANGE_DELIBERATELY:
+    enabled: true
+    options:
+      # Cargo.lock is included deliberately: it is the artifact that actually
+      # pins what gets compiled, so it is the one worth a reviewer's attention.
+      scope: ["Cargo.toml", "Cargo.lock"]
+  # L2 — Generated artifacts are hash-locked and not hand-edited
+  L2.GENERATED_FILES_ARE_LOCKED:
+    enabled: true
+    options:
+      # Nothing is locked until you say what is generated.
+      scope: []
+  # L2 — Every frozen exception carries a future review date
+  L2.NO_PERMANENT_EXCEPTION:
+    enabled: true
+  # L3 — A gate activated by touched paths needs digest-verified, non-stale evidence
+  L3.GATE_HAS_FRESH_EVIDENCE:
+    enabled: true
+  # L4 — Repo-relative documentation links resolve
+  L4.DOC_LINKS_RESOLVE:
+    enabled: true
+  # L4 — Every enabled rule is cited in prose, and every citation resolves
+  L4.EVERY_RULE_HAS_A_WHY:
+    enabled: true
+  # L4 — Every plan declares its exit condition and sits in the execution order
+  L4.PLAN_DECLARES_EXIT_CONDITION:
+    enabled: true
+  # L4 — New top-level files are declared before they appear
+  L4.ROOT_FILES_ARE_DECLARED:
+    enabled: true
+  # L5 — Every enabled rule has a mutation that proves it fires
+  L5.EVERY_CHECK_HAS_A_MUTATION_TEST:
+    enabled: true

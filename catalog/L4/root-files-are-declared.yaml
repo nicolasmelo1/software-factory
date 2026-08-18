@@ -1,0 +1,22 @@
+id: L4.ROOT_FILES_ARE_DECLARED
+layer: L4
+title: New top-level files are declared before they appear
+severity: medium
+statement: >-
+  Every file at the repository root is listed in the root allowlist file.
+why: >-
+  `NOTES.md`, `PLAN.md`, `SUMMARY.md`, `ANALYSIS.md` at the repository root is
+  the most recognizable signature of agent-authored work, and each one is
+  context that belongs in a plan, a pull request body or a commit message —
+  somewhere with a lifecycle. The allowlist costs one line when a root file is
+  genuinely warranted and blocks the reflex the rest of the time.
+fix: >-
+  Move the content to the plans directory or the pull request description. If
+  the file really belongs at the root, add it to the allowlist in the same
+  commit.
+ratchet: none
+check:
+  kind: cadence
+  mode: root_files
+defaults:
+  allowlist_file: ".allowed-root-files"
