@@ -148,7 +148,7 @@ When a change touches a gate's activation paths, that gate's evidence manifest m
 
 **Why.** This is the whole method in one check. Activation comes from touched paths, so nobody can skip the gate by omitting a label or writing "done" in a pull request. The manifest is not trusted, it is re-verified, so a summary cannot claim a pass the raw report never contained. And the implementation digest is what makes evidence expire: change the code the evidence certified and the evidence dies with it, instead of quietly certifying something it never saw.
 
-**Fix.** Re-run the proof against the real thing and regenerate the manifest with `sf evidence record`. If the run cannot pass, the finding is the product behaviour, not the gate. Never hand-edit a digest.
+**Fix.** Re-run the proof against the real thing and regenerate the manifest with `sf seal <gate>`. If the run cannot pass, the finding is the product behaviour, not the gate. Never hand-edit a digest.
 
 ## L4 — Cadence: docs, plans and rules stay attached
 

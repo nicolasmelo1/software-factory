@@ -16,7 +16,7 @@ why: >-
   evidence dies with it, instead of quietly certifying something it never saw.
 fix: >-
   Re-run the proof against the real thing and regenerate the manifest with
-  `sf evidence record`. If the run cannot pass, the finding is the product
+  `sf seal <gate>`. If the run cannot pass, the finding is the product
   behaviour, not the gate. Never hand-edit a digest.
 ratchet: none
 check:
