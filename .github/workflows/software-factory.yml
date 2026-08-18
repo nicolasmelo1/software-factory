@@ -15,14 +15,18 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Install sf
-        run: cargo install --git https://github.com/nicolasmelo1/software-factory --locked
+      # Built from source, never installed from a tag: the binary under test
+      # has to be the one in the diff, or a pull request that breaks a check
+      # still passes. `sf init` generates the install-from-git form, which is
+      # right for a consumer and wrong here — do not regenerate this file.
+      - name: Build
+        run: cargo build --release --locked
       # verify first: a check that stopped firing makes the run below
       # meaningless, and it is the cheaper failure to discover.
       - name: Prove the checks still fire
-        run: sf verify
+        run: ./target/release/sf verify --allow-commands
       - name: Check the repository
-        run: sf check --changed origin/${{ github.base_ref || 'main' }}
+        run: ./target/release/sf check --allow-commands --changed origin/${{ github.base_ref || 'main' }}
 
   hazards:
     runs-on: ubuntu-latest

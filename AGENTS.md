@@ -70,6 +70,15 @@ whose vocabulary does not exist in that language simply omit it — a rule with
 no query for a language does not apply to it, and that is the correct outcome,
 not a gap to paper over.
 
+## The workflow is hand-maintained
+
+`.github/workflows/software-factory.yml` builds `sf` from source and passes
+`--allow-commands`. `sf init` generates the install-from-a-tag form, which is
+correct for a repository that consumes this tool and wrong for the one that is
+it: the binary under test must be the one in the diff. Do not regenerate this
+file. `L2.FACTORY_CONFIG_IS_LOCKED` covers it, so an accidental regeneration
+fails rather than silently reverting CI to testing the last release.
+
 ## Working model
 
 - `cargo build --release`, then `./target/release/sf verify && ./target/release/sf check`.
