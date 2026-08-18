@@ -51,12 +51,17 @@ pub fn run(root: &Path, catalog: &Catalog, opts: &InitOptions) -> Result<Vec<Str
         write_from_interview(root, plan, answers, &mut written)?;
     }
     write_cadence_files(root, &selected, &mut written)?;
-    write(
-        root,
-        ".github/workflows/software-factory.yml",
-        &workflow(&opts.languages, &selected),
-        &mut written,
-    )?;
+    let workflow_path = root.join(".github/workflows/software-factory.yml");
+    if workflow_path.exists() && !opts.force {
+        println!("note: {} already exists and was left alone", workflow_path.display());
+    } else {
+        write(
+            root,
+            ".github/workflows/software-factory.yml",
+            &workflow(&opts.languages, &selected),
+            &mut written,
+        )?;
+    }
     write_automation(root, &mut written)?;
     write_fixtures(root, &selected, &mut written)?;
     Ok(written)
@@ -137,14 +142,23 @@ fn write_cadence_files(
 }
 
 fn write_automation(root: &Path, written: &mut Vec<String>) -> Result<()> {
+    let hook = root.join(".githooks/pre-commit");
+    if hook.exists() {
+        // Somebody else's hook. Overwriting it would delete checks this
+        // repository already runs — which is the exact opposite of the point,
+        // and destructive in a way `--force` was never meant to authorise.
+        println!(
+            "note: {} already exists and was left alone. Add these two lines to it:\n      \
+             sf verify\n      sf check",
+            hook.display()
+        );
+        return Ok(());
+    }
     write(root, ".githooks/pre-commit", PRE_COMMIT, written)?;
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        let hook = root.join(".githooks/pre-commit");
-        if hook.exists() {
-            std::fs::set_permissions(&hook, std::fs::Permissions::from_mode(0o755))?;
-        }
+        std::fs::set_permissions(&hook, std::fs::Permissions::from_mode(0o755))?;
     }
     Ok(())
 }
