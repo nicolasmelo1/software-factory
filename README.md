@@ -2,6 +2,141 @@
 
 **A method for building software with agents, packaged as a single binary that runs against any repository.**
 
+## Quickstart (5 minutes)
+
+Works on any repository, in any language. Nothing to configure first, and it
+will not change a line of your code.
+
+### 1. Install — 2 min
+
+```sh
+cargo install --git https://github.com/nicolasmelo1/software-factory --locked
+```
+
+One static binary, no runtime. The compile is most of the five minutes;
+everything below runs in under a second, even on a large monorepo.
+
+### 2. Set it up — 1 min
+
+```sh
+cd ~/code/your-project
+sf init --language typescript --layer L1,L4,L5,L6
+git config core.hooksPath .githooks
+```
+
+Use `--language` for what you actually have: `python`, `typescript`, `go`,
+`rust`, or several comma-separated. `--layer L1,L4,L5,L6` is the honest day-one
+set — code quality, documentation cadence, the self-proving layer, and the
+security tooling. Structural rules come later, once you know your own shape.
+
+You will see something like:
+
+```
+wrote 47 files:
+  .software-factory/policy.yaml          # which rules are on
+  docs/rules.md                          # why each one exists
+  .allowed-root-files
+  .github/workflows/software-factory.yml # CI, with the security tools wired in
+  .githooks/pre-commit
+  .software-factory/mutations/...        # a tiny broken repo per rule
+  .software-factory/ratchet.yaml (106 existing violations frozen)
+```
+
+**Nothing is red yet.** Every violation that already existed was frozen with a
+six-month review date. Only *new* ones fail — which is what makes this
+adoptable on a codebase with years of history.
+
+### 3. Prove the checks actually work — 10 sec
+
+```sh
+sf verify
+```
+
+```
+✓ L1.NO_BLANKET_SUPPRESSION — 1 finding(s): Bare `# noqa` disables every rule on the line...
+✓ L4.DOC_LINKS_RESOLVE — 1 finding(s): link target `../src/pricing/README.md` does not exist
+...
+17/17 enabled rules proven to fire
+```
+
+Every rule was just run against a repository built to violate it. This is the
+step that separates enforcement from decoration: a check with a typo in it
+passes silently forever and looks exactly like a check that works.
+
+### 4. Watch it catch something — 30 sec
+
+```sh
+echo "# scratch notes" > NOTES.md
+sf check
+```
+
+```
+! medium L4.ROOT_FILES_ARE_DECLARED — New top-level files are declared before they appear
+  why  `NOTES.md`, `PLAN.md`, `SUMMARY.md` at the repository root is the most
+       recognizable signature of agent-authored work, and each one is context
+       that belongs in a plan, a pull request body or a commit message —
+       somewhere with a lifecycle.
+  fix  Move the content to the plans directory or the pull request
+       description. If the file really belongs at the root, add it to the
+       allowlist in the same commit.
+    NOTES.md — `NOTES.md` is at the repository root but not declared
+
+1 findings across 1 rules (106 frozen by the ratchet)
+```
+
+```sh
+rm NOTES.md   # green again
+```
+
+That output shape is the design. The failure message is the only documentation
+an agent reliably reads, so every rule carries its reasoning to the point of
+failure rather than leaving it in a file nobody opens.
+
+### 5. Turn it on for real — 1 min
+
+The generated workflow already runs `sf verify` then `sf check` on every pull
+request, with the security tooling for your languages wired in. Commit it:
+
+```sh
+git add -A && git commit -m "chore: adopt software-factory"
+```
+
+Exit codes are hierarchical, so CI can tell the difference between "the tool
+could not run" and "the repository has violations": `3` bootstrap failed,
+`2` config error, `1` findings, `0` clean.
+
+### Then: let it interview you
+
+The step above gives you the generic rules. The rules that are actually about
+*your* architecture come from a five-minute conversation. If you use Claude
+Code:
+
+```sh
+cp -r skills/* ~/.claude/skills/
+```
+
+Then say **"set up software-factory in this repo"**. The
+[`factory-init`](skills/factory-init/SKILL.md) skill reads your codebase,
+answers what the code can answer, and asks you the rest — layered or DDD,
+repositories or ORM-in-services, Zod or Pydantic and where the schemas live,
+which packages the client must never import. Those answers generate rules
+carrying your own package names. See [The interview](#the-interview).
+
+### If something goes wrong
+
+| | |
+|---|---|
+| `sf check` red on `L5.NO_INERT_RULE` | A rule is switched on and pointed at nothing here. Give it a scope, or disable it in `policy.yaml` and write down why. |
+| Too many findings to face | `sf ratchet --months 6` freezes today's state. It is debt with a due date, not permission. |
+| A rule seems wrong | `sf explain <RULE>` gives the full reasoning. If it is genuinely wrong, change it — that is one of the four honest resolutions. |
+| Want to see everything available | `sf catalog`, and `sf interview` for the decisions that generate rules. |
+
+---
+
+---
+
+## Why this exists
+
 Generating code stopped being the hard part. Generating the *right* code — code
 that fits the requirement, respects the boundary, and can be trusted without a
 senior engineer reconstructing the whole chain of intent behind it — is still
@@ -16,58 +151,12 @@ reduced to a single method:
 > once as a check that *fails*. And every check has a mutation that proves it
 > fires.**
 
-It ships 27 rules across seven layers, plus 4 rule templates an interview fills in with your own package and directory names,, from where an error type may be defined
-to whether your CI still runs a vulnerability scanner — and it protects its own
-configuration, so an agent cannot get to a green build by turning a rule off.
+It ships 27 rules across seven layers — from where an error type may be defined
+to whether your CI still runs a vulnerability scanner — plus 4 rule templates an
+interview fills in with your own package and directory names. It protects its
+own configuration, so an agent cannot reach a green build by turning a rule off.
 
 Everything else in this repository is a consequence of that sentence.
-
----
-
-## Quick start
-
-```sh
-cargo install --git https://github.com/nicolasmelo1/software-factory --locked
-cp -r software-factory/skills/* ~/.claude/skills/    # optional, see below
-
-cd ~/code/your-project
-sf init                    # policy, docs, CI, hooks, mutation fixtures, seeded ratchet
-git config core.hooksPath .githooks
-
-sf verify                  # prove every enabled check actually fires
-sf check                   # see what is live
-```
-
-Better, if you have an agent: say **"set up software-factory in this repo"** and
-let the [`factory-init`](skills/factory-init/SKILL.md) skill interview you
-first. Bare `sf init` gives you the generic rules; the interview gives you the
-ones your architecture actually justifies. See
-[The interview](#the-interview) below.
-
-`sf init` is not a config file drop. It writes the enforcement *and* the
-fixtures that prove the enforcement works, generates the document that explains
-each rule, and freezes today's violations so the rules can be adopted by a
-repository that already breaks them — new violations fail from the first run.
-
-```
-$ sf check
-
-✗ high  L0.PERSISTENCE_STAYS_IN_REPOSITORIES — Data-access calls stay in the persistence layer
-  why  This is the boundary agents erode fastest, because reaching for the
-       session directly is always the shortest diff. Once a controller runs
-       its own query, transaction scope, N+1 behaviour and test seams stop
-       being properties of one layer and become properties of the whole
-       codebase.
-  fix  Move the query into a repository method that names the intent
-       (`find_active_orders_for`, not `execute`) and call that instead.
-    src/orders/controllers/refund.py:6 — `execute` is defined outside its allowed location
-       expected **/repositories/**, **/repository/**, **/dal/**
-       actual   src/orders/controllers/refund.py
-```
-
-That output shape is deliberate. The failure message is the only documentation
-an agent reliably reads, so every rule carries its reasoning to the point of
-failure instead of leaving it in a document nobody opens.
 
 ---
 
