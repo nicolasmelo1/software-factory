@@ -25,6 +25,9 @@ pub struct InitOptions {
     /// the default layers and nothing is tailored to this repository.
     pub plan: Option<crate::interview::Plan>,
     pub answers: Option<crate::interview::Answers>,
+    /// Where to write the rule reference, for repositories that already have
+    /// a documentation convention of their own.
+    pub rules_document: Option<String>,
 }
 
 pub fn run(root: &Path, catalog: &Catalog, opts: &InitOptions) -> Result<Vec<String>> {
@@ -43,7 +46,7 @@ pub fn run(root: &Path, catalog: &Catalog, opts: &InitOptions) -> Result<Vec<Str
 
     let mut written = Vec::new();
     write(root, POLICY_PATH, &policy_document(opts, &selected, root), &mut written)?;
-    write(root, "docs/rules.md", &rules_document(opts, &selected), &mut written)?;
+    write(root, opts.rules_document.as_deref().unwrap_or("docs/rules.md"), &rules_document(opts, &selected), &mut written)?;
     if let (Some(plan), Some(answers)) = (&opts.plan, &opts.answers) {
         write_from_interview(root, plan, answers, &mut written)?;
     }
@@ -308,7 +311,11 @@ fn policy_document(opts: &InitOptions, selected: &[&crate::catalog::Rule], root:
     );
     out.push_str(&format!("  name: {}\n", opts.name));
     out.push_str(&format!("  languages: [{}]\n", opts.languages.join(", ")));
-    out.push_str("  exclude: []\n\ndocs:\n  scan:\n    - \"docs/**/*.md\"\n    - \"*.md\"\n\n");
+    out.push_str("  exclude: []\n\ndocs:\n  scan:\n    - \"docs/**/*.md\"\n    - \"*.md\"\n");
+    if let Some(path) = &opts.rules_document {
+        out.push_str(&format!("  rules_document: \"{path}\"\n"));
+    }
+    out.push('\n');
     out.push_str(
         "# A gate activates from the paths a change touches, never from a label\n\
          # or a sentence in a pull request. See L3.GATE_HAS_FRESH_EVIDENCE.\n\
@@ -349,7 +356,7 @@ pub fn refresh_rules_document(root: &Path, catalog: &Catalog) -> Result<()> {
     let policy = Policy::load(root)?;
     let selected: Vec<&crate::catalog::Rule> =
         catalog.rules.values().filter(|r| policy.any_instance_enabled(&r.id)).collect();
-    let path = root.join("docs/rules.md");
+    let path = root.join(policy.docs.rules_document());
     let existing = std::fs::read_to_string(&path).unwrap_or_default();
     let preamble: String = existing
         .lines()

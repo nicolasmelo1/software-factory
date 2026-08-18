@@ -72,6 +72,9 @@ enum Cmd {
         /// Overwrite an existing policy.
         #[arg(long)]
         force: bool,
+        /// Where to write the rule reference. Defaults to `docs/rules.md`.
+        #[arg(long)]
+        rules_document: Option<String>,
         /// Answers from a `factory-init` interview. Without them `init`
         /// scaffolds the default layers and nothing is tailored to this
         /// repository.
@@ -217,8 +220,8 @@ fn dispatch(cli: Cli, root: PathBuf) -> Result<i32> {
 
 fn dispatch_writing(command: Cmd, root: PathBuf) -> Result<i32> {
     match command {
-        Cmd::Init { name, language, layer, force, answers } => {
-            cmd_init(root, name, language, layer, force, answers)
+        Cmd::Init { name, language, layer, force, answers, rules_document } => {
+            cmd_init(root, name, language, layer, force, answers, rules_document)
         }
         Cmd::Ratchet { months } => cmd_ratchet(root, months),
         Cmd::Lock => cmd_lock(root),
@@ -292,6 +295,7 @@ fn cmd_init(
     layer: Vec<String>,
     force: bool,
     answers_path: Option<PathBuf>,
+    rules_document: Option<String>,
 ) -> Result<i32> {
     let catalog = Catalog::builtin()?;
     let (plan, answers) = match &answers_path {
@@ -310,7 +314,15 @@ fn cmd_init(
     let written = init::run(
         &root,
         &catalog,
-        &init::InitOptions { name, languages: language, layers: layer, force, plan, answers },
+        &init::InitOptions {
+            name,
+            languages: language,
+            layers: layer,
+            force,
+            plan,
+            answers,
+            rules_document,
+        },
     )?;
     println!("wrote {} files:", written.len());
     for path in &written {

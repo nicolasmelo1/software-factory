@@ -159,6 +159,17 @@ pub struct Docs {
     pub scan: Vec<String>,
     #[serde(default)]
     pub plans_dir: Option<String>,
+    /// Where the generated rule reference lives. Repositories that already
+    /// have a documentation convention should not be made to grow a `docs/`
+    /// directory just to satisfy this tool.
+    #[serde(default)]
+    pub rules_document: Option<String>,
+}
+
+impl Docs {
+    pub fn rules_document(&self) -> &str {
+        self.rules_document.as_deref().unwrap_or("docs/rules.md")
+    }
 }
 
 impl Policy {
