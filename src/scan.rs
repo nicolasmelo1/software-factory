@@ -81,8 +81,12 @@ fn collect(
         };
         let rel = rel_path.to_string_lossy().replace('\\', "/");
         // Mutation fixtures are deliberately broken repositories. Walking them
-        // here would make every fixture a finding in its host.
-        if rel.starts_with(".software-factory/mutations/") {
+        // would make every fixture a finding in its host — and at any depth,
+        // because a declared root is another repository with fixtures of its
+        // own.
+        if rel.starts_with(".software-factory/mutations/")
+            || rel.contains("/.software-factory/mutations/")
+        {
             continue;
         }
         if excludes.is_match(&rel) || !seen.insert(rel.clone()) {
