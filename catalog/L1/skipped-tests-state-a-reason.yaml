@@ -1,0 +1,34 @@
+id: L1.SKIPPED_TESTS_STATE_A_REASON
+layer: L1
+title: A skipped or expected-to-fail test says why
+severity: medium
+statement: >-
+  `skip` and `xfail` are called with something in them — a reason string, a
+  `reason=`, a condition. An empty call is a finding.
+why: >-
+  A skipped test is a hole in coverage that reports as green, and the only
+  thing standing between "temporarily disabled while I fix the fixture" and
+  "permanently disabled, nobody remembers why" is the sentence next to it.
+  Skipping is also the cheapest way to turn a red suite green, and at the diff
+  level it is indistinguishable from a fix.
+  This is deliberately an AST rule rather than a line pattern. A real skip
+  spans several lines and states its reason on the second one, so a line-based
+  check flags every correct skip in the repository — which teaches people to
+  ignore the rule, and is worse than not having it.
+fix: >-
+  Say why, and say when it comes back. If the reason is "it fails and I do not
+  know why", that is the finding, not the fix.
+ratchet: allowlist
+check:
+  kind: shape
+  languages:
+    python:
+      query: |
+        (call
+          function: (attribute attribute: (identifier) @name)
+          arguments: (argument_list) @args
+          (#match? @name "^(skip|xfail)$")
+          (#match? @args "^\\(\\s*\\)$")) @target
+defaults:
+  scope: ["**/tests/**", "**/test_*.py", "**/*_test.py"]
+  must_not_live_in: ["**"]

@@ -204,6 +204,7 @@ const BUILTIN: &[(&str, &str)] = &[
     ("L0/no-cross-layer-import.yaml", include_str!("../catalog/L0/no-cross-layer-import.yaml")),
     ("L1/complexity-ceiling.yaml", include_str!("../catalog/L1/complexity-ceiling.yaml")),
     ("L1/no-blanket-suppression.yaml", include_str!("../catalog/L1/no-blanket-suppression.yaml")),
+    ("L1/skipped-tests-state-a-reason.yaml", include_str!("../catalog/L1/skipped-tests-state-a-reason.yaml")),
     ("L1/no-untyped-escape-hatch.yaml", include_str!("../catalog/L1/no-untyped-escape-hatch.yaml")),
     ("L2/generated-files-are-locked.yaml", include_str!("../catalog/L2/generated-files-are-locked.yaml")),
     ("L2/dependencies-change-deliberately.yaml", include_str!("../catalog/L2/dependencies-change-deliberately.yaml")),

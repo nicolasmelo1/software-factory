@@ -46,6 +46,3 @@ defaults:
     - regex: "#\\[allow\\("
       unless: "#\\[allow\\([^)]*\\)\\]\\s*//\\s*\\S"
       message: "`#[allow(...)]` with no trailing `// reason` hides a lint forever. Say why on the same line."
-    - regex: "(@pytest\\.mark\\.(skip|xfail)|pytest\\.skip)\\("
-      unless: "reason\\s*="
-      message: "A skipped test with no `reason=` is an untracked hole in coverage. State why."

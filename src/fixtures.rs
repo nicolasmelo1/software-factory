@@ -117,6 +117,15 @@ pub const FIXTURES: &[Fixture] = &[
         files: &[("src/legacy.py", "import os  # noqa\n")],
     },
     Fixture {
+        rule: "L1.SKIPPED_TESTS_STATE_A_REASON",
+        policy_extra: "",
+        extra_rules: "",
+        files: &[(
+            "tests/test_billing.py",
+            "@pytest.mark.skip()\ndef test_refund_is_idempotent():\n    ...\n",
+        )],
+    },
+    Fixture {
         rule: "L1.NO_UNTYPED_ESCAPE_HATCH",
         policy_extra: "",
         extra_rules: "",
