@@ -150,13 +150,20 @@ fn root_files(rule: &Rule, opts: &Options, ctx: &Ctx) -> Result<Vec<Finding>> {
         .collect();
     allowed.insert(allowlist_name);
 
+    // Both files and directories, derived from the walk so that gitignored
+    // entries are absent: a permission gate seeded with .DS_Store is a gate
+    // nobody trusts. A new root *directory* — `notes/`, `scratch/` — is the
+    // same smell as a new root file and was previously invisible here.
+    let mut entries: BTreeSet<String> = BTreeSet::new();
+    for file in ctx.files {
+        match file.rel.split_once('/') {
+            Some((first, _)) => entries.insert(first.to_string()),
+            None => entries.insert(file.rel.clone()),
+        };
+    }
+
     let mut findings = Vec::new();
-    for entry in std::fs::read_dir(ctx.root)? {
-        let entry = entry?;
-        if !entry.file_type()?.is_file() {
-            continue;
-        }
-        let name = entry.file_name().to_string_lossy().to_string();
+    for name in entries {
         if allowed.contains(name.as_str()) {
             continue;
         }
@@ -168,7 +175,7 @@ fn root_files(rule: &Rule, opts: &Options, ctx: &Ctx) -> Result<Vec<Finding>> {
                 name.clone(),
                 format!("`{name}` is at the repository root but not declared"),
             )
-            .expected(format!("an entry in {allowlist_name}, or the file somewhere with a lifecycle")),
+            .expected(format!("an entry in {allowlist_name}, or somewhere with a lifecycle")),
         );
     }
     Ok(findings)

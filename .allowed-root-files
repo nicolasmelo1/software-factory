@@ -7,3 +7,13 @@ Cargo.lock
 Cargo.toml
 LICENSE
 README.md
+.githooks
+.github
+.software-factory
+catalog
+docs
+interview
+plans
+skills
+src
+templates
