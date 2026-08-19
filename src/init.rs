@@ -51,17 +51,12 @@ pub fn run(root: &Path, catalog: &Catalog, opts: &InitOptions) -> Result<Vec<Str
         write_from_interview(root, plan, answers, &mut written)?;
     }
     write_cadence_files(root, &selected, &mut written)?;
-    let workflow_path = root.join(".github/workflows/software-factory.yml");
-    if workflow_path.exists() && !opts.force {
-        println!("note: {} already exists and was left alone", workflow_path.display());
-    } else {
-        write(
-            root,
-            ".github/workflows/software-factory.yml",
-            &workflow(&opts.languages, &selected),
-            &mut written,
-        )?;
-    }
+    write_if_absent(
+        root,
+        ".github/workflows/software-factory.yml",
+        &workflow(&opts.languages, &selected),
+        &mut written,
+    )?;
     write_automation(root, &mut written)?;
     write_fixtures(root, &selected, &mut written)?;
     Ok(written)
@@ -131,33 +126,23 @@ fn write_cadence_files(
     written: &mut Vec<String>,
 ) -> Result<()> {
     if selected.iter().any(|r| r.id == "L4.ROOT_FILES_ARE_DECLARED") {
-        write(root, ".allowed-root-files", &root_allowlist(root)?, written)?;
+        write_if_absent(root, ".allowed-root-files", &root_allowlist(root)?, written)?;
     }
-    if selected.iter().any(|r| r.id == "L4.PLAN_DECLARES_EXIT_CONDITION")
-        && !root.join("plans/next-steps.md").exists()
-    {
-        write(root, "plans/next-steps.md", NEXT_STEPS, written)?;
+    if selected.iter().any(|r| r.id == "L4.PLAN_DECLARES_EXIT_CONDITION") {
+        write_if_absent(root, "plans/next-steps.md", NEXT_STEPS, written)?;
     }
     Ok(())
 }
 
 fn write_automation(root: &Path, written: &mut Vec<String>) -> Result<()> {
-    let hook = root.join(".githooks/pre-commit");
-    if hook.exists() {
-        // Somebody else's hook. Overwriting it would delete checks this
-        // repository already runs — which is the exact opposite of the point,
-        // and destructive in a way `--force` was never meant to authorise.
-        println!(
-            "note: {} already exists and was left alone. Add these two lines to it:\n      \
-             sf verify\n      sf check",
-            hook.display()
-        );
+    if !write_if_absent(root, ".githooks/pre-commit", PRE_COMMIT, written)? {
+        println!("      add these two lines to it:  sf verify  /  sf check");
         return Ok(());
     }
-    write(root, ".githooks/pre-commit", PRE_COMMIT, written)?;
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
+        let hook = root.join(".githooks/pre-commit");
         std::fs::set_permissions(&hook, std::fs::Permissions::from_mode(0o755))?;
     }
     Ok(())
@@ -198,6 +183,20 @@ fn select_rules<'a>(catalog: &'a Catalog, opts: &InitOptions) -> Vec<&'a crate::
                 && !disabled.contains(&r.id)
         })
         .collect()
+}
+
+/// For files a repository may already own: hooks, workflows, allowlists, the
+/// execution order. `init` writes what is missing and never replaces what is
+/// there. Overwriting one of these deletes checks the repository was already
+/// running, or a curated list somebody wrote reasons into — destructive in a
+/// way `--force` was never meant to authorise.
+fn write_if_absent(root: &Path, rel: &str, body: &str, written: &mut Vec<String>) -> Result<bool> {
+    if root.join(rel).exists() {
+        println!("note: {rel} already exists and was left alone");
+        return Ok(false);
+    }
+    write(root, rel, body, written)?;
+    Ok(true)
 }
 
 fn write(root: &Path, rel: &str, body: &str, written: &mut Vec<String>) -> Result<()> {
@@ -436,10 +435,25 @@ fn layer_title(layer: Layer) -> &'static str {
 }
 
 fn root_allowlist(root: &Path) -> Result<String> {
-    let mut names: Vec<String> = std::fs::read_dir(root)?
-        .filter_map(|e| e.ok())
-        .filter(|e| e.file_type().map(|t| t.is_file()).unwrap_or(false))
-        .map(|e| e.file_name().to_string_lossy().to_string())
+    // Seeded from what git would actually carry. Reading the directory
+    // directly puts .DS_Store and editor droppings into a permission gate,
+    // which is the opposite of what the gate is for.
+    let policy = Policy {
+        version: 1,
+        project: crate::policy::Project {
+            name: String::new(),
+            languages: Vec::new(),
+            exclude: Vec::new(),
+            roots: Vec::new(),
+        },
+        rules: Default::default(),
+        gates: Default::default(),
+        docs: Default::default(),
+    };
+    let mut names: Vec<String> = scan::walk(root, &policy)?
+        .into_iter()
+        .filter(|f| !f.rel.contains('/'))
+        .map(|f| f.rel)
         .collect();
     names.sort();
     Ok(format!(
