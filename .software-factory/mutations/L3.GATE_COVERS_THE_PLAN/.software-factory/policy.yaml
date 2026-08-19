@@ -1,0 +1,16 @@
+# Generated mutation fixture for L3.GATE_COVERS_THE_PLAN. It is supposed to fail.
+version: 1
+project:
+  name: mutation-L3.GATE_COVERS_THE_PLAN
+  languages: [python, typescript, go, rust]
+docs:
+  scan: ["docs/**/*.md"]
+gates:
+  checkout:
+    activation: ["src/checkout/**"]
+    evidence: "evidence/checkout.json"
+    plan: "plans/rewrite-checkout.md"
+    required_assertions: ["api.ledger_balanced"]
+rules:
+  L3.GATE_COVERS_THE_PLAN:
+    enabled: true

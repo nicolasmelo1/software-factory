@@ -19,6 +19,8 @@ pub fn run(rule: &Rule, opts: &Options, ctx: &Ctx, mode: CadenceMode) -> Result<
         CadenceMode::RootFiles => root_files(rule, opts, ctx),
         CadenceMode::RuleCitations => rule_citations(rule, opts, ctx),
         CadenceMode::PlanCadence => plan_cadence(rule, opts, ctx),
+        CadenceMode::PlanCriteria => plan_criteria(rule, opts, ctx),
+        CadenceMode::GateCoverage => gate_coverage(rule, ctx),
         CadenceMode::MutationCoverage => mutation_coverage(rule, ctx),
         CadenceMode::InertRules => inert_rules(rule, ctx),
     }
@@ -296,6 +298,182 @@ fn mutation_coverage(rule: &Rule, ctx: &Ctx) -> Result<Vec<Finding>> {
                     format!("{id} is enabled with nothing proving it ever fires"),
                 )
                 .expected(format!("a mutation fixture at {FIXTURES_DIR}/{id}/")),
+            );
+        }
+    }
+    Ok(findings)
+}
+
+/// The proof marker a criterion closes with, e.g.
+/// `(proof: assertion:api.feedback_linked_to_acquisition)`.
+///
+/// Anchored at the end of the joined item on purpose: a marker in the middle of
+/// a sentence would name a proof for a clause rather than for the criterion.
+const CRITERION_MARKER: &str = r"\(proof:\s*([a-z_]+)\s*:\s*([^)]*)\)\s*$";
+
+/// `assertion` and `test` name something that runs. `deferred` says the
+/// criterion is not built and `unspecified` says no check has been designed for
+/// it — both are legitimate to declare and both are debt, which is the point:
+/// the admission becomes a line someone can grep instead of a sentence buried
+/// in a long document.
+const PROOF_KINDS: &[&str] = &["assertion", "test", "deferred", "unspecified"];
+
+struct Criterion {
+    line: usize,
+    text: String,
+    kind: Option<String>,
+    value: String,
+}
+
+impl Criterion {
+    /// A marker that parsed, named a known kind, and carried a value.
+    fn is_complete(&self) -> bool {
+        match &self.kind {
+            Some(kind) => PROOF_KINDS.contains(&kind.as_str()) && !self.value.is_empty(),
+            None => false,
+        }
+    }
+}
+
+/// Pull every checkbox criterion out of a plan, with the marker it closes with.
+///
+/// Criteria wrap, so the marker is looked for in the joined item rather than on
+/// the checkbox line. A checkbox is the definition of a criterion because plans
+/// spell the surrounding heading four different ways — "Acceptance criteria",
+/// "Acceptance gates", "Gates", "Rollout/acceptance additions" — and a rule that
+/// matches heading names is a rule about prose style.
+fn parse_criteria(body: &str) -> Result<Vec<Criterion>> {
+    let checkbox = Regex::new(r"^\s*-\s\[[ xX]\]\s*(.*)$")?;
+    let continuation = Regex::new(r"^\s+\S")?;
+    let marker = Regex::new(CRITERION_MARKER)?;
+
+    let lines: Vec<&str> = body.lines().collect();
+    let mut criteria = Vec::new();
+    let mut index = 0;
+    while index < lines.len() {
+        let Some(opened) = checkbox.captures(lines[index]) else {
+            index += 1;
+            continue;
+        };
+        let line = index + 1;
+        let mut parts = vec![opened[1].trim().to_string()];
+        index += 1;
+        while index < lines.len()
+            && continuation.is_match(lines[index])
+            && !checkbox.is_match(lines[index])
+        {
+            parts.push(lines[index].trim().to_string());
+            index += 1;
+        }
+        let joined = parts.iter().filter(|p| !p.is_empty()).cloned().collect::<Vec<_>>().join(" ");
+        match marker.captures(&joined) {
+            Some(found) => {
+                let whole = found.get(0).map(|m| m.start()).unwrap_or(joined.len());
+                criteria.push(Criterion {
+                    line,
+                    text: joined[..whole].trim().to_string(),
+                    kind: Some(found[1].to_string()),
+                    value: found[2].trim().to_string(),
+                });
+            }
+            None => criteria.push(Criterion { line, text: joined, kind: None, value: String::new() }),
+        }
+    }
+    Ok(criteria)
+}
+
+/// `L4.PLAN_CRITERION_NAMES_ITS_CHECK`: a criterion with nothing that proves it.
+///
+/// A plan states criteria in prose and the gate enforces a list of assertions.
+/// Where nothing joins the two, both can be honest and the pair still says
+/// nothing: the criterion is promised, the gate never covered it, and the only
+/// place that records the gap is the plan nobody re-reads.
+fn plan_criteria(rule: &Rule, opts: &Options, ctx: &Ctx) -> Result<Vec<Finding>> {
+    let mut findings = Vec::new();
+    for file in scan::select(ctx.files, &opts.scope, &opts.exclude)? {
+        let Ok(body) = std::fs::read_to_string(&file.abs) else {
+            continue;
+        };
+        for criterion in parse_criteria(&body)? {
+            if criterion.is_complete() {
+                continue;
+            }
+            let detail = match &criterion.kind {
+                None => "names no check that would prove it".to_string(),
+                Some(kind) if !PROOF_KINDS.contains(&kind.as_str()) => {
+                    format!("names unknown proof kind `{kind}`")
+                }
+                Some(kind) => format!("carries a `{kind}` marker with no value"),
+            };
+            findings.push(
+                Finding::new(
+                    &rule.id,
+                    rule.severity,
+                    format!("{}:{}", file.rel, criterion.line),
+                    format!("unproven:{}:{}", file.rel, criterion.line),
+                    format!("this acceptance criterion {detail}"),
+                )
+                .expected(
+                    "a trailing (proof: assertion:ID | test:PATH | deferred:REASON \
+                     | unspecified:REASON)",
+                )
+                .actual(criterion.text),
+            );
+        }
+    }
+    Ok(findings)
+}
+
+/// `L3.GATE_COVERS_THE_PLAN`: the plan names a proof the gate never asks for.
+///
+/// This is the half `L3.GATE_HAS_FRESH_EVIDENCE` cannot see. That rule verifies
+/// the evidence for what the gate demanded; it has no way to know the gate
+/// demanded less than the plan promised. An assertion no run is required to
+/// carry reads exactly like coverage.
+fn gate_coverage(rule: &Rule, ctx: &Ctx) -> Result<Vec<Finding>> {
+    let mut findings = Vec::new();
+    for (name, gate) in &ctx.policy.gates {
+        let Some(plan) = &gate.plan else {
+            continue;
+        };
+        let path = ctx.root.join(plan);
+        let Ok(body) = std::fs::read_to_string(&path) else {
+            findings.push(
+                Finding::new(
+                    &rule.id,
+                    rule.severity,
+                    plan.clone(),
+                    format!("missing-plan:{name}"),
+                    format!("gate `{name}` names a plan that does not exist"),
+                )
+                .expected(plan.clone()),
+            );
+            continue;
+        };
+        for criterion in parse_criteria(&body)? {
+            if criterion.kind.as_deref() != Some("assertion") {
+                continue;
+            }
+            if gate.required_assertions.contains(&criterion.value) {
+                continue;
+            }
+            findings.push(
+                Finding::new(
+                    &rule.id,
+                    rule.severity,
+                    format!("{plan}:{}", criterion.line),
+                    format!("uncovered:{name}:{}", criterion.value),
+                    format!(
+                        "this criterion is proven by `{}`, which gate `{name}` does not require",
+                        criterion.value
+                    ),
+                )
+                .expected(format!("`{}` in gates.{name}.required_assertions", criterion.value))
+                .actual(if gate.required_assertions.is_empty() {
+                    "the gate requires no assertions at all".to_string()
+                } else {
+                    gate.required_assertions.join(", ")
+                }),
             );
         }
     }
