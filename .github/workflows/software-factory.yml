@@ -31,9 +31,23 @@ jobs:
   hazards:
     runs-on: ubuntu-latest
     steps:
+      # fetch-depth: 0 because the secret scanner diffs against the base commit
+      # on a pull request, and a shallow clone leaves it nothing to diff
+      # against — it then fails with an empty result and no explanation.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Committed secrets
         uses: gitleaks/gitleaks-action@v2
+        # The action refuses to scan a pull request without a token, and says
+        # so only at run time — which is why this repository's first pull
+        # request was the first run to hit it. The two flags stop the action
+        # reaching for permissions this job does not grant, which it does by
+        # posting a comment and then failing 403.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_COMMENTS: "false"
+          GITLEAKS_ENABLE_SUMMARY: "false"
       - name: Dependency vulnerabilities
         uses: taiki-e/install-action@cargo-audit
       - run: cargo audit
