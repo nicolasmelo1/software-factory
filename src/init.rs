@@ -463,6 +463,17 @@ fn root_allowlist(root: &Path) -> Result<String> {
     ))
 }
 
+/// Every adopter hits this: the fixtures are broken on purpose, and the
+/// repository's own linter, type checker or test collector will find them.
+pub const FIXTURES_HINT: &str = "\
+.software-factory/mutations holds deliberately broken repositories — one per\n      \
+rule, each violating exactly that rule. Exclude it from your linter, type\n      \
+checker and test collector, or they will report the fixtures as defects:\n      \
+  ruff     extend-exclude = [\".software-factory/mutations\"]\n      \
+  eslint   ignores: [\".software-factory/mutations/**\"]\n      \
+  pytest   norecursedirs = .software-factory\n      \
+  mypy     exclude = .software-factory/mutations";
+
 const NEXT_STEPS: &str = "# Next steps\n\n\
 The execution order. One table, short on purpose: this is the file to reread\n\
 weekly, and the file an agent reads to know what is next.\n\n\
@@ -494,7 +505,10 @@ fn workflow(languages: &[String], selected: &[&crate::catalog::Rule]) -> String 
     }
     out.push_str("\n  hazards:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n");
     out.push_str(
-        "      - name: Committed secrets\n        uses: gitleaks/gitleaks-action@v2\n",
+        // gitleaks-action refuses to scan a pull request without a token, and
+        // says so only at run time. Passing the automatic one is the whole fix.
+        "      - name: Committed secrets\n        uses: gitleaks/gitleaks-action@v2\n        \
+         env:\n          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}\n",
     );
     for language in languages {
         out.push_str(hazard_steps(language));

@@ -334,6 +334,9 @@ fn cmd_init(
     let (_, frozen) = init::seed_ratchet(&root, &catalog, 6)?;
     println!("  {} ({frozen} existing violations frozen)", policy::RATCHET_PATH);
     println!(
+        "\nnote: {}", init::FIXTURES_HINT
+    );
+    println!(
         "\nnext:\n  \
          git config core.hooksPath .githooks\n  \
          sf verify          # prove the checks fire\n  \
