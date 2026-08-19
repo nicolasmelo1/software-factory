@@ -154,6 +154,16 @@ Compared with the revision under review, no rule may be disabled or removed, no 
 
 ## L3 — Effect: a real actor achieved the outcome
 
+### L3.GATE_COVERS_THE_PLAN
+
+**A gate requires every check its plan's criteria name**
+
+When a gate names a `plan`, every `(proof: assertion:ID)` a criterion in that plan carries appears in that gate's `required_assertions`.
+
+**Why.** This is the half `L3.GATE_HAS_FRESH_EVIDENCE` cannot see. That rule verifies the evidence for whatever the gate demanded; it has no way to know the gate demanded less than the plan promised. An assertion no run is required to carry reads exactly like coverage — the criterion cites a proof, the gate is green, and the proof never ran. Declaring the list in policy rather than only in the manifest is the same argument one level down: a manifest is written by the change under review, so a run that under-declares its own obligations passes. Policy sits outside the candidate implementation. The two lists are unioned, so a manifest may add an assertion but never drop one.
+
+**Fix.** Add the assertion to `gates.<name>.required_assertions`, or change the criterion to name a check that does run. If the criterion cannot be proven in this gate, mark it `deferred:` or `unspecified:` and let the debt be visible instead of implied.
+
 ### L3.GATE_HAS_FRESH_EVIDENCE
 
 **A gate activated by touched paths needs digest-verified, non-stale evidence**
@@ -185,6 +195,16 @@ Each enabled rule is referenced at least once from documentation by its id, and 
 **Why.** A check with no prose is a wall an agent hits with no way to tell whether it is protecting something or just old. A prose rule with no check is advice that drifts the day someone ignores it. Requiring the pair in both directions is what keeps the documentation and the enforcement from becoming two separate, disagreeing standards — which is the failure this whole method exists to prevent.
 
 **Fix.** Cite the rule id in the document that explains the decision, or write that document. To retire a rule, disable it in policy and remove the citation in the same commit.
+
+### L4.PLAN_CRITERION_NAMES_ITS_CHECK
+
+**Every acceptance criterion names the check that proves it**
+
+Each acceptance criterion written as a checkbox in a plan closes with a proof marker — `(proof: assertion:ID)`, `(proof: test:PATH)`, `(proof: deferred:REASON)` or `(proof: unspecified:REASON)`.
+
+**Why.** A plan states its criteria in prose and the gate enforces a list of checks, and nothing joins the two. That gap does not need anybody to be dishonest to become expensive: a criterion is promised, the gate never covered it, the plan records the gap on some line in the middle of a long document, and the only way to learn a phase's real status is to re-read the phase. Naming the check inside the criterion makes the join mechanical, and forces the decision at the moment of writing rather than at the moment someone asks. The two debt kinds are the load-bearing half — `deferred` for a criterion that is not built and `unspecified` for one no check has been designed for are both legitimate, and declaring them is what turns an admission into something greppable.
+
+**Fix.** Append the marker naming what proves the criterion. If nothing proves it yet, say which: `deferred:` when the criterion is not built, `unspecified:` when no check has been designed for it. Both take a reason, and both are a supported answer — an unmarked criterion is not.
 
 ### L4.PLAN_DECLARES_EXIT_CONDITION
 

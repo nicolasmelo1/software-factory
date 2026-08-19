@@ -120,6 +120,18 @@ pub struct Gate {
     pub activation: Vec<String>,
     /// Where the evidence manifest for this gate lives.
     pub evidence: String,
+    /// The plan whose acceptance criteria this gate is supposed to enforce.
+    /// `L3.GATE_COVERS_THE_PLAN` reads the criteria there and requires every
+    /// check they name to appear in `required_assertions` below.
+    #[serde(default)]
+    pub plan: Option<String>,
+    /// Assertions every run of this gate must carry, declared here rather than
+    /// only in the manifest. A manifest states what it owed, so a run that
+    /// under-declares its own obligations passes; policy lives outside the
+    /// candidate implementation and is not editable by the change under
+    /// review. The two lists are unioned — a manifest may add, never subtract.
+    #[serde(default)]
+    pub required_assertions: Vec<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]

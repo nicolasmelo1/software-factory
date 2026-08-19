@@ -1,0 +1,31 @@
+id: L4.PLAN_CRITERION_NAMES_ITS_CHECK
+layer: L4
+title: Every acceptance criterion names the check that proves it
+severity: medium
+statement: >-
+  Each acceptance criterion written as a checkbox in a plan closes with a proof
+  marker — `(proof: assertion:ID)`, `(proof: test:PATH)`,
+  `(proof: deferred:REASON)` or `(proof: unspecified:REASON)`.
+why: >-
+  A plan states its criteria in prose and the gate enforces a list of checks,
+  and nothing joins the two. That gap does not need anybody to be dishonest to
+  become expensive: a criterion is promised, the gate never covered it, the plan
+  records the gap on some line in the middle of a long document, and the only
+  way to learn a phase's real status is to re-read the phase. Naming the check
+  inside the criterion makes the join mechanical, and forces the decision at the
+  moment of writing rather than at the moment someone asks. The two debt kinds
+  are the load-bearing half — `deferred` for a criterion that is not built and
+  `unspecified` for one no check has been designed for are both legitimate, and
+  declaring them is what turns an admission into something greppable.
+fix: >-
+  Append the marker naming what proves the criterion. If nothing proves it yet,
+  say which: `deferred:` when the criterion is not built, `unspecified:` when no
+  check has been designed for it. Both take a reason, and both are a supported
+  answer — an unmarked criterion is not.
+ratchet: allowlist
+check:
+  kind: cadence
+  mode: plan_criteria
+defaults:
+  scope:
+    - "plans/*.md"

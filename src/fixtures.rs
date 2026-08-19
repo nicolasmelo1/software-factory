@@ -223,6 +223,30 @@ pub const FIXTURES: &[Fixture] = &[
         ],
     },
     Fixture {
+        rule: "L4.PLAN_CRITERION_NAMES_ITS_CHECK",
+        policy_extra: "",
+        extra_rules: "",
+        files: &[(
+            "plans/rewrite-checkout.md",
+            "# Rewrite checkout\n\nExit condition: the new checkout serves live traffic.\n\n\
+             ## Acceptance criteria\n\n\
+             - [ ] A guest can complete a purchase without an account.\n\
+             - [ ] Refunds reconcile against the ledger.\n      (proof: test:tests/test_refunds.py)\n",
+        )],
+    },
+    Fixture {
+        rule: "L3.GATE_COVERS_THE_PLAN",
+        policy_extra: "",
+        extra_rules: "",
+        files: &[(
+            "plans/rewrite-checkout.md",
+            "# Rewrite checkout\n\nExit condition: the new checkout serves live traffic.\n\n\
+             ## Acceptance criteria\n\n\
+             - [ ] A guest can complete a purchase without an account.\n      \
+             (proof: assertion:api.guest_checkout_completed)\n",
+        )],
+    },
+    Fixture {
         rule: "L5.EVERY_CHECK_HAS_A_MUTATION_TEST",
         policy_extra: "",
         // A second rule with no fixture of its own is what this must notice.
@@ -338,10 +362,16 @@ const CI_WITHOUT_HAZARD_TOOLS: &str = "name: ci\non: [push]\njobs:\n  test:\n   
 /// The mini-policy a fixture runs under: the target rule, plus whatever the
 /// fixture needs to be a coherent repository.
 pub fn fixture_policy(fixture: &Fixture) -> String {
-    let gates = if fixture.rule == "L3.GATE_HAS_FRESH_EVIDENCE" {
-        "gates:\n  checkout:\n    activation: [\"src/checkout/**\"]\n    evidence: \"evidence/checkout.json\"\n"
-    } else {
-        "gates: {}\n"
+    let gates = match fixture.rule {
+        "L3.GATE_HAS_FRESH_EVIDENCE" => {
+            "gates:\n  checkout:\n    activation: [\"src/checkout/**\"]\n    evidence: \"evidence/checkout.json\"\n"
+        }
+        // A gate that names its plan and requires an assertion the plan does
+        // not cite. The criterion cites a different one, which is the hole.
+        "L3.GATE_COVERS_THE_PLAN" => {
+            "gates:\n  checkout:\n    activation: [\"src/checkout/**\"]\n    evidence: \"evidence/checkout.json\"\n    plan: \"plans/rewrite-checkout.md\"\n    required_assertions: [\"api.ledger_balanced\"]\n"
+        }
+        _ => "gates: {}\n",
     };
     let extra_rule = fixture.extra_rules;
     format!(

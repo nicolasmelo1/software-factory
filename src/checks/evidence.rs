@@ -282,14 +282,37 @@ fn check_run(
             .actual(format!("scenario {} status {}", report.scenario, report.status)),
         ]);
     }
-    let mut findings = check_assertions(rule, &key, run, &report);
+    let mut findings = check_assertions(rule, &key, gate, run, &report);
     findings.extend(check_goal_fidelity(rule, opts, &key, run, &report));
     Ok(findings)
 }
 
-fn check_assertions(rule: &Rule, key: &str, run: &Run, report: &Report) -> Vec<Finding> {
-    let mut findings = Vec::new();
+/// The union of what policy demands and what the manifest admits it owed.
+///
+/// A manifest is written by the change under review, so a list that lives only
+/// there is a run declaring its own obligations — under-declare, and the gate
+/// passes on a subset of what it was for. Policy sits outside the candidate
+/// implementation, so unioning the two means a manifest can add an assertion
+/// but never drop one.
+fn required_assertions(gate: &Gate, run: &Run) -> Vec<String> {
+    let mut all: Vec<String> = gate.required_assertions.clone();
     for assertion in &run.required_assertions {
+        if !all.contains(assertion) {
+            all.push(assertion.clone());
+        }
+    }
+    all
+}
+
+fn check_assertions(
+    rule: &Rule,
+    key: &str,
+    gate: &Gate,
+    run: &Run,
+    report: &Report,
+) -> Vec<Finding> {
+    let mut findings = Vec::new();
+    for assertion in &required_assertions(gate, run) {
         match report.assertions.iter().find(|a| &a.kind == assertion) {
             None => findings.push(
                 fail(

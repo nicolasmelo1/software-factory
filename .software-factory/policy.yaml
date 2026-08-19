@@ -97,6 +97,9 @@ rules:
   # L3 — A gate activated by touched paths needs digest-verified, non-stale evidence
   L3.GATE_HAS_FRESH_EVIDENCE:
     enabled: true
+  # L3 — A gate requires every check its plan's criteria name
+  L3.GATE_COVERS_THE_PLAN:
+    enabled: true
   # L4 — Repo-relative documentation links resolve
   L4.DOC_LINKS_RESOLVE:
     enabled: true
@@ -105,6 +108,9 @@ rules:
     enabled: true
   # L4 — Every plan declares its exit condition and sits in the execution order
   L4.PLAN_DECLARES_EXIT_CONDITION:
+    enabled: true
+  # L4 — Every acceptance criterion names the check that proves it
+  L4.PLAN_CRITERION_NAMES_ITS_CHECK:
     enabled: true
   # L4 — New top-level files are declared before they appear
   L4.ROOT_FILES_ARE_DECLARED:

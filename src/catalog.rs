@@ -113,6 +113,10 @@ pub enum CadenceMode {
     RuleCitations,
     /// Every plan declares an exit condition and sits in the execution order.
     PlanCadence,
+    /// Every acceptance criterion in a plan names the check that proves it.
+    PlanCriteria,
+    /// Every check a plan's criteria name is one its gate actually requires.
+    GateCoverage,
     /// Every enabled rule has a mutation fixture that proves the check fires.
     MutationCoverage,
     /// No enabled rule is configured so it cannot produce a finding.
@@ -210,10 +214,12 @@ const BUILTIN: &[(&str, &str)] = &[
     ("L2/dependencies-change-deliberately.yaml", include_str!("../catalog/L2/dependencies-change-deliberately.yaml")),
     ("L2/no-permanent-exception.yaml", include_str!("../catalog/L2/no-permanent-exception.yaml")),
     ("L3/gate-has-fresh-evidence.yaml", include_str!("../catalog/L3/gate-has-fresh-evidence.yaml")),
+    ("L3/gate-covers-the-plan.yaml", include_str!("../catalog/L3/gate-covers-the-plan.yaml")),
     ("L4/doc-links-resolve.yaml", include_str!("../catalog/L4/doc-links-resolve.yaml")),
     ("L4/root-files-are-declared.yaml", include_str!("../catalog/L4/root-files-are-declared.yaml")),
     ("L4/every-rule-has-a-why.yaml", include_str!("../catalog/L4/every-rule-has-a-why.yaml")),
     ("L4/plan-declares-exit-condition.yaml", include_str!("../catalog/L4/plan-declares-exit-condition.yaml")),
+    ("L4/plan-criterion-names-its-check.yaml", include_str!("../catalog/L4/plan-criterion-names-its-check.yaml")),
     ("L5/every-check-has-a-mutation-test.yaml", include_str!("../catalog/L5/every-check-has-a-mutation-test.yaml")),
     ("L5/no-inert-rule.yaml", include_str!("../catalog/L5/no-inert-rule.yaml")),
     ("L2/factory-config-is-locked.yaml", include_str!("../catalog/L2/factory-config-is-locked.yaml")),
