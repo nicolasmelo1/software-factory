@@ -503,7 +503,13 @@ fn workflow(languages: &[String], selected: &[&crate::catalog::Rule]) -> String 
     if !selected.iter().any(|r| r.layer == crate::catalog::Layer::L6) {
         return out;
     }
-    out.push_str("\n  hazards:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n");
+    // fetch-depth: 0 because the secret scanner diffs against the base
+    // commit on a pull request, and a shallow clone leaves it nothing to
+    // diff against — it then fails with an empty result and no explanation.
+    out.push_str(
+        "\n  hazards:\n    runs-on: ubuntu-latest\n    steps:\n      \
+         - uses: actions/checkout@v4\n        with:\n          fetch-depth: 0\n",
+    );
     out.push_str(
         // gitleaks-action refuses to scan a pull request without a token, and
         // says so only at run time. Passing the automatic one is the whole fix.
