@@ -522,25 +522,29 @@ fn workflow(languages: &[String], selected: &[&crate::catalog::Rule]) -> String 
     out
 }
 
+/// Each scanner is told to skip the mutation fixtures. Those are deliberately
+/// broken repositories — a request with no timeout, an undefined name, a
+/// banned `Any` — so every scanner finds them, and every one of those findings
+/// is the fixture doing its job.
 fn hazard_steps(language: &str) -> &'static str {
     match language {
         "python" => concat!(
             "      - uses: actions/setup-python@v5\n        with:\n          python-version: '3.12'\n",
             "      - run: pip install pip-audit bandit vulture\n",
             "      - name: Dependency vulnerabilities\n        run: pip-audit\n",
-            "      - name: Insecure patterns\n        run: bandit -r . -c pyproject.toml\n",
-            "      - name: Dead code\n        run: vulture .\n",
+            "      - name: Insecure patterns\n        run: bandit -r . --exclude ./.software-factory\n",
+            "      - name: Dead code\n        run: vulture . --exclude .software-factory\n",
         ),
         "typescript" => concat!(
             "      - uses: actions/setup-node@v4\n        with:\n          node-version: '22'\n",
             "      - name: Dependency vulnerabilities\n        run: npm audit --audit-level=high\n",
-            "      - name: Insecure patterns\n        run: npx --yes semgrep --config auto --error\n",
+            "      - name: Insecure patterns\n        run: npx --yes semgrep --config auto --error --exclude .software-factory\n",
             "      - name: Dead code\n        run: npx --yes knip\n",
         ),
         "go" => concat!(
             "      - uses: actions/setup-go@v5\n        with:\n          go-version: stable\n",
             "      - name: Dependency vulnerabilities\n        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...\n",
-            "      - name: Insecure patterns\n        run: go run github.com/securego/gosec/v2/cmd/gosec@latest ./...\n",
+            "      - name: Insecure patterns\n        run: go run github.com/securego/gosec/v2/cmd/gosec@latest -exclude-dir=.software-factory ./...\n",
             "      - name: Dead code\n        run: go run honnef.co/go/tools/cmd/staticcheck@latest ./...\n",
             "      - name: Data races\n        run: go test -race ./...\n",
         ),
