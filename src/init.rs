@@ -473,7 +473,8 @@ checker and test collector, or they will report the fixtures as defects:\n      
   eslint   ignores: [\".software-factory/mutations/**\"]\n      \
   pytest   norecursedirs = .software-factory\n      \
   mypy     exclude = .software-factory/mutations\n      \
-  bandit   exclude_dirs = [\".software-factory\"] in [tool.bandit]";
+  bandit   exclude_dirs = [\".software-factory\"] in [tool.bandit]\n      \
+  zizmor   scan .github/workflows/ rather than the repository root";
 
 const NEXT_STEPS: &str = "# Next steps\n\n\
 The execution order. One table, short on purpose: this is the file to reread\n\
@@ -550,6 +551,10 @@ fn workflow(languages: &[String], selected: &[&crate::catalog::Rule]) -> String 
          - name: Insecure workflows\n        \
          uses: zizmorcore/zizmor-action@3dc1ecc9bcb9e94e9b2c709687979e1298497054 # v0.6.2\n        \
          with:\n          \
+         # Point it at the real workflows only. Left to walk the repository it\n          \
+         # also audits .software-factory/mutations, whose workflows are broken\n          \
+         # on purpose — every finding there is a fixture doing its job.\n          \
+         inputs: .github/workflows/\n          \
          # the SARIF upload wants security-events: write, which this job does\n          \
          # not grant. Annotations put each finding on the diff instead, and\n          \
          # zizmor still exits non-zero, which is what fails the build.\n          \

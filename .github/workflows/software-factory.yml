@@ -84,6 +84,11 @@ jobs:
       - name: Insecure workflows
         uses: zizmorcore/zizmor-action@3dc1ecc9bcb9e94e9b2c709687979e1298497054 # v0.6.2
         with:
+          # Point it at the real workflows only. Left to walk the repository
+          # it also audits .software-factory/mutations, whose workflows are
+          # deliberately broken — every finding there is a fixture doing its
+          # job, and it drowns the one finding that is not.
+          inputs: .github/workflows/
           # the SARIF upload wants security-events: write, which this job does
           # not grant. Annotations put each finding on the diff instead, and
           # zizmor still exits non-zero, which is what fails the build.
