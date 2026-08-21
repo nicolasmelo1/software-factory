@@ -319,3 +319,13 @@ A secret scanner runs somewhere the repository actually executes.
 **Why.** A leaked credential is the one class of defect that cannot be fixed by a revert: once it is in the history it is compromised, and the remedy is rotation under time pressure. Agents produce this failure in a specific way — they inline a working value while debugging, then write the config indirection afterwards, and the debugging commit is already pushed. The scan is cheap and it is the only check here whose absence is unrecoverable.
 
 **Fix.** Wire in `detect-secrets`, `gitleaks` or `trufflehog`. Scanners are mostly language-independent, so one covers the whole repository.
+
+### L6.WORKFLOWS_ARE_SCANNED
+
+**Something scans the CI workflows themselves**
+
+A GitHub Actions workflow scanner runs somewhere the repository actually executes.
+
+**Why.** Every other L6 rule points a scanner at the application. Nothing points one at the file that runs the scanners. That file is the highest-privilege code in the repository — it holds the tokens, and on a fork pull request it handles input the author controls — and it is the code least likely to have been reviewed by anyone who reads it as code. The specific trap is template injection: `${{ github.head_ref }}` inside a `run:` block is substituted into the script before a shell parses it, so a branch name becomes a command. It does not look like an interpolation bug, because in every other language interpolating into a string is safe. A linter that only checks workflow *syntax* passes this file happily; this repository shipped exactly that bug and its own actionlint step stayed green.
+
+**Fix.** Wire in `zizmor`, `poutine` or `octoscan`. They read the workflows rather than the application, so one covers the whole repository regardless of language, and each ships a GitHub Action. `actionlint` is worth running too but does not satisfy this rule: it validates workflow syntax and expressions and does not audit for injection, unpinned actions or credential persistence.
