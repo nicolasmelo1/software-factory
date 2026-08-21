@@ -472,7 +472,8 @@ checker and test collector, or they will report the fixtures as defects:\n      
   ruff     extend-exclude = [\".software-factory/mutations\"]\n      \
   eslint   ignores: [\".software-factory/mutations/**\"]\n      \
   pytest   norecursedirs = .software-factory\n      \
-  mypy     exclude = .software-factory/mutations";
+  mypy     exclude = .software-factory/mutations\n      \
+  bandit   exclude_dirs = [\".software-factory\"] in [tool.bandit]";
 
 const NEXT_STEPS: &str = "# Next steps\n\n\
 The execution order. One table, short on purpose: this is the file to reread\n\
@@ -513,8 +514,13 @@ fn workflow(languages: &[String], selected: &[&crate::catalog::Rule]) -> String 
     out.push_str(
         // gitleaks-action refuses to scan a pull request without a token, and
         // says so only at run time. Passing the automatic one is the whole fix.
+        // The token is required to scan a pull request at all; the two
+        // flags stop the action reaching for permissions the job does not
+        // grant, which it does by posting a comment and then failing 403.
         "      - name: Committed secrets\n        uses: gitleaks/gitleaks-action@v2\n        \
-         env:\n          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}\n",
+         env:\n          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}\n          \
+         GITLEAKS_ENABLE_COMMENTS: \"false\"\n          \
+         GITLEAKS_ENABLE_SUMMARY: \"false\"\n",
     );
     for language in languages {
         out.push_str(hazard_steps(language));
@@ -532,7 +538,7 @@ fn hazard_steps(language: &str) -> &'static str {
             "      - uses: actions/setup-python@v5\n        with:\n          python-version: '3.12'\n",
             "      - run: pip install pip-audit bandit vulture\n",
             "      - name: Dependency vulnerabilities\n        run: pip-audit\n",
-            "      - name: Insecure patterns\n        run: bandit -r . --exclude ./.software-factory\n",
+            "      - name: Insecure patterns\n        run: bandit -r . --exclude ./.software-factory,./.venv,./node_modules,./tests\n",
             "      - name: Dead code\n        run: vulture . --exclude .software-factory\n",
         ),
         "typescript" => concat!(
