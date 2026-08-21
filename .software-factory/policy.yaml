@@ -148,3 +148,6 @@ rules:
   # L6 — Something scans for committed secrets
   L6.SECRETS_ARE_SCANNED:
     enabled: true
+  # L6 — Something scans the CI workflows themselves
+  L6.WORKFLOWS_ARE_SCANNED:
+    enabled: true

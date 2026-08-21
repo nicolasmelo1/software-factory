@@ -77,3 +77,15 @@ jobs:
       - run: cargo audit
       - name: Insecure patterns and dead code
         run: cargo clippy --all-targets -- -D warnings -D dead_code
+      # The workflows are code too, and they are the code holding the tokens.
+      # Nothing else in this job reads them. actionlint is not the tool for
+      # this: it validates syntax and expressions, and it stayed green on the
+      # injection that this step exists to catch.
+      - name: Insecure workflows
+        uses: zizmorcore/zizmor-action@3dc1ecc9bcb9e94e9b2c709687979e1298497054 # v0.6.2
+        with:
+          # the SARIF upload wants security-events: write, which this job does
+          # not grant. Annotations put each finding on the diff instead, and
+          # zizmor still exits non-zero, which is what fails the build.
+          advanced-security: false
+          annotations: true

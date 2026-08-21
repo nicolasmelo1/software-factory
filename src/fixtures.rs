@@ -284,6 +284,12 @@ pub const FIXTURES: &[Fixture] = &[
         files: &[(".github/workflows/ci.yml", CI_WITHOUT_HAZARD_TOOLS)],
     },
     Fixture {
+        rule: "L6.WORKFLOWS_ARE_SCANNED",
+        policy_extra: "",
+        extra_rules: "",
+        files: &[(".github/workflows/ci.yml", CI_WITHOUT_HAZARD_TOOLS)],
+    },
+    Fixture {
         rule: "L6.INSECURE_PATTERNS_ARE_SCANNED",
         policy_extra: "",
         extra_rules: "",

@@ -541,6 +541,20 @@ fn workflow(languages: &[String], selected: &[&crate::catalog::Rule]) -> String 
          GITLEAKS_ENABLE_COMMENTS: \"false\"\n          \
          GITLEAKS_ENABLE_SUMMARY: \"false\"\n",
     );
+    // The workflow scanner is language-neutral — it reads this file, not the
+    // application — so it goes here rather than in `hazard_steps`.
+    out.push_str(
+        "      # The workflows are code too, and they are the code holding the\n      \
+         # tokens. Nothing else in this job reads them. actionlint is not the\n      \
+         # tool for this: it validates syntax and expressions, not injection.\n      \
+         - name: Insecure workflows\n        \
+         uses: zizmorcore/zizmor-action@3dc1ecc9bcb9e94e9b2c709687979e1298497054 # v0.6.2\n        \
+         with:\n          \
+         # the SARIF upload wants security-events: write, which this job does\n          \
+         # not grant. Annotations put each finding on the diff instead, and\n          \
+         # zizmor still exits non-zero, which is what fails the build.\n          \
+         advanced-security: false\n          annotations: true\n",
+    );
     for language in languages {
         out.push_str(hazard_steps(language));
     }

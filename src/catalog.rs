@@ -233,6 +233,7 @@ const BUILTIN: &[(&str, &str)] = &[
     ("L6/performance-regression-is-guarded.yaml", include_str!("../catalog/L6/performance-regression-is-guarded.yaml")),
     ("L6/no-blocking-call-while-holding-a-lock.yaml", include_str!("../catalog/L6/no-blocking-call-while-holding-a-lock.yaml")),
     ("L6/one-lock-at-a-time.yaml", include_str!("../catalog/L6/one-lock-at-a-time.yaml")),
+    ("L6/workflows-are-scanned.yaml", include_str!("../catalog/L6/workflows-are-scanned.yaml")),
 ];
 
 impl Catalog {
