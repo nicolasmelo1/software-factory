@@ -12,6 +12,8 @@ precondition exists. Park it in the second table rather than deleting it.
 
 | 2 | [Keep the generated prose in sync with the catalog](keep-generated-prose-in-sync.md) | A rule whose `fix` names a command `sf` does not accept fails `sf check`, proven by a fixture. |
 
+| 3 | [Text renderer shows `expected` even when `actual` is absent](text-renderer-shows-expected-without-actual.md) | A finding produced by any check that sets `expected` without `actual` shows that field in `sf check`'s text output, proven by the `L4.ROOT_FILES_ARE_DECLARED` mutation fixture and a stray-root-file check naming `.allowed-root-files`. |
+
 ## Parked
 
 | Work | Waiting on |
