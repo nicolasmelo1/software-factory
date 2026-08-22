@@ -51,8 +51,11 @@ impl Report {
             }
             for finding in findings {
                 out.push_str(&format!("    {} — {}\n", finding.location, finding.message));
-                if let (Some(expected), Some(actual)) = (&finding.expected, &finding.actual) {
-                    out.push_str(&format!("       expected {expected}\n       actual   {actual}\n"));
+                if let Some(expected) = &finding.expected {
+                    out.push_str(&format!("       expected {expected}\n"));
+                }
+                if let Some(actual) = &finding.actual {
+                    out.push_str(&format!("       actual   {actual}\n"));
                 }
             }
         }
