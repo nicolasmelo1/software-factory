@@ -309,3 +309,50 @@ struct FixtureFile {
     path: String,
     body: String,
 }
+
+#[cfg(test)]
+mod completeness {
+    use super::TEMPLATES;
+    use std::collections::BTreeSet;
+    use std::path::{Path, PathBuf};
+
+    fn templates_dir() -> PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("templates")
+    }
+
+    fn on_disk() -> BTreeSet<String> {
+        std::fs::read_dir(templates_dir())
+            .expect("templates/ exists")
+            .filter_map(|e| e.ok())
+            .filter(|e| {
+                e.path().is_file() && e.path().extension().and_then(|s| s.to_str()) == Some("yaml")
+            })
+            .map(|e| {
+                e.path()
+                    .file_stem()
+                    .expect("yaml file has a stem")
+                    .to_string_lossy()
+                    .into_owned()
+            })
+            .collect()
+    }
+
+    /// `TEMPLATES` is the set of parameterised rules an interview can
+    /// instantiate. A `templates/*.yaml` with no entry here is unreachable
+    /// from `sf init`. Both directions, offenders named.
+    #[test]
+    fn templates_matches_templates_dir() {
+        let registered: BTreeSet<String> = TEMPLATES.iter().map(|(name, _)| name.to_string()).collect();
+        let disk = on_disk();
+
+        let unregistered: Vec<_> = disk.difference(&registered).collect();
+        let missing: Vec<_> = registered.difference(&disk).collect();
+
+        assert!(
+            unregistered.is_empty() && missing.is_empty(),
+            "interview::TEMPLATES is out of sync with templates/:\n\
+             files on disk with no TEMPLATES entry: {unregistered:?}\n\
+             TEMPLATES entries with no file on disk: {missing:?}"
+        );
+    }
+}
