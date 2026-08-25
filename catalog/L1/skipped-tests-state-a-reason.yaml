@@ -3,8 +3,11 @@ layer: L1
 title: A skipped or expected-to-fail test says why
 severity: medium
 statement: >-
-  `skip` and `xfail` are called with something in them — a reason string, a
-  `reason=`, a condition. An empty call is a finding.
+  A disabled test carries its reason. Where the test API takes one —
+  `pytest.mark.skip`, `t.Skip`, `#[ignore]` — it is called with something in
+  it: a reason string, a `reason=`, a condition. Where the API takes no reason
+  at all, which is every JavaScript test runner, the reason is a comment on the
+  line above. Nothing at all is a finding.
 why: >-
   A skipped test is a hole in coverage that reports as green, and the only
   thing standing between "temporarily disabled while I fix the fixture" and
@@ -14,10 +17,22 @@ why: >-
   This is deliberately an AST rule rather than a line pattern. A real skip
   spans several lines and states its reason on the second one, so a line-based
   check flags every correct skip in the repository — which teaches people to
-  ignore the rule, and is worse than not having it.
+  ignore the rule, and is worse than not having it. It is also what keeps this
+  rule quiet about `it.skip` written inside a string literal, and about a
+  lexer's own `.skip()`, neither of which is a skipped test.
+  The typescript form is the same rule with a weaker place to put the answer.
+  `it.skip('name', fn)` has no parameter for a reason and neither jest nor
+  vitest ever added one, so a comment is the only place a reason can live —
+  and asking for it is still the whole point, because the reason is what makes
+  the skip reviewable. A conditional skip (`it.skipIf`, `describe.runIf`)
+  already says why in the condition, which is why it is not a finding.
 fix: >-
   Say why, and say when it comes back. If the reason is "it fails and I do not
-  know why", that is the finding, not the fix.
+  know why", that is the finding, not the fix. In python, go and rust, pass it:
+  `@pytest.mark.skip(reason="...")`, `t.Skip("...")`,
+  `#[ignore = "..."]`. In typescript, write it on the line above the skip. If
+  the skip is permanent, delete the test — a test nobody intends to re-enable
+  is documentation that claims to be a check.
 ratchet: allowlist
 check:
   kind: shape
@@ -29,6 +44,71 @@ check:
           arguments: (argument_list) @args
           (#match? @name "^(skip|xfail)$")
           (#match? @args "^\\(\\s*\\)$")) @target
+    typescript:
+      # `@recv` is matched as text rather than as a node so that
+      # `it.concurrent.skip` is the same finding as `it.skip`: the receiver is a
+      # member expression in one case and an identifier in the other, and the
+      # hazard is identical.
+      query: |
+        (expression_statement
+          (call_expression
+            function: (member_expression
+              object: (_) @recv
+              property: (property_identifier) @name))
+          (#match? @recv "^(it|test|describe|suite)\\b")
+          (#match? @name "^(skip|todo|failing|fails)$")) @target
+        (expression_statement
+          (call_expression
+            function: (identifier) @name)
+          (#match? @name "^(xit|xtest|xdescribe)$")) @target
+      # The reason, in the only place JavaScript leaves for it. Anchored
+      # adjacency, so a comment three statements up does not launder the skip
+      # below it.
+      unless: |
+        ((comment)
+          .
+          (expression_statement
+            (call_expression
+              function: (member_expression
+                object: (_) @recv
+                property: (property_identifier) @name))
+            (#match? @recv "^(it|test|describe|suite)\\b")
+            (#match? @name "^(skip|todo|failing|fails)$")) @target)
+        ((comment)
+          .
+          (expression_statement
+            (call_expression
+              function: (identifier) @name)
+            (#match? @name "^(xit|xtest|xdescribe)$")) @target)
+    go:
+      # `t.Skipf` cannot be called empty and `t.SkipNow` cannot be called with
+      # anything, so neither is decidable here. `Skip` is the one that takes a
+      # reason and can be robbed of it.
+      query: |
+        (call_expression
+          function: (selector_expression field: (field_identifier) @name)
+          arguments: (argument_list) @args
+          (#match? @name "^Skip$")
+          (#match? @args "^\\(\\s*\\)$")) @target
+    rust:
+      # Anchors on both sides: `#[ignore]` has the identifier as its only
+      # child, `#[ignore = "flaky under load"]` carries the reason after it.
+      query: |
+        (attribute_item
+          (attribute . (identifier) @name .)
+          (#eq? @name "ignore")) @target
 defaults:
-  scope: ["**/tests/**", "**/test_*.py", "**/*_test.py"]
+  scope:
+    - "**/tests/**"
+    - "**/test_*.py"
+    - "**/*_test.py"
+    - "**/*.test.ts"
+    - "**/*.test.tsx"
+    - "**/*.spec.ts"
+    - "**/*.spec.tsx"
+    - "**/*_test.go"
+    # Rust tests live in the file they test, inside `#[cfg(test)]`, so there is
+    # no test-file glob to scope to. The query only matches an `ignore`
+    # attribute, which nothing but a test carries.
+    - "**/*.rs"
   must_not_live_in: ["**"]

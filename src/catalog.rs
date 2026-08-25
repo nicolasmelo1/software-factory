@@ -48,6 +48,13 @@ impl Layer {
 pub struct LangQuery {
     /// A tree-sitter query. It must bind `@target`, and may bind `@name`.
     pub query: String,
+    /// The same shape, matched only where it is accompanied by what makes it
+    /// acceptable — a `@target` here cancels the one `query` found on that
+    /// line. A tree-sitter query cannot say "unless a comment sits above
+    /// this", because negation over siblings is not expressible; two positive
+    /// queries and a set difference say it, and stay readable.
+    #[serde(default)]
+    pub unless: Option<String>,
 }
 
 /// A containment rule: `inner` must not appear anywhere inside `outer`.
@@ -182,6 +189,9 @@ fn validate_patterns(options: &crate::policy::Options) -> Result<()> {
 fn validate_queries(languages: &BTreeMap<String, LangQuery>) -> Result<()> {
     for (name, spec) in languages {
         validate_query(name, &spec.query)?;
+        if let Some(unless) = &spec.unless {
+            validate_query(name, unless)?;
+        }
     }
     Ok(())
 }

@@ -120,10 +120,28 @@ pub const FIXTURES: &[Fixture] = &[
         rule: "L1.SKIPPED_TESTS_STATE_A_REASON",
         policy_extra: "",
         extra_rules: "",
-        files: &[(
-            "tests/test_billing.py",
-            "@pytest.mark.skip()\ndef test_refund_is_idempotent():\n    ...\n",
-        )],
+        files: &[
+            (
+                "tests/test_billing.py",
+                "@pytest.mark.skip()\ndef test_refund_is_idempotent():\n    ...\n",
+            ),
+            // Two skips on purpose: the first is the violation, the second is
+            // the accepted form. If the `unless` query ever stops matching,
+            // the second one starts producing a finding here — which is the
+            // only way a fixture can be about a rule staying quiet.
+            (
+                "tests/billing.test.ts",
+                "describe(\"refunds\", () => {\n  it.skip(\"is idempotent\", () => {});\n\n  // Flaky against the sandbox gateway; back when TICKET-4711 lands.\n  it.skip(\"settles twice\", () => {});\n});\n",
+            ),
+            (
+                "tests/billing_test.go",
+                "package billing\n\nimport \"testing\"\n\nfunc TestRefundIsIdempotent(t *testing.T) {\n\tt.Skip()\n}\n",
+            ),
+            (
+                "tests/billing.rs",
+                "#[test]\n#[ignore]\nfn refund_is_idempotent() {\n    assert!(true);\n}\n",
+            ),
+        ],
     },
     Fixture {
         rule: "L1.NO_UNTYPED_ESCAPE_HATCH",

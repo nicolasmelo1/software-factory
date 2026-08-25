@@ -453,6 +453,21 @@ a constraint on where matches may live. The engine knows nothing about
 controllers, repositories or exceptions — that vocabulary lives entirely in the
 catalog, which is what lets one rule mean the same thing in four languages.
 
+A language may also carry an `unless` query: the same shape plus whatever makes
+it acceptable, whose matches cancel the ones above on that line. It exists
+because negation over siblings is not expressible in a tree-sitter query, and
+some rules need it — `L1.SKIPPED_TESTS_STATE_A_REASON` asks a TypeScript skip
+for a comment on the line above, because `it.skip('name', fn)` has no parameter
+for a reason and a comment is the only place one can live.
+
+```yaml
+    typescript:
+      query: |
+        (expression_statement (call_expression ... )) @target
+      unless: |
+        ((comment) . (expression_statement (call_expression ... )) @target)
+```
+
 **Adding a language** is a grammar plus one query per rule you want it to
 cover. **Adding a rule** is a YAML file in `.software-factory/rules/` and a
 fixture under `.software-factory/mutations/<RULE_ID>/`.

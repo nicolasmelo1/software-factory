@@ -13,7 +13,7 @@ use crate::lang::Lang;
 use crate::policy::Options;
 use crate::scan;
 use anyhow::{Context, Result};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use tree_sitter::{Parser, Query, QueryCursor, StreamingIterator};
 
 struct Match {
@@ -57,9 +57,31 @@ fn collect(
         let Ok(source) = std::fs::read_to_string(&file.abs) else {
             continue;
         };
-        matches.extend(query_file(rule, lang, &spec.query, &file.rel, &source)?);
+        matches.extend(matches_in(rule, lang, spec, &file.rel, &source)?);
     }
     Ok(matches)
+}
+
+/// Every match of `query` that `unless` does not cancel.
+///
+/// The cancelling query matches the same shape plus whatever makes it
+/// acceptable, so the two agree on the `@target` line and the difference is a
+/// line-set subtraction. Kept separate from `collect` so it can be tested
+/// against the catalog's real queries without a repository around it.
+fn matches_in(
+    rule: &Rule,
+    lang: Lang,
+    spec: &LangQuery,
+    rel: &str,
+    source: &str,
+) -> Result<Vec<Match>> {
+    let found = query_file(rule, lang, &spec.query, rel, source)?;
+    let Some(unless) = &spec.unless else {
+        return Ok(found);
+    };
+    let accepted: BTreeSet<usize> =
+        query_file(rule, lang, unless, rel, source)?.into_iter().map(|m| m.line).collect();
+    Ok(found.into_iter().filter(|m| !accepted.contains(&m.line)).collect())
 }
 
 fn query_file(
@@ -167,4 +189,47 @@ fn density(rule: &Rule, opts: &Options, matches: &[Match]) -> Vec<Finding> {
 
 fn trim_quotes(s: &str) -> String {
     s.trim_matches(|c| c == '"' || c == '\'' || c == '`').to_string()
+}
+
+#[cfg(test)]
+mod cancelling_query {
+    use super::*;
+    use crate::catalog::{Catalog, CheckKind};
+
+    const TESTS: &str = "describe(\"refunds\", () => {\n  \
+        it.skip(\"is idempotent\", () => {});\n\n  \
+        // Flaky against the sandbox gateway; back when TICKET-4711 lands.\n  \
+        it.skip(\"settles twice\", () => {});\n});\n";
+
+    fn typescript(rule_id: &str) -> (crate::catalog::Rule, LangQuery) {
+        let catalog = Catalog::builtin().expect("the builtin catalog loads");
+        let rule = catalog.get(rule_id).expect("the rule ships in the catalog").clone();
+        let CheckKind::Shape { languages } = &rule.check else {
+            panic!("{rule_id} is not a shape rule");
+        };
+        let spec = languages.get("typescript").expect("the rule ships a typescript query").clone();
+        (rule, spec)
+    }
+
+    /// The pair that makes `unless` meaningful: the query has to see both
+    /// skips, or the filter below proves nothing.
+    #[test]
+    fn the_query_alone_matches_every_skip() {
+        let (rule, spec) = typescript("L1.SKIPPED_TESTS_STATE_A_REASON");
+        let found = query_file(&rule, Lang::TypeScript, &spec.query, "billing.test.ts", TESTS)
+            .expect("the typescript query is valid");
+        assert_eq!(found.iter().map(|m| m.line).collect::<Vec<_>>(), vec![2, 5]);
+    }
+
+    #[test]
+    fn a_comment_above_the_skip_cancels_it() {
+        let (rule, spec) = typescript("L1.SKIPPED_TESTS_STATE_A_REASON");
+        let found = matches_in(&rule, Lang::TypeScript, &spec, "billing.test.ts", TESTS)
+            .expect("both typescript queries are valid");
+        assert_eq!(
+            found.iter().map(|m| m.line).collect::<Vec<_>>(),
+            vec![2],
+            "the documented skip on line 5 should be cancelled, the bare one on line 2 should not"
+        );
+    }
 }

@@ -70,6 +70,15 @@ whose vocabulary does not exist in that language simply omit it — a rule with
 no query for a language does not apply to it, and that is the correct outcome,
 not a gap to paper over.
 
+The exception is a rule whose vocabulary *does* exist there but whose
+acceptable form is a sibling rather than an argument. A tree-sitter query
+cannot say "unless a comment sits above this", so `kind: shape` takes an
+optional second query per language, `unless`, matching the same shape plus what
+makes it acceptable; its `@target` lines cancel the first query's. Two positive
+queries and a set difference, which is how the `text_pattern` rules already
+read. Add the accepted form to the fixture next to the violating one — it is
+the only way a mutation can be about a rule staying quiet.
+
 A rule that can't be decided structurally — its truth only comes out of
 running something, not matching a query — takes `kind: command` instead of a
 grammar. That is the extension point for a check this tool cannot express:

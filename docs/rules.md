@@ -100,6 +100,16 @@ Do not introduce the language's "anything goes" type. Ban it where it is introdu
 
 **Fix.** Use a TypedDict/interface/struct for a known shape, a generic parameter for genuine passthrough, or the project's JSON value type at a serialization boundary. If a third-party stub truly forces it, suppress that one line with a reason.
 
+### L1.SKIPPED_TESTS_STATE_A_REASON
+
+**A skipped or expected-to-fail test says why**
+
+A disabled test carries its reason. Where the test API takes one — `pytest.mark.skip`, `t.Skip`, `#[ignore]` — it is called with something in it: a reason string, a `reason=`, a condition. Where the API takes no reason at all, which is every JavaScript test runner, the reason is a comment on the line above. Nothing at all is a finding.
+
+**Why.** A skipped test is a hole in coverage that reports as green, and the only thing standing between "temporarily disabled while I fix the fixture" and "permanently disabled, nobody remembers why" is the sentence next to it. Skipping is also the cheapest way to turn a red suite green, and at the diff level it is indistinguishable from a fix. This is deliberately an AST rule rather than a line pattern. A real skip spans several lines and states its reason on the second one, so a line-based check flags every correct skip in the repository — which teaches people to ignore the rule, and is worse than not having it. It is also what keeps this rule quiet about `it.skip` written inside a string literal, and about a lexer's own `.skip()`, neither of which is a skipped test. The typescript form is the same rule with a weaker place to put the answer. `it.skip('name', fn)` has no parameter for a reason and neither jest nor vitest ever added one, so a comment is the only place a reason can live — and asking for it is still the whole point, because the reason is what makes the skip reviewable. A conditional skip (`it.skipIf`, `describe.runIf`) already says why in the condition, which is why it is not a finding.
+
+**Fix.** Say why, and say when it comes back. If the reason is "it fails and I do not know why", that is the finding, not the fix. In python, go and rust, pass it: `@pytest.mark.skip(reason="...")`, `t.Skip("...")`, `#[ignore = "..."]`. In typescript, write it on the line above the skip. If the skip is permanent, delete the test — a test nobody intends to re-enable is documentation that claims to be a check.
+
 ## L2 — Contract: no drift from the source of truth
 
 ### L2.DEPENDENCIES_CHANGE_DELIBERATELY
