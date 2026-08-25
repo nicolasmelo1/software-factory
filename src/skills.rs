@@ -66,3 +66,42 @@ pub fn install(dir: &Path) -> Result<Vec<String>> {
     }
     Ok(written)
 }
+
+#[cfg(test)]
+mod completeness {
+    use super::SKILLS;
+    use std::collections::BTreeSet;
+    use std::path::{Path, PathBuf};
+
+    fn skills_dir() -> PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("skills")
+    }
+
+    fn on_disk() -> BTreeSet<String> {
+        std::fs::read_dir(skills_dir())
+            .expect("skills/ exists")
+            .filter_map(|e| e.ok())
+            .filter(|e| e.path().is_dir() && e.path().join("SKILL.md").is_file())
+            .map(|e| e.file_name().to_string_lossy().into_owned())
+            .collect()
+    }
+
+    /// The bug AGENTS.md names: a new `skills/<name>/SKILL.md` with no
+    /// matching entry here ships three of four, silently. Both directions,
+    /// offenders named.
+    #[test]
+    fn skills_matches_skills_dir() {
+        let registered: BTreeSet<String> = SKILLS.iter().map(|(name, _)| name.to_string()).collect();
+        let disk = on_disk();
+
+        let unregistered: Vec<_> = disk.difference(&registered).collect();
+        let missing: Vec<_> = registered.difference(&disk).collect();
+
+        assert!(
+            unregistered.is_empty() && missing.is_empty(),
+            "skills::SKILLS is out of sync with skills/:\n\
+             directories on disk with no SKILLS entry: {unregistered:?}\n\
+             SKILLS entries with no directory on disk: {missing:?}"
+        );
+    }
+}

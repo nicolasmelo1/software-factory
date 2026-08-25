@@ -286,3 +286,51 @@ impl Catalog {
         self.rules.get(id)
     }
 }
+
+#[cfg(test)]
+mod completeness {
+    use super::BUILTIN;
+    use std::collections::BTreeSet;
+    use std::path::{Path, PathBuf};
+
+    fn catalog_dir() -> PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("catalog")
+    }
+
+    fn on_disk() -> BTreeSet<String> {
+        walkdir::WalkDir::new(catalog_dir())
+            .into_iter()
+            .filter_map(|e| e.ok())
+            .filter(|e| {
+                e.file_type().is_file()
+                    && e.path().extension().and_then(|s| s.to_str()) == Some("yaml")
+            })
+            .map(|e| {
+                e.path()
+                    .strip_prefix(catalog_dir())
+                    .expect("walked entry is under catalog_dir")
+                    .to_string_lossy()
+                    .replace('\\', "/")
+            })
+            .collect()
+    }
+
+    /// `BUILTIN` is what `sf` ships without a checkout. A `catalog/**/*.yaml`
+    /// with no entry here never reaches a fresh install; an entry with no
+    /// file already failed to compile. Both directions, offenders named.
+    #[test]
+    fn builtin_matches_catalog_dir() {
+        let registered: BTreeSet<String> = BUILTIN.iter().map(|(path, _)| path.to_string()).collect();
+        let disk = on_disk();
+
+        let unregistered: Vec<_> = disk.difference(&registered).collect();
+        let missing: Vec<_> = registered.difference(&disk).collect();
+
+        assert!(
+            unregistered.is_empty() && missing.is_empty(),
+            "catalog::BUILTIN is out of sync with catalog/:\n\
+             files on disk with no BUILTIN entry: {unregistered:?}\n\
+             BUILTIN entries with no file on disk: {missing:?}"
+        );
+    }
+}
