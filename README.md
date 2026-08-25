@@ -816,6 +816,10 @@ each as a written decision in [`docs/rules.md`](docs/rules.md) — because
 
 See [`docs/method.md`](docs/method.md) for the reasoning behind the layering.
 
+## Contributors
+
+[![Contributors](https://contrib.rocks/image?repo=nicolasmelo1/software-factory)](https://github.com/nicolasmelo1/software-factory/graphs/contributors)
+
 ## License
 
 MIT.
