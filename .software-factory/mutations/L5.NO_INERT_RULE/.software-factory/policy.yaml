@@ -11,5 +11,13 @@ rules:
     enabled: true
     options:
       scope: []
+  L1.NO_BLANKET_SUPPRESSION@inert:
+    enabled: true
+    options:
+      scope: ["nonexistent/**"]
+  L1.COMPLEXITY_CEILING@inert:
+    enabled: true
+    options:
+      scope: ["nonexistent/**"]
   L5.NO_INERT_RULE:
     enabled: true

@@ -381,9 +381,12 @@ pub const FIXTURES: &[Fixture] = &[
     Fixture {
         rule: "L5.NO_INERT_RULE",
         policy_extra: "",
-        // A lock switched on over nothing: it passes every run and reads in a
-        // report exactly like a lock that is protecting something.
-        extra_rules: "  L2.GENERATED_FILES_ARE_LOCKED:\n    enabled: true\n    options:\n      scope: []\n",
+        // Three ways to be inert, one per newly/previously covered kind: a
+        // lock switched on over nothing, a text-pattern rule scoped at a path
+        // nothing in the mini-repo matches, and a complexity ceiling scoped
+        // the same way. Each passes every run and reads in a report exactly
+        // like a rule that is protecting you.
+        extra_rules: "  L2.GENERATED_FILES_ARE_LOCKED:\n    enabled: true\n    options:\n      scope: []\n  L1.NO_BLANKET_SUPPRESSION@inert:\n    enabled: true\n    options:\n      scope: [\"nonexistent/**\"]\n  L1.COMPLEXITY_CEILING@inert:\n    enabled: true\n    options:\n      scope: [\"nonexistent/**\"]\n",
         files: &[("src/app.py", "print('a repository with a lock that locks nothing')\n")],
     },
 ];
