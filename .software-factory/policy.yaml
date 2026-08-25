@@ -47,12 +47,10 @@ rules:
       # suppression from a string that quotes one; excluding the one file that
       # is deliberately full of them is narrower than weakening the rule.
       exclude: ["src/fixtures.rs"]
-  # L1 — The untyped escape hatch is banned, and the message names the alternative
+  # L1 — A skipped or expected-to-fail test says why
   L1.SKIPPED_TESTS_STATE_A_REASON:
-    # Disabled: the rule ships a Python query only, and this is a Rust
-    # repository. Same reasoning as the other rules switched off below — it
-    # stays proven by its fixture, it is simply not about this codebase.
-    enabled: false
+    enabled: true
+  # L1 — The untyped escape hatch is banned, and the message names the alternative
   L1.NO_UNTYPED_ESCAPE_HATCH:
     enabled: true
     options:
