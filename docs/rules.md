@@ -46,6 +46,27 @@ gating on is `sf verify` passing against a repository in a language it has
 never parsed — see
 [the language adapter plan](../plans/expand-language-adapters.md).
 
+**Four L6 hazard rules now name Ruby tools; three deliberately do not.**
+`L6.DEPENDENCY_VULNERABILITIES_ARE_SCANNED`, `L6.INSECURE_PATTERNS_ARE_SCANNED`,
+`L6.SECRETS_ARE_SCANNED` and `L6.WORKFLOWS_ARE_SCANNED` gained a `ruby:` tool
+list because `bundler-audit`, `brakeman` and the language-neutral secret and
+workflow scanners are real, idiomatic choices for a Ruby repository — this is
+possible without any tree-sitter grammar because `src/checks/toolchain.rs`
+matches tools by raw policy-language string, not by parsed syntax.
+`L6.DEAD_CODE_IS_DETECTED` and `L6.PERFORMANCE_REGRESSION_IS_GUARDED` stay
+without a `ruby:` key: no Ruby dead-code detector or benchmark harness is
+available to name honestly, and a rule pointed at a tool that does not exist
+is exactly the lie `L5.NO_INERT_RULE` exists to catch.
+`L6.DATA_RACES_ARE_DETECTED` also omits Ruby: MRI's GVL makes the concept
+marginal, the same reasoning that already excludes Python and TypeScript from
+that rule. See
+[Ruby joins the L6 hazard rules](../plans/ruby-joins-the-l6-hazard-rules.md).
+A Rails adopter's own linter, type checker and test collector also need to
+skip `.software-factory/mutations`: `rubocop`/`standardrb` via
+`.rubocop.yml`/`.standard.yml`, and `rspec` via `--exclude-pattern`, alongside
+`brakeman`'s own `--skip-files`. `sf init --language ruby` now prints all four
+forms in `FIXTURES_HINT`.
+
 ## L0 — Shape: where things live
 
 ### L0.EXCEPTIONS_HAVE_ONE_HOME
@@ -288,7 +309,7 @@ At least one dependency vulnerability scanner for each of this repository's lang
 
 **Why.** An agent adding a dependency is making a supply-chain decision in a one-line diff, usually while solving something else entirely, and it has no way to know what that package shipped last week. This check does not audit anything itself — the ecosystem tools are far better than anything that could live here. What it guarantees is the thing that actually rots: that the audit is still wired in. A scanner someone removed to make CI faster fails exactly like one that was never added.
 
-**Fix.** Add the scanner to your CI workflow or task runner. `pip-audit` for Python, `npm audit` or `osv-scanner` for TypeScript, `govulncheck` for Go, `cargo audit` for Rust.
+**Fix.** Add the scanner to your CI workflow or task runner. `pip-audit` for Python, `npm audit` or `osv-scanner` for TypeScript, `govulncheck` for Go, `cargo audit` for Rust, `bundler-audit` for Ruby.
 
 ### L6.INSECURE_PATTERNS_ARE_SCANNED
 
@@ -298,7 +319,7 @@ A static security analyser for each of this repository's languages runs somewher
 
 **Why.** Shell interpolation, string-built SQL, disabled certificate verification, weak hashes, unsafe deserialization — these are the defects that look entirely normal in review, because the code reads exactly like the safe version. An agent reproduces them faithfully from the enormous amount of training data that contains them. A static analyser recognises the shapes a reviewer skims past.
 
-**Fix.** Wire in `bandit` or `semgrep` for Python, `semgrep` or `eslint-plugin-security` for TypeScript, `gosec` for Go, `cargo-geiger` or `clippy` for Rust.
+**Fix.** Wire in `bandit` or `semgrep` for Python, `semgrep` or `eslint-plugin-security` for TypeScript, `gosec` for Go, `cargo-geiger` or `clippy` for Rust, `brakeman` for Ruby.
 
 ### L6.NO_BLOCKING_CALL_WHILE_HOLDING_A_LOCK
 

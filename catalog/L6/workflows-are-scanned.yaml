@@ -41,3 +41,4 @@ defaults:
     typescript: ["zizmor", "poutine", "octoscan"]
     go: ["zizmor", "poutine", "octoscan"]
     rust: ["zizmor", "poutine", "octoscan"]
+    ruby: ["zizmor", "poutine", "octoscan"]

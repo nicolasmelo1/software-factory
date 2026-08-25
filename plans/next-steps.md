@@ -20,6 +20,8 @@ precondition exists. Park it in the second table rather than deleting it.
 
 | 6 | [Rules activate on the version of the dependency they are about](rules-activate-by-dependency-version.md) | Changing a dependency's pin in the manifest makes `sf check` fail by naming every rule whose `when` no longer matches, instead of leaving them enabled and inert. |
 
+| 7 | [Ruby joins the L6 hazard rules](ruby-joins-the-l6-hazard-rules.md) | A Ruby repository's own CI workflow is graded by `sf check` for four of the nine L6 hazard concerns, with no tree-sitter grammar for Ruby, proven against a real Rails application's CI configuration. |
+
 ## Parked
 
 | Work | Waiting on |

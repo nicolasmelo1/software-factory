@@ -476,12 +476,16 @@ pub const FIXTURES_HINT: &str = "\
 .software-factory/mutations holds deliberately broken repositories — one per\n      \
 rule, each violating exactly that rule. Exclude it from your linter, type\n      \
 checker and test collector, or they will report the fixtures as defects:\n      \
-  ruff     extend-exclude = [\".software-factory/mutations\"]\n      \
-  eslint   ignores: [\".software-factory/mutations/**\"]\n      \
-  pytest   norecursedirs = .software-factory\n      \
-  mypy     exclude = .software-factory/mutations\n      \
-  bandit   exclude_dirs = [\".software-factory\"] in [tool.bandit]\n      \
-  zizmor   scan .github/workflows/ rather than the repository root";
+  ruff       extend-exclude = [\".software-factory/mutations\"]\n      \
+  eslint     ignores: [\".software-factory/mutations/**\"]\n      \
+  pytest     norecursedirs = .software-factory\n      \
+  mypy       exclude = .software-factory/mutations\n      \
+  bandit     exclude_dirs = [\".software-factory\"] in [tool.bandit]\n      \
+  zizmor     scan .github/workflows/ rather than the repository root\n      \
+  rubocop    AllCops: Exclude: ['.software-factory/mutations/**/*'] in .rubocop.yml\n      \
+  standardrb ignore: ['.software-factory/mutations/**/*'] in .standard.yml\n      \
+  rspec      --exclude-pattern '.software-factory/**/*_spec.rb'\n      \
+  brakeman   --skip-files .software-factory/";
 
 const NEXT_STEPS: &str = "# Next steps\n\n\
 The execution order. One table, short on purpose: this is the file to reread\n\
@@ -610,6 +614,12 @@ fn hazard_steps(language: &str) -> &'static str {
              with:\n          tool: cargo-audit\n",
             "      - run: cargo audit\n",
             "      - name: Insecure patterns and dead code\n        run: cargo clippy --all-targets -- -D warnings -D dead_code\n",
+        ),
+        "ruby" => concat!(
+            "      - uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0\n        with:\n          ruby-version: '3.3'\n",
+            "      - run: gem install bundler-audit brakeman\n",
+            "      - name: Dependency vulnerabilities\n        run: bundle-audit check --update\n",
+            "      - name: Insecure patterns\n        run: brakeman --no-pager --exit-on-warn --skip-files .software-factory/\n",
         ),
         _ => "",
     }
