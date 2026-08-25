@@ -97,6 +97,21 @@ check:
         (attribute_item
           (attribute . (identifier) @name .)
           (#eq? @name "ignore")) @target
+    ruby:
+      # RSpec: a bare `skip`/`pending` statement, or one called with an
+      # explicit empty argument list, states no reason. `xit` structurally
+      # cannot carry one — it takes only the example description — so any
+      # call to it is the finding. Minitest's bare `skip` in a test method
+      # matches the same identifier/call shapes.
+      query: |
+        (body_statement (identifier) @target (#match? @target "^(skip|pending)$"))
+        (block_body (identifier) @target (#match? @target "^(skip|pending)$"))
+        (call
+          method: (identifier) @name
+          arguments: (argument_list) @args
+          (#match? @name "^(skip|pending)$")
+          (#match? @args "^\\(\\s*\\)$")) @target
+        (call method: (identifier) @name (#match? @name "^xit$")) @target
 defaults:
   scope:
     - "**/tests/**"
@@ -111,4 +126,8 @@ defaults:
     # no test-file glob to scope to. The query only matches an `ignore`
     # attribute, which nothing but a test carries.
     - "**/*.rs"
+    - "**/spec/**"
+    - "**/test/**"
+    - "**/*_spec.rb"
+    - "**/*_test.rb"
   must_not_live_in: ["**"]

@@ -16,6 +16,7 @@ pub enum Lang {
     Tsx,
     Go,
     Rust,
+    Ruby,
 }
 
 impl Lang {
@@ -27,6 +28,7 @@ impl Lang {
             Lang::TypeScript | Lang::Tsx => "typescript",
             Lang::Go => "go",
             Lang::Rust => "rust",
+            Lang::Ruby => "ruby",
         }
     }
 
@@ -37,6 +39,7 @@ impl Lang {
             Lang::Tsx => tree_sitter_typescript::LANGUAGE_TSX.into(),
             Lang::Go => tree_sitter_go::LANGUAGE.into(),
             Lang::Rust => tree_sitter_rust::LANGUAGE.into(),
+            Lang::Ruby => tree_sitter_ruby::LANGUAGE.into(),
         }
     }
 
@@ -47,6 +50,7 @@ impl Lang {
             "tsx" => Some(Lang::Tsx),
             "go" => Some(Lang::Go),
             "rs" => Some(Lang::Rust),
+            "rb" | "rake" | "gemspec" | "ru" => Some(Lang::Ruby),
             _ => None,
         }
     }
@@ -59,6 +63,7 @@ impl Lang {
             "tsx" => Ok(Lang::Tsx),
             "go" => Ok(Lang::Go),
             "rust" => Ok(Lang::Rust),
+            "ruby" => Ok(Lang::Ruby),
             other => Err(anyhow!("unknown language {other:?}")),
         }
     }
@@ -76,6 +81,7 @@ impl Lang {
             ],
             Lang::Go => &["function_declaration", "method_declaration", "func_literal"],
             Lang::Rust => &["function_item", "closure_expression"],
+            Lang::Ruby => &["method", "singleton_method"],
         }
     }
 
@@ -127,6 +133,23 @@ impl Lang {
                 // idiom while rewarding `.unwrap()`, which another rule bans.
                 // A rule that pushes toward worse code is miscalibrated.
             ],
+            Lang::Ruby => &[
+                "if",
+                "elsif",
+                "unless",
+                "while",
+                "until",
+                "for",
+                "when",
+                "in_clause",
+                "rescue",
+                "conditional",
+                "if_modifier",
+                "unless_modifier",
+                "while_modifier",
+                "until_modifier",
+                "rescue_modifier",
+            ],
         }
     }
 
@@ -137,6 +160,7 @@ impl Lang {
             Lang::TypeScript | Lang::Tsx => &["binary_expression"],
             Lang::Go => &["binary_expression"],
             Lang::Rust => &["binary_expression"],
+            Lang::Ruby => &["binary"],
         }
     }
 
@@ -146,6 +170,7 @@ impl Lang {
             Lang::TypeScript | Lang::Tsx => &["&&", "||", "??"],
             Lang::Go => &["&&", "||"],
             Lang::Rust => &["&&", "||"],
+            Lang::Ruby => &["&&", "||", "and", "or"],
         }
     }
 }

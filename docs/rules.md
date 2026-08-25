@@ -25,6 +25,32 @@ moment any of it becomes concurrent. All four remain proven by their fixtures;
 they are simply pointed at nothing here, and `L5.NO_INERT_RULE` is what forced
 each of them to become a written decision instead of a silent pass.
 
+**Ruby is a supported language as of
+[the ruby language adapter](../plans/ruby-language-adapter.md).**
+`L0.EXCEPTIONS_HAVE_ONE_HOME`, `L0.NO_CROSS_LAYER_IMPORT`,
+`L1.SKIPPED_TESTS_STATE_A_REASON`, `L6.NO_BLOCKING_CALL_WHILE_HOLDING_A_LOCK`
+and `L6.ONE_LOCK_AT_A_TIME` now carry a `ruby:` query alongside their existing
+ones. `L0.ONE_ENTRYPOINT_PER_FILE` and `L0.PERSISTENCE_STAYS_IN_REPOSITORIES`
+deliberately do not: Rails centralises routes in `config/routes.rb` by
+convention, so "a file that declares a route declares exactly one" has no
+honest Ruby form, and idiomatic ActiveRecord has no `db`/`session` receiver to
+match — models query themselves, which is the very pattern this rule forbids
+elsewhere, so porting it literally would mean answering a different question
+about what the persistence layer even is in Rails. Both refusals are the same
+shape as this repository's own Rust refusal above: proven by their fixtures in
+the languages they do cover, deliberately pointed at nothing in this one.
+`L1.COMPLEXITY_CEILING` and its `boolean_operator_kinds` need no per-rule
+query — they read straight from `Lang::Ruby`'s `function_kinds`/
+`branch_kinds` in `src/lang.rs` — but wiring Ruby into them surfaced a real
+bug in `src/checks/complexity.rs`: `tree-sitter-ruby` names several
+statement-level nodes identically to their own opening keyword token (the
+named `if` node contains an anonymous `if` token as a child), and the walk
+was including anonymous nodes, so a bare `if` block scored twice. The walk
+now uses `Node::named_children()`, which is a no-op change for the other four
+languages — none of their grammars have this collision — verified by
+`sf verify` reporting identical finding counts for their fixtures before and
+after.
+
 **`src/fixtures.rs` is excluded from the two text-pattern rules.** It holds the
 mutation fixtures as string literals, so it contains violating text on purpose.
 A line-based rule cannot tell a suppression from a string that quotes one, and

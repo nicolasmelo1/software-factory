@@ -2,7 +2,7 @@
 version: 1
 project:
   name: mutation-L3.GATE_COVERS_THE_PLAN
-  languages: [python, typescript, go, rust]
+  languages: [python, typescript, go, rust, ruby]
 docs:
   scan: ["docs/**/*.md"]
 gates:

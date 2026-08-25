@@ -38,6 +38,10 @@ pub const FIXTURES: &[Fixture] = &[
                 "src/orders/service.rs",
                 "// Defined in a service instead of the domain's errors module.\npub enum OrderRejectedError {\n    OutOfStock,\n}\n",
             ),
+            (
+                "src/orders/service.rb",
+                "# Defined in a service instead of the domain's errors module.\nclass OrderRejectedError < StandardError\nend\n",
+            ),
         ],
     },
     Fixture {
@@ -99,6 +103,10 @@ pub const FIXTURES: &[Fixture] = &[
                 "src/app/main.rs",
                 "use billing::internal::rates::compute;\n\npub fn price(order: &Order) -> u64 {\n    compute(order)\n}\n",
             ),
+            (
+                "src/app/main.rb",
+                "require_relative \"../billing/_internal/rates\"\n\ndef price(order)\n  compute(order)\nend\n",
+            ),
         ],
     },
     Fixture {
@@ -140,6 +148,10 @@ pub const FIXTURES: &[Fixture] = &[
             (
                 "tests/billing.rs",
                 "#[test]\n#[ignore]\nfn refund_is_idempotent() {\n    assert!(true);\n}\n",
+            ),
+            (
+                "spec/billing_spec.rb",
+                "RSpec.describe Billing do\n  it \"refunds are idempotent\" do\n    skip\n  end\nend\n",
             ),
         ],
     },
@@ -357,6 +369,10 @@ pub const FIXTURES: &[Fixture] = &[
                 "src/cache.rs",
                 "pub async fn refresh(state: &Mutex<Cache>, url: &str) {\n    let mut guard = state.lock().expect(\"poisoned\");\n    // Awaiting while holding a synchronous guard: the continuation can be\n    // scheduled onto a thread that then blocks on this same lock.\n    let payload = fetch(url).await;\n    guard.insert(payload);\n}\n",
             ),
+            (
+                "src/cache.rb",
+                "def refresh(lock, url)\n  lock.synchronize do\n    # Every other thread queues behind this network call.\n    payload = Net::HTTP.get(URI(url))\n    CACHE.update(payload)\n  end\nend\n",
+            ),
         ],
     },
     Fixture {
@@ -375,6 +391,10 @@ pub const FIXTURES: &[Fixture] = &[
             (
                 "src/transfer.rs",
                 "pub fn transfer(from: &Mutex<Account>, to: &Mutex<Account>, amount: u64) {\n    let mut source = from.lock().expect(\"poisoned\");\n    let mut target = to.lock().expect(\"poisoned\");\n    source.balance -= amount;\n    target.balance += amount;\n}\n",
+            ),
+            (
+                "src/transfer.rb",
+                "def transfer(source_lock, target_lock, amount)\n  source_lock.synchronize do\n    debit(amount)\n    target_lock.synchronize do\n      credit(amount)\n    end\n  end\nend\n",
             ),
         ],
     },
@@ -431,7 +451,7 @@ pub fn fixture_policy(fixture: &Fixture) -> String {
          version: 1\n\
          project:\n  \
            name: mutation-{rule}\n  \
-           languages: [python, typescript, go, rust]\n\
+           languages: [python, typescript, go, rust, ruby]\n\
          docs:\n  \
            scan: [\"docs/**/*.md\"]\n\
          {gates}\

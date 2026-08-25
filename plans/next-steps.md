@@ -20,6 +20,8 @@ precondition exists. Park it in the second table rather than deleting it.
 
 | 6 | [Rules activate on the version of the dependency they are about](rules-activate-by-dependency-version.md) | Changing a dependency's pin in the manifest makes `sf check` fail by naming every rule whose `when` no longer matches, instead of leaving them enabled and inert. |
 
+| 7 | [Ruby language adapter](ruby-language-adapter.md) | `sf init --language ruby` runs, `sf verify` proves every ruby query it declared, and `sf check` finds real cyclomatic complexity in a Ruby codebase (`~/Sites/pp-team/postpilot`) that reported zero before this. |
+
 ## Parked
 
 | Work | Waiting on |
