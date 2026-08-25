@@ -113,10 +113,16 @@ pub const FIXTURES: &[Fixture] = &[
         rule: "L1.COMPLEXITY_CEILING",
         policy_extra: "        max: 4\n",
         extra_rules: "",
-        files: &[(
-            "src/pricing.py",
-            "def price(order):\n    total = 0\n    if order.a:\n        total += 1\n    if order.b:\n        total += 1\n    if order.c:\n        total += 1\n    if order.d:\n        total += 1\n    if order.e:\n        total += 1\n    return total\n",
-        )],
+        files: &[
+            (
+                "src/pricing.py",
+                "def price(order):\n    total = 0\n    if order.a:\n        total += 1\n    if order.b:\n        total += 1\n    if order.c:\n        total += 1\n    if order.d:\n        total += 1\n    if order.e:\n        total += 1\n    return total\n",
+            ),
+            (
+                "src/pricing.rb",
+                "def price(order)\n  total = 0\n  total += 1 if order.a\n  total += 1 if order.b\n  total += 1 if order.c\n  total += 1 if order.d\n  total += 1 if order.e\n  total\nend\n",
+            ),
+        ],
     },
     Fixture {
         rule: "L1.NO_BLANKET_SUPPRESSION",
