@@ -153,8 +153,10 @@ fn write_fixtures(
     selected: &[&crate::catalog::Rule],
     written: &mut Vec<String>,
 ) -> Result<()> {
+    let mut skipped: Vec<&str> = Vec::new();
     for rule in selected {
         let Some(fixture) = fixtures::for_rule(&rule.id) else {
+            skipped.push(&rule.id);
             continue;
         };
         let base = format!("{FIXTURES_DIR}/{}", rule.id);
@@ -162,6 +164,11 @@ fn write_fixtures(
         for (path, body) in fixture.files {
             write(root, &format!("{base}/{path}"), body, written)?;
         }
+    }
+    for rule_id in skipped {
+        println!(
+            "note: {rule_id} has no built-in fixture; add one by hand at {FIXTURES_DIR}/{rule_id}/"
+        );
     }
     Ok(())
 }
