@@ -457,6 +457,18 @@ catalog, which is what lets one rule mean the same thing in four languages.
 cover. **Adding a rule** is a YAML file in `.software-factory/rules/` and a
 fixture under `.software-factory/mutations/<RULE_ID>/`.
 
+**Adding a check** the structural kinds cannot express is `kind: command`: a
+rule whose failure only a subprocess can decide (a schema export, a codegen
+step, a linter this repo already trusts) reports a finding on nonzero exit,
+with no fork required. It needs `sf check --allow-commands` to actually run —
+see [Checks this tool cannot express](#checks-this-tool-cannot-express).
+
+```yaml
+check:
+  kind: command
+  run: "make export-openapi && git diff --exit-code -- contracts/"
+```
+
 Languages today: **Python, TypeScript/TSX, Go, Rust.**
 
 `sf verify` requires every language a rule declares to be shown tripping it,

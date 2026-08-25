@@ -70,6 +70,12 @@ whose vocabulary does not exist in that language simply omit it — a rule with
 no query for a language does not apply to it, and that is the correct outcome,
 not a gap to paper over.
 
+A rule that can't be decided structurally — its truth only comes out of
+running something, not matching a query — takes `kind: command` instead of a
+grammar. That is the extension point for a check this tool cannot express:
+no fork, no new language, just a rule whose `check.run` exits nonzero when
+it fails. Refused by default; needs `--allow-commands` (see `src/checks/command.rs`).
+
 ## The workflow is hand-maintained
 
 `.github/workflows/software-factory.yml` builds `sf` from source and passes
