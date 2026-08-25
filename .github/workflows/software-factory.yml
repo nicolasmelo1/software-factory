@@ -28,6 +28,13 @@ jobs:
       # right for a consumer and wrong here — do not regenerate this file.
       - name: Build
         run: cargo build --release --locked
+      # No job ran these until now, so the assertions this repository wrote
+      # about itself — the `include_str!` registries matching their
+      # directories, a shipped query matching what it claims — were only ever
+      # checked on somebody's laptop. That is the same failure as a check that
+      # stopped firing: green, and meaning nothing.
+      - name: Unit tests
+        run: cargo test --locked
       # verify first: a check that stopped firing makes the run below
       # meaningless, and it is the cheaper failure to discover.
       - name: Prove the checks still fire
