@@ -22,6 +22,8 @@ precondition exists. Park it in the second table rather than deleting it.
 
 | 7 | [Close the inert-rule blind spot for TextPattern and Complexity](close-the-inert-rule-blind-spot.md) | `sf verify` fires `L5.NO_INERT_RULE` on a fixture inert only through the `TextPattern` or `Complexity` path, and the built binary run against a real repository whose declared language matches none of its files names the blind `L1.*` rules instead of staying silent. |
 
+| 8 | [Ruby language adapter](ruby-language-adapter.md) | `sf init --language ruby` runs, `sf verify` proves every ruby query it declared, and `sf check` finds real cyclomatic complexity in a Ruby codebase (`~/Sites/pp-team/postpilot`) that reported zero before this. |
+
 ## Parked
 
 | Work | Waiting on |

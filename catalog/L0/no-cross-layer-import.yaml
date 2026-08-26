@@ -37,6 +37,17 @@ check:
         (use_declaration
           argument: (_) @name
           (#match? @name "(^|::)(_internal|internal|generated)(::|$)")) @target
+    ruby:
+      # Rails autoloads app/ code with no import statement at all, so this
+      # rule has nothing to say there — but `require`/`require_relative` are
+      # real, explicit imports everywhere else a Ruby codebase uses them:
+      # lib/, gems, engines, rake tasks and scripts.
+      query: |
+        (call
+          method: (identifier) @method
+          arguments: (argument_list (string) @name)
+          (#match? @method "^require(_relative)?$")
+          (#match? @name "(/_internal/|/_generated/|/internal/|/generated/)")) @target
 defaults:
   must_live_in:
     - "**/_internal/**"

@@ -40,6 +40,12 @@ check:
       query: |
         (enum_item name: (type_identifier) @name (#match? @name "Error$")) @target
         (struct_item name: (type_identifier) @name (#match? @name "Error$")) @target
+    ruby:
+      # Ruby has no `Exception` suffix convention distinct from the language's
+      # own `Exception` class; `Error` is the idiomatic suffix for a domain's
+      # own StandardError subclasses (`OrderRejectedError < StandardError`).
+      query: |
+        (class name: (constant) @name (#match? @name "Error$")) @target
 defaults:
   must_live_in:
     - "**/exceptions.py"
@@ -47,3 +53,4 @@ defaults:
     - "**/errors.ts"
     - "**/errors.go"
     - "**/errors.rs"
+    - "**/errors.rb"
