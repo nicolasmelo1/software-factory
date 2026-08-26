@@ -20,6 +20,8 @@ precondition exists. Park it in the second table rather than deleting it.
 
 | 6 | [The four L0 structural rules assume an import statement](structural-rules-assume-an-import-statement.md) | `sf check` on a Rails repository with `languages: [ruby]` reports a real cross-layer finding read from a constant reference rather than a `require` statement, with zero findings on Rails' own base-class inheritance. |
 
+| 7 | [The grain has a ceiling and no floor](the-grain-has-a-ceiling-and-no-floor.md) | `sf check` on a repository nobody tuned it for names at least one indirection site whose own maintainer agrees should not exist, and stays silent on `software-factory`'s own `src/`, where every candidate hit measured so far is correct code. |
+
 ## Parked
 
 | Work | Waiting on |
