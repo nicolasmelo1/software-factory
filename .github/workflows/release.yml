@@ -141,10 +141,26 @@ jobs:
           TAG: ${{ github.ref_name }}
         # `gh` is on the runner already. A third-party release action would be
         # one more SHA to pin and one more thing holding a write token.
+        #
+        # Create-or-fill, not create. Drafting a release in the GitHub UI
+        # creates the tag *and* the release, so the tag push that starts this
+        # workflow can arrive at a release that already exists, and
+        # `gh release create` fails on it. That is how v0.2.0 shipped with the
+        # gate green, all three binaries built, and zero assets attached.
+        #
+        # Notes are left alone when the release already exists. Whoever created
+        # it may have written them, and overwriting somebody's release notes to
+        # insert generated ones is worse than not having the generated ones.
         run: |
           set -eu
-          gh release create "$TAG" \
-            --title "$TAG" \
-            --notes-file notes.md \
-            --verify-tag \
-            artifacts/*
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "release $TAG already exists, uploading assets to it"
+            gh release upload "$TAG" --clobber artifacts/*
+            echo "notes left as they are; this run did not write them"
+          else
+            gh release create "$TAG" \
+              --title "$TAG" \
+              --notes-file notes.md \
+              --verify-tag \
+              artifacts/*
+          fi

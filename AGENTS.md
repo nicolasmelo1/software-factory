@@ -130,6 +130,12 @@ why nothing here tracks the tip of `main`.
   against the tagged commit, refuses a tag that disagrees with the built
   version, builds Linux and both macOS targets, and generates the notes from
   `sf --version` and `sf catalog` rather than from a hand-written changelog.
+- **Create the tag with git, not with the GitHub UI.** "Draft a new release"
+  creates the tag *and* an empty release, and the workflow is what should be
+  creating the release. It now fills an existing one instead of failing on it,
+  but that path leaves the notes as the UI generated them rather than as
+  `sf catalog` describes them. `git tag v0.3.0 && git push origin v0.3.0` is
+  the whole ceremony.
 
 ## Working model
 
