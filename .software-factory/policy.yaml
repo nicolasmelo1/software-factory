@@ -115,6 +115,15 @@ rules:
       # writes into somebody else's repository pinning a version this build is
       # not. The release workflow runs the same four through this rule, so the
       # gate is one definition rather than a copy in CI.
+      #
+      # Every one of the four is read-only, and that is load-bearing rather
+      # than tidy. The first draft ran `sf lock` here and compared the result
+      # with `git diff`, which rewrote every lock file in the middle of
+      # `sf check --allow-commands` and so erased the evidence
+      # `L2.FACTORY_CONFIG_IS_LOCKED` and `L2.DEPENDENCIES_CHANGE_DELIBERATELY`
+      # exist to read. Both reported green on a modified locked file. A
+      # `kind: command` rule runs inside a check that is otherwise read-only;
+      # it does not get to write.
       run: |
         set -eu
         version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
@@ -122,7 +131,10 @@ rules:
         test "$version" = "$binary" || { echo "Cargo.toml says $version, the binary reports $binary"; exit 1; }
         grep -q "name = \"sf\"" -A 1 Cargo.lock && test "$(grep -A 1 'name = "sf"' Cargo.lock | sed -n 's/^version = "\(.*\)"/\1/p')" = "$version" || { echo "Cargo.lock does not name version $version for sf"; exit 1; }
         grep -q -- "--tag v$version" README.md || { echo "README.md does not tell a consumer to install --tag v$version"; exit 1; }
-        ./target/release/sf lock >/dev/null && git diff --exit-code -- .software-factory/catalog.lock.json
+        locked=$(sed -n 's/.*"catalog_digest": "\([0-9a-f]*\)".*/\1/p' .software-factory/catalog.lock.json)
+        running=$(./target/release/sf --version | sed -n 's/.*catalog \([0-9a-f]*\).*/\1/p')
+        test -n "$locked" && test -n "$running" || { echo "could not read the catalog digest from the lock or from sf --version"; exit 1; }
+        case "$locked" in "$running"*) ;; *) echo "the committed catalog fingerprint names $locked and this binary carries $running — run sf lock"; exit 1 ;; esac
 
   # L2 — Every frozen exception carries a future review date
   L2.NO_PERMANENT_EXCEPTION:
