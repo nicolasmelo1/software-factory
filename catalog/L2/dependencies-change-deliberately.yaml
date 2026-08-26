@@ -11,7 +11,7 @@ why: >-
   solving something else. Forcing the lock to move in the same commit turns the
   reviewer's attention on at exactly the moment it is worth spending.
 fix: >-
-  If the dependency is intended, run `sf lock --update` in the same commit and
+  If the dependency is intended, run `sf lock` in the same commit and
   say in the message what it buys. If it is incidental, remove it.
 ratchet: none
 check:

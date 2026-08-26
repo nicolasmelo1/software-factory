@@ -128,6 +128,9 @@ pub enum CadenceMode {
     MutationCoverage,
     /// No enabled rule is configured so it cannot produce a finding.
     InertRules,
+    /// Every `sf` invocation an enabled rule's prose quotes is one this
+    /// binary accepts.
+    RuleCommands,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -230,6 +233,7 @@ const BUILTIN: &[(&str, &str)] = &[
     ("L4/every-rule-has-a-why.yaml", include_str!("../catalog/L4/every-rule-has-a-why.yaml")),
     ("L4/plan-declares-exit-condition.yaml", include_str!("../catalog/L4/plan-declares-exit-condition.yaml")),
     ("L4/plan-criterion-names-its-check.yaml", include_str!("../catalog/L4/plan-criterion-names-its-check.yaml")),
+    ("L4/rule-prose-names-a-real-command.yaml", include_str!("../catalog/L4/rule-prose-names-a-real-command.yaml")),
     ("L5/every-check-has-a-mutation-test.yaml", include_str!("../catalog/L5/every-check-has-a-mutation-test.yaml")),
     ("L5/no-inert-rule.yaml", include_str!("../catalog/L5/no-inert-rule.yaml")),
     ("L2/factory-config-is-locked.yaml", include_str!("../catalog/L2/factory-config-is-locked.yaml")),

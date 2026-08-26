@@ -11,7 +11,7 @@ use crate::policy::{FIXTURES_DIR, Options};
 use crate::scan;
 use anyhow::Result;
 use regex::Regex;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 pub fn run(rule: &Rule, opts: &Options, ctx: &Ctx, mode: CadenceMode) -> Result<Vec<Finding>> {
     match mode {
@@ -23,6 +23,7 @@ pub fn run(rule: &Rule, opts: &Options, ctx: &Ctx, mode: CadenceMode) -> Result<
         CadenceMode::GateCoverage => gate_coverage(rule, ctx),
         CadenceMode::MutationCoverage => mutation_coverage(rule, ctx),
         CadenceMode::InertRules => inert_rules(rule, ctx),
+        CadenceMode::RuleCommands => rule_commands(rule, ctx),
     }
 }
 
@@ -478,4 +479,160 @@ fn gate_coverage(rule: &Rule, ctx: &Ctx) -> Result<Vec<Finding>> {
         }
     }
     Ok(findings)
+}
+
+/// An `sf` invocation quoted in prose, e.g. `sf seal <gate>`. Only spans that
+/// *open* with the tool's name are invocations; a backtick span that merely
+/// mentions it somewhere in the middle is a sentence.
+const CITED_COMMAND: &str = r"`sf ([^`]+)`";
+
+/// `L4.RULE_PROSE_NAMES_A_REAL_COMMAND`: prose telling the reader to run
+/// something this binary does not have.
+///
+/// The accepted surface comes from the command-line definition itself, so the
+/// check cannot drift from the tool the way the prose just did.
+fn rule_commands(rule: &Rule, ctx: &Ctx) -> Result<Vec<Finding>> {
+    let accepted = crate::accepted_commands();
+    let cited = Regex::new(CITED_COMMAND)?;
+    let document = ctx.policy.docs.rules_document().to_string();
+    let mut findings = Vec::new();
+    for (id, candidate) in &ctx.catalog.rules {
+        if !ctx.policy.any_instance_enabled(id) {
+            continue;
+        }
+        let prose = [
+            ("statement", &candidate.statement),
+            ("why", &candidate.why),
+            ("fix", &candidate.fix),
+        ];
+        for (field, text) in prose {
+            for hit in cited.captures_iter(text) {
+                let invocation = hit[1].trim();
+                let Some((problem, expected)) = unaccepted(invocation, &accepted) else {
+                    continue;
+                };
+                findings.push(
+                    Finding::new(
+                        &rule.id,
+                        rule.severity,
+                        document.clone(),
+                        format!("dead-command:{id}:{invocation}"),
+                        format!("{id}'s `{field}` says to run `sf {invocation}`, and {problem}"),
+                    )
+                    .expected(expected)
+                    .actual(format!("sf {invocation}")),
+                );
+            }
+        }
+    }
+    Ok(findings)
+}
+
+/// What is wrong with an invocation, and what this binary would have accepted.
+/// `None` means it would run.
+fn unaccepted(
+    invocation: &str,
+    accepted: &BTreeMap<String, BTreeSet<String>>,
+) -> Option<(String, String)> {
+    let mut tokens = invocation.split_whitespace();
+    let name = tokens.next()?;
+    // Nothing here names a subcommand, so there is nothing to be wrong about.
+    // Either prose is describing the *shape* of an invocation (`sf <command>`,
+    // `sf ...`) rather than telling anyone to run it, or a global flag came
+    // first — and deciding which of the tokens after `--root` is its value
+    // would invent findings. Rule prose does not write invocations that way.
+    if name.starts_with('-') || name.starts_with('<') || name.chars().all(|c| c == '.') {
+        return None;
+    }
+    let Some(flags) = accepted.get(name) else {
+        return Some((
+            format!("`{name}` is not a subcommand this `sf` has"),
+            format!("one of: {}", joined(accepted.keys())),
+        ));
+    };
+    // Long flags only. Everything else in an invocation is a value or a
+    // placeholder — `<gate>`, `L1.COMPLEXITY_CEILING`, `origin/main` — and a
+    // rule that guessed at those would produce findings nobody believes.
+    for token in tokens {
+        let flag = token.split('=').next().unwrap_or(token);
+        if !flag.starts_with("--") || flags.contains(flag) {
+            continue;
+        }
+        return Some((
+            format!("`sf {name}` does not accept `{flag}`"),
+            format!("`sf {name}` with one of: {}", joined(flags.iter())),
+        ));
+    }
+    None
+}
+
+fn joined<'a>(names: impl Iterator<Item = &'a String>) -> String {
+    names.cloned().collect::<Vec<_>>().join(", ")
+}
+
+#[cfg(test)]
+mod cited_commands {
+    use super::unaccepted;
+    use crate::catalog::Catalog;
+
+    /// Every invocation the shipped catalog quotes, including the rules this
+    /// repository has switched off. The check itself only reads enabled rules,
+    /// because a repository is not answerable for prose it never shows anyone;
+    /// the catalog is ours, and a dead command in it ships to everybody.
+    #[test]
+    fn the_shipped_catalog_quotes_only_real_commands() {
+        let accepted = crate::accepted_commands();
+        let cited = regex::Regex::new(super::CITED_COMMAND).expect("the pattern compiles");
+        let catalog = Catalog::builtin().expect("the built-in catalog loads");
+        let mut dead = Vec::new();
+        for rule in catalog.rules.values() {
+            for text in [&rule.statement, &rule.why, &rule.fix] {
+                for hit in cited.captures_iter(text) {
+                    let invocation = hit[1].trim();
+                    if let Some((problem, _)) = unaccepted(invocation, &accepted) {
+                        dead.push(format!("{}: `sf {invocation}` — {problem}", rule.id));
+                    }
+                }
+            }
+        }
+        assert!(dead.is_empty(), "catalog prose names commands sf does not accept:\n{dead:#?}");
+    }
+
+    #[test]
+    fn a_real_invocation_is_accepted() {
+        let accepted = crate::accepted_commands();
+        for invocation in [
+            "verify",
+            "seal <gate>",
+            "explain L1.COMPLEXITY_CEILING",
+            "ratchet --months 6",
+            "check --changed origin/main",
+            "check --format=json",
+            "init --language typescript --layer L1,L4,L5",
+            // Prose about the form of an invocation, not an invocation.
+            "...",
+            "<subcommand> --help",
+        ] {
+            assert_eq!(unaccepted(invocation, &accepted), None, "{invocation}");
+        }
+    }
+
+    #[test]
+    fn a_subcommand_that_does_not_exist_is_a_finding() {
+        let accepted = crate::accepted_commands();
+        let (problem, expected) =
+            unaccepted("evidence record", &accepted).expect("`sf evidence` is not a command");
+        assert!(problem.contains("evidence"), "{problem}");
+        assert!(expected.contains("seal"), "the expectation lists the real commands: {expected}");
+    }
+
+    /// The narrower half, and the one that was live in this catalog: a real
+    /// subcommand carrying a flag it never had.
+    #[test]
+    fn a_flag_the_subcommand_does_not_take_is_a_finding() {
+        let accepted = crate::accepted_commands();
+        let (problem, _) =
+            unaccepted("lock --update", &accepted).expect("`sf lock` takes no --update");
+        assert!(problem.contains("--update"), "{problem}");
+    }
 }

@@ -1,0 +1,29 @@
+id: L4.RULE_PROSE_NAMES_A_REAL_COMMAND
+layer: L4
+title: Every command a rule's prose quotes is one this `sf` accepts
+severity: medium
+statement: >-
+  Every `sf ...` invocation quoted in an enabled rule's statement, why or fix
+  names a subcommand this binary has, with long flags that subcommand accepts.
+why: >-
+  A rule's `fix` is the only documentation an agent reliably reads, and it is
+  read at the one moment somebody is trying to comply. An invocation that never
+  existed sends that reader to a dead end and makes the rule itself look wrong,
+  which is how a guardrail loses the argument it should win. This is not
+  hypothetical: one L3 rule shipped telling people to regenerate evidence with
+  a subcommand that was never implemented, and nothing noticed, because
+  `L4.EVERY_RULE_HAS_A_WHY` checks that a rule id is cited, not that the text
+  around the citation is still true. The same drift arrives from the other
+  direction once rules travel: a rule written against a newer `sf` names a
+  subcommand the binary in this repository does not have yet. The accepted
+  surface is read out of the command-line definition itself, so it cannot
+  become a second list somebody forgets to update.
+fix: >-
+  Correct the invocation where the rule defines it, in the catalog entry or in
+  the `.software-factory/rules` file for a local rule, then run `sf docs` so
+  the generated prose follows. If the command named is the one that ought to
+  exist, that is a change to the tool and the prose is early rather than wrong.
+ratchet: allowlist
+check:
+  kind: cadence
+  mode: rule_commands

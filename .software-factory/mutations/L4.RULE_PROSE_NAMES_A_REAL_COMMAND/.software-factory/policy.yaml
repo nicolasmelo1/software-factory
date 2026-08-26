@@ -1,0 +1,13 @@
+# Generated mutation fixture for L4.RULE_PROSE_NAMES_A_REAL_COMMAND. It is supposed to fail.
+version: 1
+project:
+  name: mutation-L4.RULE_PROSE_NAMES_A_REAL_COMMAND
+  languages: [python, typescript, go, rust]
+docs:
+  scan: ["docs/**/*.md"]
+gates: {}
+rules:
+  L4.LOCAL_RULE_WITH_A_DEAD_COMMAND:
+    enabled: true
+  L4.RULE_PROSE_NAMES_A_REAL_COMMAND:
+    enabled: true

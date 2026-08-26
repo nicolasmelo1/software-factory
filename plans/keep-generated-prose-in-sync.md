@@ -35,5 +35,30 @@ regenerating fails, which is exactly how this was found again. What that does
 not accept. The prose regenerates faithfully; it is the content of the prose
 that was wrong. The exit condition below is unchanged.
 
+**Closed.** `L4.RULE_PROSE_NAMES_A_REAL_COMMAND` reads every invocation of this
+tool that an enabled rule's statement, why or fix quotes, and compares it with
+the clap definition in `src/main.rs`. The accepted surface is derived from the
+command line itself rather than written down, so it cannot become the second
+stale list this plan was already about. Placeholders are exempt on purpose:
+prose describing the *shape* of an invocation is not telling anyone to run it.
+
+It found two live instances the moment it ran.
+`L2.DEPENDENCIES_CHANGE_DELIBERATELY` and `L2.GENERATED_FILES_ARE_LOCKED` both
+told the reader to lock with a flag that `sf lock` has never accepted, which is
+the same defect as the L3 one above and had been shipping for as long. A unit
+test runs the sweep over the whole built-in catalog, including the rules this
+repository switches off: the check reads enabled rules only, because a
+repository is not answerable for prose it never shows anyone, but the catalog
+ships to everybody.
+
+What is still uncovered is prose drift that is not a command. A `why` that has
+quietly stopped describing what its check does reads exactly like one that
+still fits, and no check here can tell the difference. The three candidate
+shapes above stay written down for the day a second kind of drift shows up;
+this closed the one that actually happened, twice.
+
 **Exit condition:** a rule's `fix` naming a command that `sf` does not accept
-fails `sf check`, proven by a mutation fixture that does exactly that.
+fails `sf check`, proven by a mutation fixture that does exactly that. Met:
+`.software-factory/mutations/L4.RULE_PROSE_NAMES_A_REAL_COMMAND` ships a local
+rule whose fix names a subcommand that never existed, and `sf verify` trips the
+rule on it.

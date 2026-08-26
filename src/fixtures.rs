@@ -253,6 +253,15 @@ pub const FIXTURES: &[Fixture] = &[
         )],
     },
     Fixture {
+        rule: "L4.RULE_PROSE_NAMES_A_REAL_COMMAND",
+        policy_extra: "",
+        // The rule is about other rules' prose, so the fixture needs one to be
+        // about: a local rule whose `fix` sends the reader to a subcommand that
+        // never existed. This is the exact drift that produced the rule.
+        extra_rules: "  L4.LOCAL_RULE_WITH_A_DEAD_COMMAND:\n    enabled: true\n",
+        files: &[(".software-factory/rules/local-rule.yaml", RULE_NAMING_A_DEAD_COMMAND)],
+    },
+    Fixture {
         rule: "L3.GATE_COVERS_THE_PLAN",
         policy_extra: "",
         extra_rules: "",
@@ -378,6 +387,25 @@ pub const FIXTURES: &[Fixture] = &[
         files: &[("src/app.py", "print('a repository with a lock that locks nothing')\n")],
     },
 ];
+
+/// A repo-local rule that reads perfectly well and tells you to run something
+/// this binary has never had. Only the prose is wrong, which is what makes it
+/// the mutation: nothing about the check it configures is broken.
+const RULE_NAMING_A_DEAD_COMMAND: &str = "\
+id: L4.LOCAL_RULE_WITH_A_DEAD_COMMAND\n\
+layer: L4\n\
+title: A local rule whose fix names a command that does not exist\n\
+severity: low\n\
+statement: Nothing in this fixture violates this rule; its prose is the mutation.\n\
+why: A rule needs a reason, and this one exists to carry a dead command in its fix.\n\
+fix: Regenerate the manifest with `sf evidence record`, then commit it.\n\
+ratchet: allowlist\n\
+check:\n  kind: text_pattern\n\
+defaults:\n  \
+scope: [\"src/**\"]\n  \
+forbidden:\n    \
+- regex: \"a shape this fixture never contains\"\n      \
+message: \"Unreachable: this rule is here for its prose, not its pattern.\"\n";
 
 /// A believable CI file that tests and lints and hunts none of the hazards.
 const CI_WITHOUT_HAZARD_TOOLS: &str = "name: ci\non: [push]\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - run: pytest\n      - run: npm test\n      - run: go test ./...\n      - run: cargo test\n";

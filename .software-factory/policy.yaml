@@ -113,6 +113,9 @@ rules:
   # L4 — New top-level files are declared before they appear
   L4.ROOT_FILES_ARE_DECLARED:
     enabled: true
+  # L4 — Every command a rule's prose quotes is one this `sf` accepts
+  L4.RULE_PROSE_NAMES_A_REAL_COMMAND:
+    enabled: true
   # L5 — Every enabled rule has a mutation that proves it fires
   L5.EVERY_CHECK_HAS_A_MUTATION_TEST:
     enabled: true

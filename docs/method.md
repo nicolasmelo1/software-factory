@@ -134,6 +134,12 @@ Three separations, each of which fails a specific way when it collapses:
 - **One execution order.** A single ordered document, short on purpose, is what
   stops parallel agents from each choosing their own next priority.
 
+The same attachment applies to the guardrail's own prose. A rule's `fix` is
+read at the one moment somebody is trying to comply, so
+`L4.RULE_PROSE_NAMES_A_REAL_COMMAND` compares every command that prose quotes
+with the command-line definition itself: a fix that sends the reader to a
+subcommand this binary never had makes the whole rule look wrong.
+
 ### L5 — Meta: the guardrail is proven to fire, and is pointed at something
 
 Two failure modes, not one.

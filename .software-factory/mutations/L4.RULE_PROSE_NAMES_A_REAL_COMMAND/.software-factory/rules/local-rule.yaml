@@ -1,0 +1,15 @@
+id: L4.LOCAL_RULE_WITH_A_DEAD_COMMAND
+layer: L4
+title: A local rule whose fix names a command that does not exist
+severity: low
+statement: Nothing in this fixture violates this rule; its prose is the mutation.
+why: A rule needs a reason, and this one exists to carry a dead command in its fix.
+fix: Regenerate the manifest with `sf evidence record`, then commit it.
+ratchet: allowlist
+check:
+  kind: text_pattern
+defaults:
+  scope: ["src/**"]
+  forbidden:
+    - regex: "a shape this fixture never contains"
+      message: "Unreachable: this rule is here for its prose, not its pattern."
