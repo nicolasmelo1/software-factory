@@ -24,6 +24,8 @@ precondition exists. Park it in the second table rather than deleting it.
 
 | 8 | [Ruby language adapter](ruby-language-adapter.md) | `sf init --language ruby` runs, `sf verify` proves every ruby query it declared, and `sf check` finds real cyclomatic complexity in a Ruby codebase (`~/Sites/pp-team/postpilot`) that reported zero before this. |
 
+| 9 | [Ruby joins the L6 hazard rules](ruby-joins-the-l6-hazard-rules.md) | A Ruby repository's own CI workflow is graded by `sf check` for four of the nine L6 hazard concerns, with no tree-sitter grammar for Ruby, proven against a real Rails application's CI configuration. |
+
 ## Parked
 
 | Work | Waiting on |
