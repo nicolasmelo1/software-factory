@@ -230,6 +230,9 @@ pub fn refresh_fixtures(root: &Path, catalog: &Catalog) -> Result<Vec<String>> {
 /// Freeze today's violations so the rules can be adopted by a repository that
 /// already breaks them. New violations still fail from the first run.
 pub fn seed_ratchet(root: &Path, catalog: &Catalog, months: i64) -> Result<(Ratchet, usize)> {
+    // The ratchet on disk is the only record of when this debt was accepted.
+    // Re-seeding recomputes the frozen keys, never the deadline.
+    let previous = Ratchet::load(root)?;
     let policy = Policy::load(root)?;
     let files = scan::walk(root, &policy)?;
     let empty = Ratchet::default();
@@ -259,7 +262,7 @@ pub fn seed_ratchet(root: &Path, catalog: &Catalog, months: i64) -> Result<(Ratc
             .map(|f| f.key)
             .collect();
         total += keys.len();
-        ratchet.seed(id, keys, &review_by);
+        ratchet.seed(id, keys, &review_by, previous.rules.get(id.as_str()));
     }
     ratchet.save(root)?;
     Ok((ratchet, total))
