@@ -140,6 +140,22 @@ read at the one moment somebody is trying to comply, so
 with the command-line definition itself: a fix that sends the reader to a
 subcommand this binary never had makes the whole rule look wrong.
 
+A promise on a page is the same failure one level out. A README states an
+effect, nothing joins the sentence to the run that proved it, and the sentence
+ages into false while reading exactly as it did on the day it was true.
+`L4.CLAIM_CITES_ITS_EVIDENCE` asks for the join and nothing else:
+
+```
+<!-- claim: IMPORT_50K_UNDER_60S proven-by: bulk-import -->
+Import fifty thousand rows in under a minute.
+```
+
+`proven-by` names a gate, the gate carries evidence, and L3 already expires
+that evidence when the implementation digest behind it moves, so the promise
+goes red *through* the gate instead of through a second copy of that logic.
+What no check can do is notice a promise nobody marked. That limit is written
+into the rule's `why` rather than left to be discovered.
+
 ### L5 — Meta: the guardrail is proven to fire, and is pointed at something
 
 Two failure modes, not one.

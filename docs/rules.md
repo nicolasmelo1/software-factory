@@ -46,6 +46,12 @@ gating on is `sf verify` passing against a repository in a language it has
 never parsed — see
 [the language adapter plan](../plans/expand-language-adapters.md).
 
+**No claim is marked yet either, for the same reason.**
+`L4.CLAIM_CITES_ITS_EVIDENCE` joins a promise to the gate that proved it, and
+with no gate there is nothing a sentence here could honestly name. It is
+enabled anyway: the first promise somebody marks gets joined at the moment it
+is written, which is the only moment anybody knows what proved it.
+
 ## L0 — Shape: where things live
 
 ### L0.EXCEPTIONS_HAVE_ONE_HOME
@@ -185,6 +191,16 @@ When a change touches a gate's activation paths, that gate's evidence manifest m
 **Fix.** Re-run the proof against the real thing and regenerate the manifest with `sf seal <gate>`. If the run cannot pass, the finding is the product behaviour, not the gate. Never hand-edit a digest.
 
 ## L4 — Cadence: docs, plans and rules stay attached
+
+### L4.CLAIM_CITES_ITS_EVIDENCE
+
+**Every marked promise names the gate that proves it**
+
+Every claim marker in a scoped page carries an id and a `proven-by:` naming a gate this policy declares. Markers inside fenced code are documentation showing the form and are left alone.
+
+**Why.** A landing page and a README make promises, and nothing normally joins a promise to the thing that proved it, so the two come apart the ordinary way: the sentence was true when it was written, the code moved, and the sentence stayed. A promise is rarely written false, it ages into false. Naming a gate is the join. The gate carries evidence and `L3.GATE_HAS_FRESH_EVIDENCE` already fails once the implementation digest behind it moves, so a promise goes red through the gate rather than through a second, worse copy of that freshness logic here. The id matters as much as the gate: without one, moving a promise into another paragraph reads as one claim deleted and another added, and the reviewer loses the thread of which promise was ever proven. What this cannot do is enumerate the promises on a page, so it will never notice a new unmarked one, and it does not judge whether the sentence means what the gate proved. Only a reader does that, once, when the promise is written. What CI gets for free is the join.
+
+**Fix.** Mark the promise with an HTML comment carrying `claim:` and an id, then `proven-by:` and the name of a gate in `gates:`. If no gate proves it, the finding is the missing proof, not the marker: define the gate and seal its evidence with `sf seal <gate>`, or delete a promise nothing stands behind.
 
 ### L4.DOC_LINKS_RESOLVE
 

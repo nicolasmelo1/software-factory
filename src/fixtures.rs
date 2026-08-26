@@ -253,6 +253,12 @@ pub const FIXTURES: &[Fixture] = &[
         )],
     },
     Fixture {
+        rule: "L4.CLAIM_CITES_ITS_EVIDENCE",
+        policy_extra: "",
+        extra_rules: "",
+        files: &[("docs/landing.md", A_PAGE_THAT_PROMISES)],
+    },
+    Fixture {
         rule: "L4.RULE_PROSE_NAMES_A_REAL_COMMAND",
         policy_extra: "",
         // The rule is about other rules' prose, so the fixture needs one to be
@@ -406,6 +412,21 @@ scope: [\"src/**\"]\n  \
 forbidden:\n    \
 - regex: \"a shape this fixture never contains\"\n      \
 message: \"Unreachable: this rule is here for its prose, not its pattern.\"\n";
+
+/// Two promises and no proof behind either: the first names a gate this
+/// policy does not declare, the second names nothing at all. The third is
+/// fenced, so it is the page showing the form rather than promising anything,
+/// and it must stay quiet or the rule cannot be documented anywhere it scans.
+const A_PAGE_THAT_PROMISES: &str = "\
+# What this does\n\n\
+<!-- claim: IMPORT_50K_UNDER_60S proven-by: bulk-import -->\n\
+Import fifty thousand rows in under a minute.\n\n\
+<!-- claim: SEARCH_IS_INSTANT -->\n\
+Search feels instant on the largest workspace anyone has.\n\n\
+Mark a promise like this:\n\n\
+```\n\
+<!-- claim: SOME_ID proven-by: some-gate -->\n\
+```\n";
 
 /// A believable CI file that tests and lints and hunts none of the hazards.
 const CI_WITHOUT_HAZARD_TOOLS: &str = "name: ci\non: [push]\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - run: pytest\n      - run: npm test\n      - run: go test ./...\n      - run: cargo test\n";
