@@ -27,6 +27,7 @@ use clap::{Parser, Subcommand, ValueEnum};
 use finding::{EXIT_BOOTSTRAP, EXIT_CONFIG, EXIT_OK};
 use policy::{Policy, RULES_DIR};
 use ratchet::Ratchet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -145,6 +146,32 @@ enum Cmd {
         #[arg(long, env = "SF_ALLOW_COMMANDS")]
         allow_commands: bool,
     },
+}
+
+/// What this build of `sf` actually accepts: subcommand name -> the long
+/// flags it takes, with the global ones folded in.
+///
+/// Read out of the clap definition above rather than written down anywhere,
+/// because a second list of commands is a list that goes stale — which is the
+/// defect `L4.RULE_PROSE_NAMES_A_REAL_COMMAND` exists to catch in prose.
+pub fn accepted_commands() -> BTreeMap<String, BTreeSet<String>> {
+    use clap::CommandFactory;
+    let cli = Cli::command();
+    // clap adds these two on build, and nothing here builds the command.
+    let mut global = long_flags(&cli);
+    global.insert("--help".to_string());
+    global.insert("--version".to_string());
+    cli.get_subcommands()
+        .map(|sub| {
+            let mut flags = long_flags(sub);
+            flags.extend(global.iter().cloned());
+            (sub.get_name().to_string(), flags)
+        })
+        .collect()
+}
+
+fn long_flags(command: &clap::Command) -> BTreeSet<String> {
+    command.get_arguments().filter_map(|arg| arg.get_long()).map(|l| format!("--{l}")).collect()
 }
 
 struct Loaded {

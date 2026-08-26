@@ -14,7 +14,7 @@ pattern before cementing a shape. It is deliberate here for one reason: this
 repository is the demonstration, so every rule it ships must be running
 somewhere. Do not copy this choice into a new project — copy the advice.
 
-**Three rules are switched off, each because it is not about this repository.**
+**Four rules are switched off, each because it is not about this repository.**
 `L0.ONE_ENTRYPOINT_PER_FILE` and `L0.PERSISTENCE_STAYS_IN_REPOSITORIES` ship no
 Rust query, because neither concept has a Rust meaning yet and inventing one so
 a coverage table looks full is how a rule starts producing findings nobody
@@ -120,7 +120,7 @@ Dependency manifests are hash-locked. A changed manifest without a matching lock
 
 **Why.** Adding a dependency is a supply-chain decision wearing the costume of a one-line diff, and it is the single easiest thing for an agent to do while solving something else. Forcing the lock to move in the same commit turns the reviewer's attention on at exactly the moment it is worth spending.
 
-**Fix.** If the dependency is intended, run `sf lock --update` in the same commit and say in the message what it buys. If it is incidental, remove it.
+**Fix.** If the dependency is intended, run `sf lock` in the same commit and say in the message what it buys. If it is incidental, remove it.
 
 ### L2.DERIVED_ARTIFACTS_MATCH_THEIR_SOURCE
 
@@ -235,6 +235,16 @@ Every file at the repository root is listed in the root allowlist file.
 **Why.** `NOTES.md`, `PLAN.md`, `SUMMARY.md`, `ANALYSIS.md` at the repository root is the most recognizable signature of agent-authored work, and each one is context that belongs in a plan, a pull request body or a commit message — somewhere with a lifecycle. The allowlist costs one line when a root file is genuinely warranted and blocks the reflex the rest of the time.
 
 **Fix.** Move the content to the plans directory or the pull request description. If the file really belongs at the root, add it to the allowlist in the same commit.
+
+### L4.RULE_PROSE_NAMES_A_REAL_COMMAND
+
+**Every command a rule's prose quotes is one this `sf` accepts**
+
+Every `sf ...` invocation quoted in an enabled rule's statement, why or fix names a subcommand this binary has, with long flags that subcommand accepts.
+
+**Why.** A rule's `fix` is the only documentation an agent reliably reads, and it is read at the one moment somebody is trying to comply. An invocation that never existed sends that reader to a dead end and makes the rule itself look wrong, which is how a guardrail loses the argument it should win. This is not hypothetical: one L3 rule shipped telling people to regenerate evidence with a subcommand that was never implemented, and nothing noticed, because `L4.EVERY_RULE_HAS_A_WHY` checks that a rule id is cited, not that the text around the citation is still true. The same drift arrives from the other direction once rules travel: a rule written against a newer `sf` names a subcommand the binary in this repository does not have yet. The accepted surface is read out of the command-line definition itself, so it cannot become a second list somebody forgets to update.
+
+**Fix.** Correct the invocation where the rule defines it, in the catalog entry or in the `.software-factory/rules` file for a local rule, then run `sf docs` so the generated prose follows. If the command named is the one that ought to exist, that is a change to the tool and the prose is early rather than wrong.
 
 ## L5 — Meta: the guardrail is proven to fire
 

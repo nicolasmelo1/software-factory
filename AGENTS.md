@@ -26,6 +26,13 @@ ships.
   tools, or a structural rule with no query for any language this repository
   declares. Disabled with a reason in `docs/rules.md` is honest; enabled and
   inert is a rule lying about its own coverage.
+- **Prose may only name commands this `sf` accepts.**
+  `L4.RULE_PROSE_NAMES_A_REAL_COMMAND` reads every `sf ...` a rule's statement,
+  why or fix quotes and compares it with the clap definition in `src/main.rs`,
+  so a fix written against a subcommand that does not exist yet fails the
+  check. Ship the command in the same change, or name the one that exists. A
+  unit test does the same sweep over the whole shipped catalog, including the
+  rules this repository has switched off.
 - **Never widen a rule to make a finding disappear.** If a rule is wrong, argue
   it in the prose and change it deliberately. Silently loosening a glob is
   indistinguishable from a fix at the diff level, which is exactly the failure

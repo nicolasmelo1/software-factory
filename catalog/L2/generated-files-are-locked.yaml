@@ -13,8 +13,8 @@ why: >-
   in a different pull request, where nobody connects the two. The lock makes
   the fork impossible instead of merely discouraged.
 fix: >-
-  Change the source and regenerate, then run `sf lock --update` in the same
-  commit so the lock diff is visible to the reviewer as a deliberate act.
+  Change the source and regenerate, then run `sf lock` in the same commit
+  so the lock diff is visible to the reviewer as a deliberate act.
 ratchet: none
 check:
   kind: lock
