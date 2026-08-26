@@ -36,13 +36,40 @@ will not change a line of your code.
 
 ### 1. Install — 1 min
 
+Download the binary for your platform from the
+[latest release](https://github.com/nicolasmelo1/software-factory/releases/latest)
+— no toolchain, no compile:
+
 ```sh
-cargo install --git https://github.com/nicolasmelo1/software-factory --locked
+# macOS on Apple silicon; swap the target for x86_64-apple-darwin
+# or x86_64-unknown-linux-gnu
+curl -fsSLO https://github.com/nicolasmelo1/software-factory/releases/latest/download/sf-aarch64-apple-darwin
+curl -fsSLO https://github.com/nicolasmelo1/software-factory/releases/latest/download/sf-aarch64-apple-darwin.sha256
+shasum -a 256 -c sf-aarch64-apple-darwin.sha256
+chmod +x sf-aarch64-apple-darwin && mv sf-aarch64-apple-darwin ~/.local/bin/sf
 ```
 
-One static binary, no runtime, nothing to clone. It is a single compile —
-around a minute cold, a few seconds if you already have the crates cached.
-Everything below runs in well under a second, even on a large monorepo.
+Or build it, if you have cargo:
+
+```sh
+cargo install --git https://github.com/nicolasmelo1/software-factory --tag v0.2.0 --locked
+```
+
+**Pin the tag.** The rule catalog ships *inside* the binary, so tracking the
+tip of `main` means an upstream commit can change what an enabled rule matches
+and turn your build red with nothing in your repository having moved. `sf init`
+writes the same pinned form into the CI workflow it generates.
+
+`sf --version` reports the version *and* the catalog digest, because the
+version number alone does not identify the rules:
+
+```
+sf 0.2.0 (catalog ddde87d963b7, 35 rules)
+```
+
+One static binary, no runtime, nothing to clone. Building it is a single
+compile — around a minute cold, a few seconds if you already have the crates
+cached. Everything below runs in well under a second, even on a large monorepo.
 
 **If `sf` is then "command not found":** cargo installed it to `~/.cargo/bin`,
 which is not on your `PATH`. The `rustup` installer adds that directory for

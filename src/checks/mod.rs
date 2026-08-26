@@ -1,6 +1,7 @@
 //! Check engines. Each catalog rule names one; the rule's options are data.
 
 pub mod cadence;
+pub mod catalog_tightening;
 pub mod command;
 pub mod complexity;
 pub mod evidence;
@@ -71,16 +72,47 @@ pub fn as_instance(rule: &Rule, instance: &str) -> Rule {
 pub fn run_one(rule: &Rule, ctx: &Ctx) -> Result<Vec<Finding>> {
     let opts = options_for(rule, ctx.policy)?;
     match &rule.check {
+        // The kinds that read source: a grammar or a regex over the files the
+        // scope selects.
         CheckKind::Shape { languages } => shape::run(rule, &opts, languages, ctx),
+        CheckKind::Nested { languages } => nested::run(rule, &opts, languages, ctx),
         CheckKind::Complexity => complexity::run(rule, &opts, ctx),
         CheckKind::TextPattern => text_pattern::run(rule, &opts, ctx),
-        CheckKind::Lock => lock::run(rule, &opts, ctx),
+        // The kinds that read what the repository committed about itself.
+        bookkeeping => run_bookkeeping(bookkeeping, rule, &opts, ctx),
+    }
+}
+
+/// Kinds whose subject is the repository's own configuration, evidence and
+/// generated artifacts rather than its source code.
+///
+/// Split from `run_one` because a flat dispatch over every kind reached the
+/// `L1.COMPLEXITY_CEILING` the moment one more kind existed. Worth naming
+/// plainly: a dispatch table carries no branching a reader has to hold, so the
+/// ceiling firing here is the metric's limitation, not a defect in the code it
+/// fired on — see `plans/the-grain-has-a-ceiling-and-no-floor.md`. The split
+/// was chosen along the one seam that means something (source versus
+/// bookkeeping) rather than at whatever line brought the count under twelve.
+fn run_bookkeeping(
+    kind: &CheckKind,
+    rule: &Rule,
+    opts: &Options,
+    ctx: &Ctx,
+) -> Result<Vec<Finding>> {
+    match kind {
+        CheckKind::Lock => lock::run(rule, opts, ctx),
         CheckKind::Expiry => lock::expiry(rule, ctx),
-        CheckKind::Cadence { mode } => cadence::run(rule, &opts, ctx, *mode),
-        CheckKind::Evidence => evidence::run(rule, &opts, ctx),
-        CheckKind::Nested { languages } => nested::run(rule, &opts, languages, ctx),
-        CheckKind::Toolchain => toolchain::run(rule, &opts, ctx),
-        CheckKind::PolicyTightening => tightening::run(rule, &opts, ctx),
-        CheckKind::Command => command::run(rule, &opts, ctx),
+        CheckKind::Cadence { mode } => cadence::run(rule, opts, ctx, *mode),
+        CheckKind::Evidence => evidence::run(rule, opts, ctx),
+        CheckKind::Toolchain => toolchain::run(rule, opts, ctx),
+        CheckKind::PolicyTightening => tightening::run(rule, opts, ctx),
+        CheckKind::CatalogTightening => catalog_tightening::run(rule, ctx),
+        CheckKind::Command => command::run(rule, opts, ctx),
+        // Handled by `run_one` before it delegates here. Not `unreachable!`:
+        // an added kind should reach its own arm, not abort the run.
+        CheckKind::Shape { .. }
+        | CheckKind::Nested { .. }
+        | CheckKind::Complexity
+        | CheckKind::TextPattern => Ok(Vec::new()),
     }
 }

@@ -357,6 +357,21 @@ pub const FIXTURES: &[Fixture] = &[
         )],
     },
     Fixture {
+        rule: "L2.CATALOG_ONLY_TIGHTENS",
+        policy_extra: "",
+        extra_rules: "",
+        // A fingerprint claiming `L1.COMPLEXITY_CEILING` was locked at a
+        // ceiling of 8. The catalog in this binary ships 12, so the rule this
+        // mini-repo pinned now permits four more paths per function than the
+        // version it agreed to — an upgrade nobody in that repository would
+        // see in a diff. One dimension on purpose: `sf verify` only proves a
+        // fixture produces at least one finding, so a fixture carrying every
+        // dimension at once would let a broken dimension hide behind a working
+        // one. The other nine are covered by the unit test in
+        // `src/fingerprint.rs`.
+        files: &[(".software-factory/catalog.lock.json", "{\n  \"schema_version\": 1,\n  \"sf_version\": \"0.1.0\",\n  \"catalog_digest\": \"0000000000000000000000000000000000000000000000000000000000000000\",\n  \"rules\": {\n    \"L1.COMPLEXITY_CEILING\": {\n      \"severity\": \"medium\",\n      \"max\": 8\n    }\n  }\n}\n")],
+    },
+    Fixture {
         rule: "L6.DEPENDENCY_VULNERABILITIES_ARE_SCANNED",
         policy_extra: "",
         extra_rules: "",

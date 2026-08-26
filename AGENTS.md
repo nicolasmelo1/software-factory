@@ -38,6 +38,11 @@ ships.
   indistinguishable from a fix at the diff level, which is exactly the failure
   mode this repository exists to catch.
 - **Never hand-edit a digest or a lock.** Run `sf lock` or `sf seal <gate>`.
+  That now includes `.software-factory/catalog.lock.json`, which records the
+  reach of every enabled rule so that `L2.CATALOG_ONLY_TIGHTENS` can tell an
+  upgrade that strengthened a rule from one that weakened it. Re-locking to
+  clear that finding without reading it is the move the rule exists to make
+  expensive.
 - **Never weaken the policy to go green.** `L2.FACTORY_CONFIG_IS_LOCKED` will
   notice the edit and `L2.POLICY_ONLY_TIGHTENS` will notice its direction. If a
   rule genuinely needs loosening, that is a pull request about the rule, with
@@ -100,6 +105,31 @@ correct for a repository that consumes this tool and wrong for the one that is
 it: the binary under test must be the one in the diff. Do not regenerate this
 file. `L2.FACTORY_CONFIG_IS_LOCKED` covers it, so an accidental regeneration
 fails rather than silently reverting CI to testing the last release.
+
+## Cutting a release
+
+The catalog ships inside the binary, so a consumer's policy names rule ids and
+nothing else: an upgrade can change what an already-enabled rule matches with
+no diff in their repository at all. That is what the version number is for, and
+why nothing here tracks the tip of `main`.
+
+- **The version lives in `Cargo.toml`, and everything else derives from it.**
+  `Cargo.lock`, the README install line, and the tag `sf init` writes into a
+  consumer's workflow (substituted from `env!("CARGO_PKG_VERSION")`, never
+  typed twice). `L2.DERIVED_ARTIFACTS_MATCH_THEIR_SOURCE@release` compares all
+  four against `sf --version` and fails on any disagreement, so a release
+  cannot promise a version the binary does not report.
+- **`sf --version` carries the catalog digest**, because two builds of the same
+  version from different commits enforce different rules and a bug report has
+  to be able to say which.
+- **Bump, then regenerate, then tag.** `sf fixtures`, `sf docs`, `sf ratchet`,
+  `sf lock` in that order, exactly as after any guardrail change. `sf lock`
+  refreshes the catalog fingerprint, and the release rule above fails if it is
+  stale.
+- **`.github/workflows/release.yml` fires on `v*`.** It re-runs the full gate
+  against the tagged commit, refuses a tag that disagrees with the built
+  version, builds Linux and both macOS targets, and generates the notes from
+  `sf --version` and `sf catalog` rather than from a hand-written changelog.
 
 ## Working model
 

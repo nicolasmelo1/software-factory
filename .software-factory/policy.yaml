@@ -66,6 +66,21 @@ rules:
   # L2 — The guardrail's own configuration is hash-locked
   L2.FACTORY_CONFIG_IS_LOCKED:
     enabled: true
+    options:
+      # The catalog default names `software-factory.yml` alone, which is right
+      # for a repository that consumes this tool: its other workflows are not
+      # factory configuration. Here the release workflow is — it is what puts
+      # a binary in front of everybody else — so it joins the scope. Listed in
+      # full because a `scope` in policy replaces the default rather than
+      # extending it.
+      scope:
+        - ".software-factory/policy.yaml"
+        - ".software-factory/ratchet.yaml"
+        - ".software-factory/rules/**"
+        - ".allowed-root-files"
+        - ".github/workflows/software-factory.yml"
+        - ".github/workflows/release.yml"
+        - ".githooks/pre-commit"
   # L2 — Generated artifacts are hash-locked and not hand-edited
   L2.GENERATED_FILES_ARE_LOCKED:
     # Disabled: nothing in this repository is generated. Enabling a lock over
@@ -86,11 +101,37 @@ rules:
       # sitting out of date with the rules it describes.
       run: "./target/release/sf docs && git diff --exit-code -- docs/rules.md"
 
+  # L2 — A release is consistent, checked by this tool against itself
+  L2.DERIVED_ARTIFACTS_MATCH_THEIR_SOURCE@release:
+    enabled: true
+    options:
+      # Everything downstream of the version number in Cargo.toml, compared
+      # rather than trusted. A tag is the only thing a consumer can pin to,
+      # and each of these four is a way for a tag to promise something the
+      # binary does not deliver: a lockfile still naming the old version, an
+      # install line in the README pointing at a tag that predates the rules
+      # it documents, a catalog fingerprint nobody refreshed so the next
+      # upgrade compares against a stale baseline, and the workflow `sf init`
+      # writes into somebody else's repository pinning a version this build is
+      # not. The release workflow runs the same four through this rule, so the
+      # gate is one definition rather than a copy in CI.
+      run: |
+        set -eu
+        version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
+        binary=$(./target/release/sf --version | awk '{print $2}')
+        test "$version" = "$binary" || { echo "Cargo.toml says $version, the binary reports $binary"; exit 1; }
+        grep -q "name = \"sf\"" -A 1 Cargo.lock && test "$(grep -A 1 'name = "sf"' Cargo.lock | sed -n 's/^version = "\(.*\)"/\1/p')" = "$version" || { echo "Cargo.lock does not name version $version for sf"; exit 1; }
+        grep -q -- "--tag v$version" README.md || { echo "README.md does not tell a consumer to install --tag v$version"; exit 1; }
+        ./target/release/sf lock >/dev/null && git diff --exit-code -- .software-factory/catalog.lock.json
+
   # L2 — Every frozen exception carries a future review date
   L2.NO_PERMANENT_EXCEPTION:
     enabled: true
   # L2 — The guardrail may be strengthened, never quietly weakened
   L2.POLICY_ONLY_TIGHTENS:
+    enabled: true
+  # L2 — A released rule never gets weaker than the version this repo locked
+  L2.CATALOG_ONLY_TIGHTENS:
     enabled: true
   # L3 — A gate activated by touched paths needs digest-verified, non-stale evidence
   L3.GATE_HAS_FRESH_EVIDENCE:

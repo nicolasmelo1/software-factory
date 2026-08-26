@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "sf_version": "0.1.0",
+  "catalog_digest": "0000000000000000000000000000000000000000000000000000000000000000",
+  "rules": {
+    "L1.COMPLEXITY_CEILING": {
+      "severity": "medium",
+      "max": 8
+    }
+  }
+}
