@@ -22,7 +22,16 @@ why: >-
   that declared `languages: [typescript]` while containing zero `.ts` files
   ran its complexity ceiling and its suppression bans over 365,133 lines and
   reported nothing, and nothing here noticed until this rule was taught to
-  look.
+  look. A `toolchain` rule has the same hole in a quieter form: `tools:` is a
+  map, so it can be non-empty and still miss the one language the adopting
+  project declares — `checks::toolchain::run` skips a declared language it
+  has no entry for with a bare `continue`, not a finding. This was also not
+  hypothetical: a Ruby-only adoption enabled `L6.DATA_RACES_ARE_DETECTED`,
+  `L6.DEAD_CODE_IS_DETECTED` and `L6.PERFORMANCE_REGRESSION_IS_GUARDED`, whose
+  `tools:` maps carry python, typescript, go and rust and no `ruby:` key, and
+  got three permanent green checkmarks that could never have said anything
+  else — `sf verify` reported all three proven to fire and never mentioned
+  that the project's own language was invisible to them.
 fix: >-
   Give the rule something to look at, or switch it off in policy and say why in
   the rules document. Disabled and documented is honest; enabled and inert is
