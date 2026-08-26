@@ -59,6 +59,7 @@ pub fn run(root: &Path, catalog: &Catalog, opts: &InitOptions) -> Result<Vec<Str
     )?;
     write_automation(root, &mut written)?;
     write_fixtures(root, &selected, &mut written)?;
+    write_root_allowlist(root, &selected, &mut written)?;
     Ok(written)
 }
 
@@ -125,11 +126,23 @@ fn write_cadence_files(
     selected: &[&crate::catalog::Rule],
     written: &mut Vec<String>,
 ) -> Result<()> {
-    if selected.iter().any(|r| r.id == "L4.ROOT_FILES_ARE_DECLARED") {
-        write_if_absent(root, ".allowed-root-files", &root_allowlist(root)?, written)?;
-    }
     if selected.iter().any(|r| r.id == "L4.PLAN_DECLARES_EXIT_CONDITION") {
         write_if_absent(root, "plans/next-steps.md", NEXT_STEPS, written)?;
+    }
+    Ok(())
+}
+
+/// Seeded last, because most of what lands at the root is this command's own
+/// scaffolding: the workflow, the hook, the plans directory, the fixtures.
+/// Written before they exist, the allowlist omits them and the first
+/// `sf check` after `sf init` fails on files `sf init` wrote.
+fn write_root_allowlist(
+    root: &Path,
+    selected: &[&crate::catalog::Rule],
+    written: &mut Vec<String>,
+) -> Result<()> {
+    if selected.iter().any(|r| r.id == "L4.ROOT_FILES_ARE_DECLARED") {
+        write_if_absent(root, ".allowed-root-files", &root_allowlist(root)?, written)?;
     }
     Ok(())
 }
@@ -460,16 +473,21 @@ fn root_allowlist(root: &Path) -> Result<String> {
         gates: Default::default(),
         docs: Default::default(),
     };
-    let mut names: Vec<String> = scan::walk(root, &policy)?
+    // Collapsed to the first path segment, which is what
+    // `L4.ROOT_FILES_ARE_DECLARED` counts: a root directory is a root entry
+    // there, so a seeder that emitted only loose files disagreed with the
+    // check it was seeding and every fresh install began red.
+    let names: BTreeSet<String> = scan::walk(root, &policy)?
         .into_iter()
-        .filter(|f| !f.rel.contains('/'))
-        .map(|f| f.rel)
+        .map(|f| match f.rel.split_once('/') {
+            Some((first, _)) => first.to_string(),
+            None => f.rel,
+        })
         .collect();
-    names.sort();
     Ok(format!(
         "# Files allowed at the repository root. Adding a line here is the\n\
          # deliberate act; NOTES.md appearing without one is the reflex.\n{}\n",
-        names.join("\n")
+        names.into_iter().collect::<Vec<_>>().join("\n")
     ))
 }
 
@@ -635,3 +653,90 @@ set -eu\n\n\
 # meaningless, and it is the cheaper failure to discover.\n\
 sf verify\n\
 sf check\n";
+
+/// `sf init` installs the rules and then has to survive them. Nothing else in
+/// the suite runs the generator and then runs a check over its output, which
+/// is how the seeder and `L4.ROOT_FILES_ARE_DECLARED` drifted apart: the check
+/// learned that a root directory is a root entry, the seeder kept emitting
+/// loose files only, and every fresh install failed its first `sf check` on
+/// `.github`, `.githooks`, `docs` and `plans` — all four written by `sf init`.
+#[cfg(test)]
+mod conformance {
+    use super::*;
+
+    struct Scratch(std::path::PathBuf);
+
+    impl Scratch {
+        fn new(tag: &str) -> Scratch {
+            let nanos = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("clock is before the epoch")
+                .as_nanos();
+            let path = std::env::temp_dir().join(format!("sf-{tag}-{}-{nanos}", std::process::id()));
+            std::fs::create_dir_all(&path).expect("scratch directory");
+            Scratch(path)
+        }
+    }
+
+    impl Drop for Scratch {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    fn findings_for(root: &Path, id: &str) -> Vec<crate::finding::Finding> {
+        let catalog = Catalog::builtin().expect("builtin catalog");
+        let policy = Policy::load(root).expect("generated policy loads");
+        let files = scan::walk(root, &policy).expect("walk");
+        let ratchet = Ratchet::default();
+        let rule = catalog.get(id).expect("rule is in the catalog");
+        let ctx = Ctx {
+            root,
+            policy: &policy,
+            catalog: &catalog,
+            files: &files,
+            ratchet: &ratchet,
+            changed: None,
+            base: None,
+            today: clock::today(),
+            allow_commands: false,
+        };
+        checks::run_one(rule, &ctx).expect("check runs")
+    }
+
+    #[test]
+    fn a_fresh_install_declares_every_root_entry_it_created() {
+        let scratch = Scratch::new("init");
+        let root = scratch.0.as_path();
+        std::fs::write(root.join("Gemfile"), "source \"https://rubygems.org\"\n").expect("Gemfile");
+        std::fs::create_dir_all(root.join("app")).expect("app");
+        std::fs::write(root.join("app/order.rb"), "class Order\nend\n").expect("order.rb");
+
+        let catalog = Catalog::builtin().expect("builtin catalog");
+        init_for_test(root, &catalog);
+
+        let findings = findings_for(root, "L4.ROOT_FILES_ARE_DECLARED");
+        assert!(
+            findings.is_empty(),
+            "sf init left its own scaffolding undeclared: {:?}",
+            findings.iter().map(|f| f.key.clone()).collect::<Vec<_>>()
+        );
+    }
+
+    fn init_for_test(root: &Path, catalog: &Catalog) {
+        run(
+            root,
+            catalog,
+            &InitOptions {
+                name: "probe".to_string(),
+                languages: vec!["ruby".to_string()],
+                layers: vec!["L4".to_string()],
+                force: false,
+                plan: None,
+                answers: None,
+                rules_document: None,
+            },
+        )
+        .expect("sf init succeeds");
+    }
+}
