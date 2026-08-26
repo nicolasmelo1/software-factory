@@ -97,6 +97,18 @@ pub struct TextPattern {
     /// Shown verbatim on failure. This is the agent-facing documentation:
     /// it must name the alternative, not just the ban.
     pub message: String,
+    /// Restrict *this pattern* to a subset of the rule's own `scope` — the
+    /// same glob vocabulary, one level down. A rule with several spellings
+    /// of one concept, one per language, must not point language B's
+    /// spelling at language A's files: `:\s*any\b` is TypeScript's `any`,
+    /// but it also matches Ruby's `:any?` symbol wherever both live under
+    /// the same rule's scope. Empty means "wherever the rule's scope
+    /// already reaches", so a rule with one flat pattern list — the common
+    /// case — is unaffected.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub scope: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub exclude: Vec<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]

@@ -45,12 +45,21 @@ defaults:
     - "**/*_spec.rb"
   forbidden:
     - regex: "^\\s*from\\s+typing\\s+import\\s+(.*,\\s*)?Any\\b"
+      scope: ["**/*.py"]
       message: "Banning the *import* is what makes this stick: it kills `dict[str, Any]`, `-> Any` and bare `x: Any` in one rule. Use a TypedDict/dataclass for a known shape, a TypeVar for passthrough, or your JSON value type at the boundary."
+    # TypeScript's `any`. Scoped so it cannot also read Ruby's `:any?`
+    # symbol — `delegate :any?, :empty?, to: :thing` is idiomatic Ruby, and
+    # `:\s*any\b` matches the leading `:any` of `:any?` with nothing further
+    # to say it isn't the same shape. One rule with two languages' spellings
+    # of "untyped" must not let one spelling read the other's files.
     - regex: ":\\s*any\\b|<any>|as\\s+any\\b|Array<any>|:\\s*any\\[\\]"
+      scope: ["**/*.ts", "**/*.tsx"]
       message: "`any` opts the whole call chain out of type checking. `unknown` plus a narrowing check keeps the checker working; an interface keeps it useful."
     - regex: "interface\\{\\}"
+      scope: ["**/*.go"]
       message: "`interface{}` defers the decision to runtime. Define the interface you actually need, or use a type parameter."
     - regex: "\\.unwrap\\(\\)"
+      scope: ["**/*.rs"]
       message: "`.unwrap()` converts a case you have not handled into a crash with no message. Use `?` to propagate, or `.context(\"what was being attempted\")` so the failure says something."
     # Sorbet writes it `T.untyped`, RBS writes it `untyped`, and both mean
     # exactly what `Any` means: every call downstream stops being checked.
@@ -59,4 +68,5 @@ defaults:
     # `no-untyped-escape-hatch` — which is how this repository's own source
     # caught the first draft of this pattern.
     - regex: "(^|[^\\w-])untyped([^\\w-]|$)"
+      scope: ["**/*.rb", "**/*.rbs"]
       message: "`T.untyped` (and `untyped` in an .rbs) opts the whole call chain out of type checking. Use a `T::Struct` or an interface for a known shape, `T.type_parameter` for genuine passthrough, or `T.nilable`/`T.any` where the shape is a small union."
