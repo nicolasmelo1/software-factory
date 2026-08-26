@@ -66,10 +66,11 @@ jobs:
           persist-credentials: false
       - run: rustup target add ${{ matrix.target }}
       - run: cargo build --release --locked --target ${{ matrix.target }}
-      # The digest travels with the binary. A consumer who downloads this and
-      # a consumer who builds from the tag must be able to confirm they are
-      # enforcing the same catalog, and the version number alone does not say
-      # that.
+      # A checksum beside each binary, so somebody who downloads one can say
+      # they got what this run built. The catalog digest a consumer needs in
+      # order to know which rules they are enforcing is not shipped as a file:
+      # it is in the binary, printed by `sf --version`, and repeated in the
+      # release notes. A separate file would be a second copy to drift.
       - name: Package
         env:
           TARGET: ${{ matrix.target }}
@@ -77,8 +78,16 @@ jobs:
           set -eu
           mkdir -p dist
           cp "target/$TARGET/release/sf" "dist/sf-$TARGET"
-          ( cd dist && shasum -a 256 "sf-$TARGET" > "sf-$TARGET.sha256" )
-          "target/$TARGET/release/sf" --version > "dist/sf-$TARGET.version" || true
+          # `sha256sum` on Linux, `shasum` on macOS. Neither is on both, and
+          # picking one would have failed exactly one of the three build jobs
+          # after everything else in them had already passed.
+          cd dist
+          if command -v sha256sum >/dev/null 2>&1; then
+            sha256sum "sf-$TARGET" > "sf-$TARGET.sha256"
+          else
+            shasum -a 256 "sf-$TARGET" > "sf-$TARGET.sha256"
+          fi
+          cat "sf-$TARGET.sha256"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: sf-${{ matrix.target }}
