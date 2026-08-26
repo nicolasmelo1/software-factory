@@ -46,27 +46,27 @@ fn inert_rules(rule: &Rule, ctx: &Ctx) -> Result<Vec<Finding>> {
         };
         let (id, candidate) = (&instance, &super::as_instance(candidate, &instance));
         let options = super::options_for(candidate, ctx.policy)?;
-        let reason: Option<&str> = match &candidate.check {
-            CheckKind::Lock if options.scope.is_empty() => Some("no scope: it locks nothing"),
+        let reason: Option<String> = match &candidate.check {
+            CheckKind::Lock if options.scope.is_empty() => {
+                Some("no scope: it locks nothing".to_string())
+            }
             CheckKind::Command if options.run.is_none() => {
-                Some("no command set: there is nothing for it to run")
+                Some("no command set: there is nothing for it to run".to_string())
             }
-            CheckKind::Toolchain if options.tools.is_empty() => {
-                Some("no tools declared: it can never find one missing")
-            }
+            CheckKind::Toolchain => inert_toolchain_reason(&options, ctx),
             CheckKind::Shape { languages }
                 if !covers_a_declared_language(languages.keys(), ctx) =>
             {
-                Some("no query for any language this repository declares")
+                Some("no query for any language this repository declares".to_string())
             }
             CheckKind::Nested { languages }
                 if !covers_a_declared_language(languages.keys(), ctx) =>
             {
-                Some("no query for any language this repository declares")
+                Some("no query for any language this repository declares".to_string())
             }
             CheckKind::TextPattern => {
                 if scan::select(ctx.files, &options.scope, &options.exclude)?.is_empty() {
-                    Some("scope matches no file in this repository: it can never see a line to check")
+                    Some("scope matches no file in this repository: it can never see a line to check".to_string())
                 } else {
                     None
                 }
@@ -74,7 +74,7 @@ fn inert_rules(rule: &Rule, ctx: &Ctx) -> Result<Vec<Finding>> {
             CheckKind::Complexity => {
                 if !any_parseable_declared_file(ctx, &options)? {
                     Some(
-                        "no file in scope parses into a language this repository declares: the ceiling can never be evaluated",
+                        "no file in scope parses into a language this repository declares: the ceiling can never be evaluated".to_string(),
                     )
                 } else {
                     None
@@ -95,6 +95,95 @@ fn inert_rules(rule: &Rule, ctx: &Ctx) -> Result<Vec<Finding>> {
         );
     }
     Ok(findings)
+}
+
+/// Why a `toolchain` rule can never produce a finding here, if any.
+///
+/// Split out of `inert_rules`'s match arm so this rule's own complexity
+/// ceiling stays paid for by the branch that actually needs it, instead of
+/// widening the meta-check's budget for every kind it covers.
+fn inert_toolchain_reason(options: &Options, ctx: &Ctx) -> Option<String> {
+    if options.tools.is_empty() {
+        return Some("no tools declared: it can never find one missing".to_string());
+    }
+    // The map is not empty, but none of its keys are a language this project
+    // declares — every entry in it names an ecosystem this repository does
+    // not have, so the per-language loop in `checks::toolchain::run` skips
+    // every declared language via its own `continue` and the rule reports
+    // nothing, forever. A distinct message from the empty-map case above:
+    // that one is about a rule nobody configured, this one is about a rule
+    // configured for a different project.
+    if !covers_a_declared_language(options.tools.keys(), ctx) {
+        return Some(format!(
+            "tools declared for {}, none for {}: it will report zero findings for this project, forever, not merely \"no tool found\" — add a tool entry for the missing language, or disable this rule instance in policy and say why in docs/rules.md",
+            joined(options.tools.keys()),
+            joined(ctx.policy.project.languages.iter()),
+        ));
+    }
+    None
+}
+
+#[cfg(test)]
+mod inert_toolchain {
+    use crate::catalog::Catalog;
+    use crate::checks::Ctx;
+    use crate::policy::{FIXTURES_DIR, Policy, RULES_DIR};
+    use crate::ratchet::Ratchet;
+    use crate::scan;
+
+    /// `L5.NO_INERT_RULE`'s own mutation fixture (`.software-factory/mutations/L5.NO_INERT_RULE`,
+    /// materialized by `sf fixtures` from `src/fixtures.rs`) enables
+    /// `L6.DATA_RACES_ARE_DETECTED@toolchain_gap` with a `tools:` map that
+    /// names only `java`, a language the fixture's mini-repo never declares
+    /// (`[python, typescript, go, rust, ruby]`). Before `inert_rules` learned
+    /// to look past `options.tools.is_empty()`, a non-empty map like this one
+    /// passed silently — the finding this test asserts on is the whole
+    /// difference. Reverting the second `CheckKind::Toolchain` arm in
+    /// `inert_rules` above makes this test fail: no finding carries the key
+    /// `inert:L6.DATA_RACES_ARE_DETECTED@toolchain_gap`.
+    #[test]
+    fn a_non_empty_tools_map_missing_every_declared_language_is_inert() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join(FIXTURES_DIR)
+            .join("L5.NO_INERT_RULE");
+        let policy = Policy::load(&root).expect("the fixture policy loads");
+        let mut catalog = Catalog::builtin().expect("the built-in catalog loads");
+        catalog
+            .extend_from_dir(&root.join(RULES_DIR))
+            .expect("the fixture declares no local rules");
+        let files = scan::walk(&root, &policy).expect("the fixture repo scans");
+        let ratchet = Ratchet::default();
+        let ctx = Ctx {
+            root: &root,
+            policy: &policy,
+            catalog: &catalog,
+            files: &files,
+            ratchet: &ratchet,
+            changed: None,
+            base: None,
+            today: crate::clock::today(),
+            allow_commands: false,
+        };
+        let rule = catalog.get("L5.NO_INERT_RULE").expect("ships in the catalog").clone();
+        let findings = super::inert_rules(&rule, &ctx).expect("inert_rules runs");
+        let hit = findings
+            .iter()
+            .find(|f| f.key == "inert:L6.DATA_RACES_ARE_DETECTED@toolchain_gap")
+            .expect(
+                "a toolchain rule whose tools map names only a language nobody declares must be flagged inert",
+            );
+        assert!(hit.message.contains("java"), "names the tools the map does have: {}", hit.message);
+        assert!(
+            hit.message.contains("python"),
+            "names the declared language it cannot cover: {}",
+            hit.message
+        );
+        assert!(
+            hit.message.contains("forever"),
+            "says the rule would never fire here, not just that a tool is missing: {}",
+            hit.message
+        );
+    }
 }
 
 /// Whether at least one file the rule's scope selects has an extension this

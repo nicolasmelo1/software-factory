@@ -19,5 +19,10 @@ rules:
     enabled: true
     options:
       scope: ["nonexistent/**"]
+  L6.DATA_RACES_ARE_DETECTED@toolchain_gap:
+    enabled: true
+    options:
+      tools:
+        java: ["error-prone", "jcstress"]
   L5.NO_INERT_RULE:
     enabled: true

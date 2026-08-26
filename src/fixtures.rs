@@ -431,12 +431,15 @@ pub const FIXTURES: &[Fixture] = &[
     Fixture {
         rule: "L5.NO_INERT_RULE",
         policy_extra: "",
-        // Three ways to be inert, one per newly/previously covered kind: a
+        // Four ways to be inert, one per newly/previously covered kind: a
         // lock switched on over nothing, a text-pattern rule scoped at a path
-        // nothing in the mini-repo matches, and a complexity ceiling scoped
-        // the same way. Each passes every run and reads in a report exactly
-        // like a rule that is protecting you.
-        extra_rules: "  L2.GENERATED_FILES_ARE_LOCKED:\n    enabled: true\n    options:\n      scope: []\n  L1.NO_BLANKET_SUPPRESSION@inert:\n    enabled: true\n    options:\n      scope: [\"nonexistent/**\"]\n  L1.COMPLEXITY_CEILING@inert:\n    enabled: true\n    options:\n      scope: [\"nonexistent/**\"]\n",
+        // nothing in the mini-repo matches, a complexity ceiling scoped the
+        // same way, and a toolchain rule whose `tools:` map names only a
+        // language ("java") this mini-repo never declares — non-empty, but
+        // it still can never find a language to check, which is the hole
+        // `options.tools.is_empty()` alone missed. Each passes every run and
+        // reads in a report exactly like a rule that is protecting you.
+        extra_rules: "  L2.GENERATED_FILES_ARE_LOCKED:\n    enabled: true\n    options:\n      scope: []\n  L1.NO_BLANKET_SUPPRESSION@inert:\n    enabled: true\n    options:\n      scope: [\"nonexistent/**\"]\n  L1.COMPLEXITY_CEILING@inert:\n    enabled: true\n    options:\n      scope: [\"nonexistent/**\"]\n  L6.DATA_RACES_ARE_DETECTED@toolchain_gap:\n    enabled: true\n    options:\n      tools:\n        java: [\"error-prone\", \"jcstress\"]\n",
         files: &[("src/app.py", "print('a repository with a lock that locks nothing')\n")],
     },
 ];
