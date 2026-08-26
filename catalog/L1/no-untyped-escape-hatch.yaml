@@ -30,12 +30,19 @@ defaults:
     - "**/*.tsx"
     - "**/*.go"
     - "**/*.rs"
+    - "**/*.rb"
+    # Type-only files, where `untyped` is the escape hatch written down
+    # deliberately rather than reached for in a hurry. It is the same
+    # decision either way, so it is checked in the same place.
+    - "**/*.rbs"
   exclude:
     - "**/*.test.ts"
     - "**/*.spec.ts"
     - "**/tests/**"
     - "**/*_test.go"
     - "**/tests/**"
+    - "**/spec/**"
+    - "**/*_spec.rb"
   forbidden:
     - regex: "^\\s*from\\s+typing\\s+import\\s+(.*,\\s*)?Any\\b"
       message: "Banning the *import* is what makes this stick: it kills `dict[str, Any]`, `-> Any` and bare `x: Any` in one rule. Use a TypedDict/dataclass for a known shape, a TypeVar for passthrough, or your JSON value type at the boundary."
@@ -45,3 +52,11 @@ defaults:
       message: "`interface{}` defers the decision to runtime. Define the interface you actually need, or use a type parameter."
     - regex: "\\.unwrap\\(\\)"
       message: "`.unwrap()` converts a case you have not handled into a crash with no message. Use `?` to propagate, or `.context(\"what was being attempted\")` so the failure says something."
+    # Sorbet writes it `T.untyped`, RBS writes it `untyped`, and both mean
+    # exactly what `Any` means: every call downstream stops being checked.
+    # The delimiter excludes `-` as well as word characters, because `\b`
+    # alone treats a hyphen as a boundary and fires on any path containing
+    # `no-untyped-escape-hatch` — which is how this repository's own source
+    # caught the first draft of this pattern.
+    - regex: "(^|[^\\w-])untyped([^\\w-]|$)"
+      message: "`T.untyped` (and `untyped` in an .rbs) opts the whole call chain out of type checking. Use a `T::Struct` or an interface for a known shape, `T.type_parameter` for genuine passthrough, or `T.nilable`/`T.any` where the shape is a small union."

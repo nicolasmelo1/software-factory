@@ -24,6 +24,7 @@ defaults:
     - "**/*.tsx"
     - "**/*.go"
     - "**/*.rs"
+    - "**/*.rb"
   # Every pattern is `regex` (the shape that is not acceptable) plus an
   # optional `unless` (the shape that is). Two positive patterns rather than
   # one negative lookahead: it keeps the rules readable and portable to any
@@ -46,3 +47,16 @@ defaults:
     - regex: "#\\[allow\\("
       unless: "#\\[allow\\([^)]*\\)\\]\\s*//\\s*\\S"
       message: "`#[allow(...)]` with no trailing `// reason` hides a lint forever. Say why on the same line."
+    # Cop names are department-qualified and capitalised (`Metrics/AbcSize`),
+    # and `all` is not — so `[A-Z]` is what separates naming a cop from
+    # turning the whole line off, without a negative lookahead the regex
+    # engine here does not have.
+    #
+    # Sorbet's `# typed: false` sigil is deliberately not here. It suppresses
+    # a whole file, which is worse, but a gradual Sorbet adoption is *made* of
+    # those sigils and a rule that fires on every one of them on day one is a
+    # rule a Ruby team switches off. The escape hatch it exists to permit,
+    # `T.untyped`, is banned by L1.NO_UNTYPED_ESCAPE_HATCH instead.
+    - regex: "#\\s*(rubocop|standard):disable"
+      unless: "#\\s*(rubocop|standard):disable\\s+[A-Z]"
+      message: "`# rubocop:disable all` turns off every cop on the line. Name the one you mean: `# rubocop:disable Metrics/AbcSize`, with the reason on the line above."

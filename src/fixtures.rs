@@ -128,7 +128,18 @@ pub const FIXTURES: &[Fixture] = &[
         rule: "L1.NO_BLANKET_SUPPRESSION",
         policy_extra: "",
         extra_rules: "",
-        files: &[("src/legacy.py", "import os  # noqa\n")],
+        files: &[
+            ("src/legacy.py", "import os  # noqa\n"),
+            // The violation and the accepted form together: `all` turns the
+            // line off, a named cop does not. If the `unless` ever stops
+            // matching, the second line starts producing a finding here,
+            // which is the only way a fixture can be about a rule staying
+            // quiet.
+            (
+                "src/legacy.rb",
+                "require \"json\" # rubocop:disable all\n\n# Parsed by hand upstream; TICKET-88 removes the branch.\ndef parse(raw) # rubocop:disable Metrics/AbcSize\n  JSON.parse(raw)\nend\n",
+            ),
+        ],
     },
     Fixture {
         rule: "L1.SKIPPED_TESTS_STATE_A_REASON",
@@ -165,10 +176,17 @@ pub const FIXTURES: &[Fixture] = &[
         rule: "L1.NO_UNTYPED_ESCAPE_HATCH",
         policy_extra: "",
         extra_rules: "",
-        files: &[(
-            "src/payload.py",
-            "from typing import Any\n\n\ndef handle(event: dict) -> Any:\n    return event\n",
-        )],
+        files: &[
+            (
+                "src/payload.py",
+                "from typing import Any\n\n\ndef handle(event: dict) -> Any:\n    return event\n",
+            ),
+            (
+                "src/payload.rb",
+                "# typed: strict\n\nsig { params(event: T.untyped).returns(T.untyped) }\ndef handle(event)\n  event\nend\n",
+            ),
+            ("sig/payload.rbs", "class Payload\n  def handle: (untyped event) -> untyped\nend\n"),
+        ],
     },
     Fixture {
         rule: "L2.GENERATED_FILES_ARE_LOCKED",
