@@ -82,8 +82,8 @@ rules:
     options:
       # docs/rules.md is generated from the catalog and then hand-edited above
       # the first `## L` heading. `sf docs` regenerates only the generated half,
-      # so re-running it must be a no-op. This is the check the plan
-      # keep-generated-prose-in-sync.md asked for.
+      # so re-running it must be a no-op, which is what stops the document
+      # sitting out of date with the rules it describes.
       run: "./target/release/sf docs && git diff --exit-code -- docs/rules.md"
 
   # L2 — Every frozen exception carries a future review date
@@ -112,6 +112,9 @@ rules:
     enabled: true
   # L4 — New top-level files are declared before they appear
   L4.ROOT_FILES_ARE_DECLARED:
+    enabled: true
+  # L4 — Every marked promise names the gate that proves it
+  L4.CLAIM_CITES_ITS_EVIDENCE:
     enabled: true
   # L4 — Every command a rule's prose quotes is one this `sf` accepts
   L4.RULE_PROSE_NAMES_A_REAL_COMMAND:

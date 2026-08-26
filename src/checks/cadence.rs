@@ -25,6 +25,7 @@ pub fn run(rule: &Rule, opts: &Options, ctx: &Ctx, mode: CadenceMode) -> Result<
         CadenceMode::MutationCoverage => mutation_coverage(rule, ctx),
         CadenceMode::InertRules => inert_rules(rule, ctx),
         CadenceMode::RuleCommands => rule_commands(rule, ctx),
+        CadenceMode::ClaimCitations => claim_citations(rule, opts, ctx),
     }
 }
 
@@ -666,5 +667,170 @@ mod cited_commands {
         let (problem, _) =
             unaccepted("lock --update", &accepted).expect("`sf lock` takes no --update");
         assert!(problem.contains("--update"), "{problem}");
+    }
+}
+
+/// The marker a page puts above a promise. An HTML comment rather than syntax,
+/// because it has to work in markdown, MDX and HTML with no build step and
+/// stay invisible in the rendered page.
+const CLAIM_MARKER: &str = r"<!--\s*claim:(.*?)-->";
+
+/// The half of the marker that names the gate.
+const PROVEN_BY: &str = r"proven-by:\s*(\S+)";
+
+/// A parsed marker: the promise's stable id, and the gate it says proves it.
+struct Claim {
+    id: Option<String>,
+    gate: Option<String>,
+}
+
+/// `L4.CLAIM_CITES_ITS_EVIDENCE`: a promise on a page, joined to the gate that
+/// proved it.
+///
+/// Two directions, not three. Every claim names a gate and every named gate
+/// exists; "every gate is claimed somewhere" is the wrong third, because most
+/// gates have nothing to do with a page anyone reads. Freshness is not checked
+/// here either: a named gate carries evidence, and `L3.GATE_HAS_FRESH_EVIDENCE`
+/// already fails once the implementation digest moves, so the promise goes red
+/// *through* the gate rather than through a worse copy of that logic.
+fn claim_citations(rule: &Rule, opts: &Options, ctx: &Ctx) -> Result<Vec<Finding>> {
+    let marker = Regex::new(opts.marker.as_deref().unwrap_or(CLAIM_MARKER))?;
+    let proven_by = Regex::new(PROVEN_BY)?;
+    let mut findings = Vec::new();
+    for file in scan::select(ctx.files, &opts.scope, &opts.exclude)? {
+        let Ok(body) = std::fs::read_to_string(&file.abs) else {
+            continue;
+        };
+        let scanned = without_fences(&body);
+        for hit in marker.captures_iter(&scanned) {
+            let at = hit.get(0).map(|m| m.start()).unwrap_or(0);
+            let line = scanned[..at].matches('\n').count() + 1;
+            let inside = hit.get(1).map(|m| m.as_str()).unwrap_or("");
+            let claim = parse_claim(inside, &proven_by);
+            let Some((problem, expected)) = unproven(&claim, ctx) else {
+                continue;
+            };
+            let id = claim.id.clone().unwrap_or_else(|| format!("unnamed-{line}"));
+            findings.push(
+                Finding::new(
+                    &rule.id,
+                    rule.severity,
+                    format!("{}:{line}", file.rel),
+                    format!("claim:{}:{id}", file.rel),
+                    problem,
+                )
+                .expected(expected)
+                .actual(inside.trim().to_string()),
+            );
+        }
+    }
+    Ok(findings)
+}
+
+fn parse_claim(inside: &str, proven_by: &Regex) -> Claim {
+    Claim {
+        id: inside
+            .split_whitespace()
+            .next()
+            .filter(|token| !token.starts_with("proven-by"))
+            .map(str::to_string),
+        gate: proven_by.captures(inside).map(|found| found[1].to_string()),
+    }
+}
+
+/// What is wrong with a claim, and what the marker should have said. `None`
+/// means the promise is joined to a gate this policy declares.
+fn unproven(claim: &Claim, ctx: &Ctx) -> Option<(String, String)> {
+    let declared = || {
+        if ctx.policy.gates.is_empty() {
+            "this policy declares no gates at all".to_string()
+        } else {
+            format!("one of: {}", joined(ctx.policy.gates.keys()))
+        }
+    };
+    let Some(id) = &claim.id else {
+        return Some((
+            "a claim marker here carries no id, so the promise cannot survive an edit of \
+             the sentence around it"
+                .to_string(),
+            "a claim id, then the gate that proves it".to_string(),
+        ));
+    };
+    let Some(gate) = &claim.gate else {
+        return Some((
+            format!("the claim `{id}` names nothing that proves it"),
+            format!("a `proven-by:` naming a gate, {}", declared()),
+        ));
+    };
+    if ctx.policy.gates.contains_key(gate) {
+        return None;
+    }
+    Some((
+        format!("the claim `{id}` is proven by `{gate}`, which the policy does not declare"),
+        declared(),
+    ))
+}
+
+/// Blank out fenced code, keeping every byte offset and newline so line
+/// numbers still hold. A marker inside a fence is a page showing the syntax,
+/// not a page making the promise — and the prose documenting this rule has to
+/// be able to show it without tripping it.
+fn without_fences(body: &str) -> String {
+    let mut out = String::with_capacity(body.len());
+    let mut fenced = false;
+    for line in body.split_inclusive('\n') {
+        let fence = line.trim_start().starts_with("```");
+        if fence || fenced {
+            out.extend(line.bytes().map(|byte| if byte == b'\n' { '\n' } else { ' ' }));
+        } else {
+            out.push_str(line);
+        }
+        if fence {
+            fenced = !fenced;
+        }
+    }
+    out
+}
+
+#[cfg(test)]
+mod claims {
+    use super::{parse_claim, without_fences, PROVEN_BY};
+    use regex::Regex;
+
+    fn parsed(inside: &str) -> (Option<String>, Option<String>) {
+        let claim = parse_claim(inside, &Regex::new(PROVEN_BY).expect("the pattern compiles"));
+        (claim.id, claim.gate)
+    }
+
+    #[test]
+    fn a_complete_marker_carries_an_id_and_a_gate() {
+        let (id, gate) = parsed(" IMPORT_50K_UNDER_60S proven-by: bulk-import ");
+        assert_eq!(id.as_deref(), Some("IMPORT_50K_UNDER_60S"));
+        assert_eq!(gate.as_deref(), Some("bulk-import"));
+    }
+
+    #[test]
+    fn a_marker_with_no_proof_keeps_its_id() {
+        let (id, gate) = parsed(" SEARCH_IS_INSTANT ");
+        assert_eq!(id.as_deref(), Some("SEARCH_IS_INSTANT"));
+        assert_eq!(gate, None);
+    }
+
+    /// Without this the id would be read as `proven-by:` and the marker would
+    /// look complete while naming nothing that survives an edit.
+    #[test]
+    fn a_marker_with_no_id_reports_no_id() {
+        let (id, gate) = parsed(" proven-by: bulk-import ");
+        assert_eq!(id, None);
+        assert_eq!(gate.as_deref(), Some("bulk-import"));
+    }
+
+    #[test]
+    fn a_fenced_marker_is_documentation_and_line_numbers_survive() {
+        let body = "# Page\n\n```\n<!-- claim: EXAMPLE proven-by: nothing -->\n```\n\n<!-- claim: REAL proven-by: gate -->\n";
+        let scanned = without_fences(body);
+        assert_eq!(scanned.len(), body.len(), "byte offsets have to hold");
+        assert_eq!(scanned.matches("<!-- claim:").count(), 1, "only the unfenced one survives");
+        assert!(scanned.contains("REAL"), "{scanned}");
     }
 }

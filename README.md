@@ -20,7 +20,7 @@ reduced to a single method:
 > once as a check that *fails*. And every check has a mutation that proves it
 > fires.**
 
-It ships 33 rules across seven layers — from where an error type may be defined
+It ships 34 rules across seven layers — from where an error type may be defined
 to whether your CI still runs a vulnerability scanner — plus 4 rule templates an
 interview fills in with your own package and directory names. It protects its
 own configuration, so an agent cannot reach a green build by turning a rule off.
@@ -215,7 +215,7 @@ could not run" and "the repository has violations": `3` bootstrap failed,
 The numbers are identity, not sequence — grouped by what they are
 about. The adoption order is below, and it is different.
 
-33 rules, plus 4 templates the interview instantiates with your own names.
+34 rules, plus 4 templates the interview instantiates with your own names.
 
 | | Layer | What it checks |
 |---|---|---|
@@ -833,8 +833,8 @@ method nobody will adopt.
 
 `sf` is written in Rust and Rust is one of its target languages, so this
 repository runs its own rules against its own source, with its own mutation
-fixtures, in its own CI: **29 rules enabled, 29 proven to fire, no findings.**
-Four of the 33 are switched off here and one is frozen with a review date,
+fixtures, in its own CI: **30 rules enabled, 30 proven to fire, no findings.**
+Four of the 34 are switched off here and one is frozen with a review date,
 each as a written decision in [`docs/rules.md`](docs/rules.md) — because
 `L5.NO_INERT_RULE` refuses to let a rule be enabled and pointed at nothing.
 
