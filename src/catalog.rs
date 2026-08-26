@@ -184,6 +184,14 @@ fn validate_patterns(options: &crate::policy::Options) -> Result<()> {
         if let Some(unless) = &pattern.unless {
             regex::Regex::new(unless).with_context(|| format!("invalid `unless` regex {unless:?}"))?;
         }
+        if !pattern.scope.is_empty() {
+            crate::scan::globs(&pattern.scope)
+                .with_context(|| format!("pattern {:?} has an invalid scope glob", pattern.regex))?;
+        }
+        if !pattern.exclude.is_empty() {
+            crate::scan::globs(&pattern.exclude)
+                .with_context(|| format!("pattern {:?} has an invalid exclude glob", pattern.regex))?;
+        }
     }
     if let Some(marker) = &options.marker {
         regex::Regex::new(marker).with_context(|| format!("invalid marker {marker:?}"))?;

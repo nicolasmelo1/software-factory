@@ -176,10 +176,26 @@ pub const FIXTURES: &[Fixture] = &[
         rule: "L1.NO_UNTYPED_ESCAPE_HATCH",
         policy_extra: "",
         extra_rules: "",
+        // One file per language the rule's patterns are now scoped to, so a
+        // restriction that accidentally excludes a pattern's own language —
+        // the same mistake this rule exists to catch one level up — cannot
+        // hide behind the other files still tripping the rule overall.
         files: &[
             (
                 "src/payload.py",
                 "from typing import Any\n\n\ndef handle(event: dict) -> Any:\n    return event\n",
+            ),
+            (
+                "src/handler.ts",
+                "function handle(event: any): any {\n  return event;\n}\n",
+            ),
+            (
+                "src/handler.go",
+                "package payload\n\nfunc Handle(event interface{}) interface{} {\n\treturn event\n}\n",
+            ),
+            (
+                "src/handler.rs",
+                "fn parse(raw: &str) -> i64 {\n    raw.parse::<i64>().unwrap()\n}\n",
             ),
             (
                 "src/payload.rb",
