@@ -18,6 +18,8 @@ precondition exists. Park it in the second table rather than deleting it.
 
 | 5 | [Ruby joins the L6 hazard rules](ruby-joins-the-l6-hazard-rules.md) | A Ruby repository's own CI workflow is graded by `sf check` for four of the nine L6 hazard concerns, with no tree-sitter grammar for Ruby, proven against a real Rails application's CI configuration. |
 
+| 6 | [The four L0 structural rules assume an import statement](structural-rules-assume-an-import-statement.md) | `sf check` on a Rails repository with `languages: [ruby]` reports a real cross-layer finding read from a constant reference rather than a `require` statement, with zero findings on Rails' own base-class inheritance. |
+
 ## Parked
 
 | Work | Waiting on |
