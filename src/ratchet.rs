@@ -76,8 +76,24 @@ impl Ratchet {
         (live, frozen)
     }
 
-    /// Replace a rule's frozen set with exactly today's violations.
-    pub fn seed(&mut self, rule: &str, keys: BTreeSet<String>, review_by: &str) {
+    /// Replace a rule's frozen set with exactly today's violations, carrying
+    /// `previous`'s date and note forward.
+    ///
+    /// The date only ever moves closer. A re-seed is not a way to buy another
+    /// six months on debt already counted: `sf ratchet` is part of the
+    /// prescribed order after any guardrail change, so a run that stamped
+    /// today + N months on untouched entries would push every date out on
+    /// every unrelated change — which `L2.POLICY_ONLY_TIGHTENS` correctly
+    /// rejects, leaving the repository unable to follow its own instructions.
+    /// Renewing a date that has genuinely expired is a human's edit, with the
+    /// reasoning in the pull request.
+    pub fn seed(
+        &mut self,
+        rule: &str,
+        keys: BTreeSet<String>,
+        review_by: &str,
+        previous: Option<&RuleRatchet>,
+    ) {
         if keys.is_empty() {
             self.rules.remove(rule);
             return;
@@ -85,5 +101,62 @@ impl Ratchet {
         let entry = self.rules.entry(rule.to_string()).or_default();
         entry.allow = keys;
         entry.review_by = review_by.to_string();
+        let Some(previous) = previous else { return };
+        // ISO dates order lexicographically, which is the same comparison
+        // `L2.NO_PERMANENT_EXCEPTION` makes against today.
+        if !previous.review_by.is_empty() && previous.review_by < entry.review_by {
+            entry.review_by = previous.review_by.clone();
+        }
+        entry.note = previous.note.clone();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn frozen(keys: &[&str]) -> BTreeSet<String> {
+        keys.iter().map(|k| k.to_string()).collect()
+    }
+
+    fn seeded(review_by: &str, note: Option<&str>, keys: &[&str]) -> RuleRatchet {
+        RuleRatchet {
+            review_by: review_by.to_string(),
+            note: note.map(|n| n.to_string()),
+            allow: frozen(keys),
+        }
+    }
+
+    #[test]
+    fn a_re_seed_never_pushes_a_review_date_out() {
+        let previous = seeded("2027-02-18", Some("measured, not guessed"), &["rust"]);
+        let mut ratchet = Ratchet::default();
+        ratchet.seed("L6.PERF", frozen(&["rust"]), "2027-02-25", Some(&previous));
+        let entry = &ratchet.rules["L6.PERF"];
+        assert_eq!(entry.review_by, "2027-02-18");
+        assert_eq!(entry.note.as_deref(), Some("measured, not guessed"));
+    }
+
+    #[test]
+    fn a_new_violation_does_not_reset_the_clock_on_the_old_debt() {
+        let previous = seeded("2027-02-18", None, &["rust"]);
+        let mut ratchet = Ratchet::default();
+        ratchet.seed("L6.PERF", frozen(&["rust", "python"]), "2027-08-25", Some(&previous));
+        assert_eq!(ratchet.rules["L6.PERF"].review_by, "2027-02-18");
+    }
+
+    #[test]
+    fn a_rule_the_ratchet_has_never_seen_takes_the_new_date() {
+        let mut ratchet = Ratchet::default();
+        ratchet.seed("L6.PERF", frozen(&["rust"]), "2027-08-25", None);
+        assert_eq!(ratchet.rules["L6.PERF"].review_by, "2027-08-25");
+    }
+
+    #[test]
+    fn a_rule_with_nothing_left_to_freeze_leaves_the_file() {
+        let previous = seeded("2027-02-18", None, &["rust"]);
+        let mut ratchet = Ratchet::default();
+        ratchet.seed("L6.PERF", BTreeSet::new(), "2027-08-25", Some(&previous));
+        assert!(ratchet.rules.is_empty());
     }
 }
