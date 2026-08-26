@@ -7,6 +7,7 @@
 use super::Ctx;
 use crate::catalog::{CadenceMode, CheckKind, Rule};
 use crate::finding::Finding;
+use crate::lang::Lang;
 use crate::policy::{FIXTURES_DIR, Options};
 use crate::scan;
 use anyhow::Result;
@@ -45,26 +46,43 @@ fn inert_rules(rule: &Rule, ctx: &Ctx) -> Result<Vec<Finding>> {
         };
         let (id, candidate) = (&instance, &super::as_instance(candidate, &instance));
         let options = super::options_for(candidate, ctx.policy)?;
-        let reason = match &candidate.check {
-            CheckKind::Lock if options.scope.is_empty() => "no scope: it locks nothing",
+        let reason: Option<&str> = match &candidate.check {
+            CheckKind::Lock if options.scope.is_empty() => Some("no scope: it locks nothing"),
             CheckKind::Command if options.run.is_none() => {
-                "no command set: there is nothing for it to run"
+                Some("no command set: there is nothing for it to run")
             }
             CheckKind::Toolchain if options.tools.is_empty() => {
-                "no tools declared: it can never find one missing"
+                Some("no tools declared: it can never find one missing")
             }
             CheckKind::Shape { languages }
                 if !covers_a_declared_language(languages.keys(), ctx) =>
             {
-                "no query for any language this repository declares"
+                Some("no query for any language this repository declares")
             }
             CheckKind::Nested { languages }
                 if !covers_a_declared_language(languages.keys(), ctx) =>
             {
-                "no query for any language this repository declares"
+                Some("no query for any language this repository declares")
             }
-            _ => continue,
+            CheckKind::TextPattern => {
+                if scan::select(ctx.files, &options.scope, &options.exclude)?.is_empty() {
+                    Some("scope matches no file in this repository: it can never see a line to check")
+                } else {
+                    None
+                }
+            }
+            CheckKind::Complexity => {
+                if !any_parseable_declared_file(ctx, &options)? {
+                    Some(
+                        "no file in scope parses into a language this repository declares: the ceiling can never be evaluated",
+                    )
+                } else {
+                    None
+                }
+            }
+            _ => None,
         };
+        let Some(reason) = reason else { continue };
         findings.push(
             Finding::new(
                 &rule.id,
@@ -77,6 +95,20 @@ fn inert_rules(rule: &Rule, ctx: &Ctx) -> Result<Vec<Finding>> {
         );
     }
     Ok(findings)
+}
+
+/// Whether at least one file the rule's scope selects has an extension this
+/// tool can parse into a language the project actually declares. Mirrors
+/// `checks::complexity::run`'s own skip conditions exactly — both the
+/// language-classification skip and the declared-language skip, since either
+/// one alone leaves the ceiling silently inert.
+fn any_parseable_declared_file(ctx: &Ctx, options: &Options) -> Result<bool> {
+    let selected = scan::select(ctx.files, &options.scope, &options.exclude)?;
+    Ok(selected.iter().any(|f| {
+        Lang::from_path(&f.abs).is_some_and(|lang| {
+            ctx.policy.project.languages.iter().any(|declared| declared == lang.name())
+        })
+    }))
 }
 
 /// Markdown link targets: `[text](target)` and reference definitions.

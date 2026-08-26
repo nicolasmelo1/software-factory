@@ -25,6 +25,32 @@ moment any of it becomes concurrent. All four remain proven by their fixtures;
 they are simply pointed at nothing here, and `L5.NO_INERT_RULE` is what forced
 each of them to become a written decision instead of a silent pass.
 
+**Ruby is a supported language as of
+[the ruby language adapter](../plans/ruby-language-adapter.md).**
+`L0.EXCEPTIONS_HAVE_ONE_HOME`, `L0.NO_CROSS_LAYER_IMPORT`,
+`L1.SKIPPED_TESTS_STATE_A_REASON`, `L6.NO_BLOCKING_CALL_WHILE_HOLDING_A_LOCK`
+and `L6.ONE_LOCK_AT_A_TIME` now carry a `ruby:` query alongside their existing
+ones. `L0.ONE_ENTRYPOINT_PER_FILE` and `L0.PERSISTENCE_STAYS_IN_REPOSITORIES`
+deliberately do not: Rails centralises routes in `config/routes.rb` by
+convention, so "a file that declares a route declares exactly one" has no
+honest Ruby form, and idiomatic ActiveRecord has no `db`/`session` receiver to
+match — models query themselves, which is the very pattern this rule forbids
+elsewhere, so porting it literally would mean answering a different question
+about what the persistence layer even is in Rails. Both refusals are the same
+shape as this repository's own Rust refusal above: proven by their fixtures in
+the languages they do cover, deliberately pointed at nothing in this one.
+`L1.COMPLEXITY_CEILING` and its `boolean_operator_kinds` need no per-rule
+query — they read straight from `Lang::Ruby`'s `function_kinds`/
+`branch_kinds` in `src/lang.rs` — but wiring Ruby into them surfaced a real
+bug in `src/checks/complexity.rs`: `tree-sitter-ruby` names several
+statement-level nodes identically to their own opening keyword token (the
+named `if` node contains an anonymous `if` token as a child), and the walk
+was including anonymous nodes, so a bare `if` block scored twice. The walk
+now uses `Node::named_children()`, which is a no-op change for the other four
+languages — none of their grammars have this collision — verified by
+`sf verify` reporting identical finding counts for their fixtures before and
+after.
+
 **`src/fixtures.rs` is excluded from the two text-pattern rules.** It holds the
 mutation fixtures as string literals, so it contains violating text on purpose.
 A line-based rule cannot tell a suppression from a string that quotes one, and
@@ -51,6 +77,27 @@ never parsed — see
 with no gate there is nothing a sentence here could honestly name. It is
 enabled anyway: the first promise somebody marks gets joined at the moment it
 is written, which is the only moment anybody knows what proved it.
+
+**Four L6 hazard rules now name Ruby tools; three deliberately do not.**
+`L6.DEPENDENCY_VULNERABILITIES_ARE_SCANNED`, `L6.INSECURE_PATTERNS_ARE_SCANNED`,
+`L6.SECRETS_ARE_SCANNED` and `L6.WORKFLOWS_ARE_SCANNED` gained a `ruby:` tool
+list because `bundler-audit`, `brakeman` and the language-neutral secret and
+workflow scanners are real, idiomatic choices for a Ruby repository — this is
+possible without any tree-sitter grammar because `src/checks/toolchain.rs`
+matches tools by raw policy-language string, not by parsed syntax.
+`L6.DEAD_CODE_IS_DETECTED` and `L6.PERFORMANCE_REGRESSION_IS_GUARDED` stay
+without a `ruby:` key: no Ruby dead-code detector or benchmark harness is
+available to name honestly, and a rule pointed at a tool that does not exist
+is exactly the lie `L5.NO_INERT_RULE` exists to catch.
+`L6.DATA_RACES_ARE_DETECTED` also omits Ruby: MRI's GVL makes the concept
+marginal, the same reasoning that already excludes Python and TypeScript from
+that rule. See
+[Ruby joins the L6 hazard rules](../plans/ruby-joins-the-l6-hazard-rules.md).
+A Rails adopter's own linter, type checker and test collector also need to
+skip `.software-factory/mutations`: `rubocop`/`standardrb` via
+`.rubocop.yml`/`.standard.yml`, and `rspec` via `--exclude-pattern`, alongside
+`brakeman`'s own `--skip-files`. `sf init --language ruby` now prints all four
+forms in `FIXTURES_HINT`.
 
 ## L0 — Shape: where things live
 
@@ -278,9 +325,9 @@ For each enabled rule there is a mutation fixture that violates it, and `sf veri
 
 **An enabled rule must be capable of producing a finding**
 
-A rule that is switched on must be configured to look at something: a lock rule needs a scope, a toolchain rule needs tools, a gate rule needs a gate.
+A rule that is switched on must be configured to look at something: a lock rule needs a scope, a toolchain rule needs tools, a gate rule needs a gate, and a text-pattern or complexity rule needs a scope that actually selects a file it can evaluate.
 
-**Why.** `sf verify` proves a rule *can* fire, by running it against a fixture built to trip it. It says nothing about whether the rule is pointed at anything in *this* repository. An enabled lock with an empty scope, or a hazard rule with no tools declared, passes every run forever and appears in every report as a rule that found nothing — indistinguishable from a rule that is protecting you. This was not hypothetical: the tool's own scaffolding wrote an empty scope over a critical lock, and nothing noticed until the lock file failed to appear.
+**Why.** `sf verify` proves a rule *can* fire, by running it against a fixture built to trip it. It says nothing about whether the rule is pointed at anything in *this* repository. An enabled lock with an empty scope, or a hazard rule with no tools declared, passes every run forever and appears in every report as a rule that found nothing — indistinguishable from a rule that is protecting you. This was not hypothetical: the tool's own scaffolding wrote an empty scope over a critical lock, and nothing noticed until the lock file failed to appear. The same blindness reaches a text-pattern or complexity rule: a scope glob that matches no file in the repository, or a declared language none of its files ever resolve to, leaves the rule enabled and silent forever. This was also not hypothetical — a repository that declared `languages: [typescript]` while containing zero `.ts` files ran its complexity ceiling and its suppression bans over 365,133 lines and reported nothing, and nothing here noticed until this rule was taught to look.
 
 **Fix.** Give the rule something to look at, or switch it off in policy and say why in the rules document. Disabled and documented is honest; enabled and inert is a rule that lies about its own coverage.
 
@@ -304,7 +351,7 @@ At least one dependency vulnerability scanner for each of this repository's lang
 
 **Why.** An agent adding a dependency is making a supply-chain decision in a one-line diff, usually while solving something else entirely, and it has no way to know what that package shipped last week. This check does not audit anything itself — the ecosystem tools are far better than anything that could live here. What it guarantees is the thing that actually rots: that the audit is still wired in. A scanner someone removed to make CI faster fails exactly like one that was never added.
 
-**Fix.** Add the scanner to your CI workflow or task runner. `pip-audit` for Python, `npm audit` or `osv-scanner` for TypeScript, `govulncheck` for Go, `cargo audit` for Rust.
+**Fix.** Add the scanner to your CI workflow or task runner. `pip-audit` for Python, `npm audit` or `osv-scanner` for TypeScript, `govulncheck` for Go, `cargo audit` for Rust, `bundler-audit` for Ruby.
 
 ### L6.INSECURE_PATTERNS_ARE_SCANNED
 
@@ -314,7 +361,7 @@ A static security analyser for each of this repository's languages runs somewher
 
 **Why.** Shell interpolation, string-built SQL, disabled certificate verification, weak hashes, unsafe deserialization — these are the defects that look entirely normal in review, because the code reads exactly like the safe version. An agent reproduces them faithfully from the enormous amount of training data that contains them. A static analyser recognises the shapes a reviewer skims past.
 
-**Fix.** Wire in `bandit` or `semgrep` for Python, `semgrep` or `eslint-plugin-security` for TypeScript, `gosec` for Go, `cargo-geiger` or `clippy` for Rust.
+**Fix.** Wire in `bandit` or `semgrep` for Python, `semgrep` or `eslint-plugin-security` for TypeScript, `gosec` for Go, `cargo-geiger` or `clippy` for Rust, `brakeman` for Ruby.
 
 ### L6.NO_BLOCKING_CALL_WHILE_HOLDING_A_LOCK
 

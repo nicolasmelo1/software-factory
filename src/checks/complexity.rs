@@ -54,8 +54,13 @@ pub fn run(rule: &Rule, opts: &Options, ctx: &Ctx) -> Result<Vec<Finding>> {
                     );
                 }
             }
+            // Named children only: some grammars (Ruby) name a construct
+            // identically to its own opening keyword token, e.g. the named
+            // `if` node contains an anonymous `if` token as a child. Walking
+            // anonymous nodes would match that token against the same
+            // `branch_kinds` entry and double-count the branch it opens.
             let mut cursor = node.walk();
-            for child in node.children(&mut cursor) {
+            for child in node.named_children(&mut cursor) {
                 stack.push(child);
             }
         }
@@ -75,7 +80,7 @@ fn complexity(node: Node, lang: Lang, source: &[u8]) -> usize {
     let mut score = 1;
     let mut stack: Vec<Node> = Vec::new();
     let mut cursor = node.walk();
-    stack.extend(node.children(&mut cursor));
+    stack.extend(node.named_children(&mut cursor));
     while let Some(current) = stack.pop() {
         if lang.function_kinds().contains(&current.kind()) {
             continue; // its own budget
@@ -92,7 +97,7 @@ fn complexity(node: Node, lang: Lang, source: &[u8]) -> usize {
             }
         }
         let mut inner = current.walk();
-        stack.extend(current.children(&mut inner));
+        stack.extend(current.named_children(&mut inner));
     }
     score
 }

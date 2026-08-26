@@ -14,7 +14,8 @@ why: >-
   reviewer skims past.
 fix: >-
   Wire in `bandit` or `semgrep` for Python, `semgrep` or `eslint-plugin-security`
-  for TypeScript, `gosec` for Go, `cargo-geiger` or `clippy` for Rust.
+  for TypeScript, `gosec` for Go, `cargo-geiger` or `clippy` for Rust,
+  `brakeman` for Ruby.
 ratchet: allowlist
 check:
   kind: toolchain
@@ -32,3 +33,4 @@ defaults:
     typescript: ["semgrep", "eslint-plugin-security", "codeql"]
     go: ["gosec", "semgrep", "staticcheck", "codeql"]
     rust: ["cargo-geiger", "cargo clippy", "clippy", "semgrep"]
+    ruby: ["brakeman", "semgrep", "codeql"]

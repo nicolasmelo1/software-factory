@@ -53,5 +53,20 @@ check:
         (await_expression) @inner
         (call_expression function: (_) @fn
           (#match? @fn "(thread::sleep|sleep\\()")) @inner
+    ruby:
+      outer: |
+        (call
+          receiver: (_) @ctx
+          method: (identifier) @m
+          (#match? @m "^synchronize$")
+          (#match? @ctx "(?i)(lock|mutex|semaphore)")) @target
+      inner: |
+        (call method: (identifier) @fn
+          (#match? @fn "^(sleep|system)$")) @inner
+        (call
+          receiver: (_) @recv
+          method: (identifier) @fn
+          (#match? @recv "(?i)(net::http|faraday|httparty)")
+          (#match? @fn "^(get|post|start|get_response)$")) @inner
 defaults:
   min_inner: 1

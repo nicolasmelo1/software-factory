@@ -4,16 +4,25 @@ title: An enabled rule must be capable of producing a finding
 severity: high
 statement: >-
   A rule that is switched on must be configured to look at something: a lock
-  rule needs a scope, a toolchain rule needs tools, a gate rule needs a gate.
+  rule needs a scope, a toolchain rule needs tools, a gate rule needs a gate,
+  and a text-pattern or complexity rule needs a scope that actually selects a
+  file it can evaluate.
 why: >-
   `sf verify` proves a rule *can* fire, by running it against a fixture built
   to trip it. It says nothing about whether the rule is pointed at anything in
-  *this* repository. An enabled lock with an empty scope, or a hazard rule with
-  no tools declared, passes every run forever and appears in every report as a
-  rule that found nothing — indistinguishable from a rule that is protecting
-  you. This was not hypothetical: the tool's own scaffolding wrote an empty
-  scope over a critical lock, and nothing noticed until the lock file failed to
-  appear.
+  *this* repository. An enabled lock with an empty scope, or a hazard rule
+  with no tools declared, passes every run forever and appears in every
+  report as a rule that found nothing — indistinguishable from a rule that is
+  protecting you. This was not hypothetical: the tool's own scaffolding wrote
+  an empty scope over a critical lock, and nothing noticed until the lock
+  file failed to appear. The same blindness reaches a text-pattern or
+  complexity rule: a scope glob that matches no file in the repository, or a
+  declared language none of its files ever resolve to, leaves the rule
+  enabled and silent forever. This was also not hypothetical — a repository
+  that declared `languages: [typescript]` while containing zero `.ts` files
+  ran its complexity ceiling and its suppression bans over 365,133 lines and
+  reported nothing, and nothing here noticed until this rule was taught to
+  look.
 fix: >-
   Give the rule something to look at, or switch it off in policy and say why in
   the rules document. Disabled and documented is honest; enabled and inert is

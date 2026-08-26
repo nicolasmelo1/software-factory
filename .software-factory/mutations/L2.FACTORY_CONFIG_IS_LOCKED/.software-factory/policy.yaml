@@ -2,7 +2,7 @@
 version: 1
 project:
   name: mutation-L2.FACTORY_CONFIG_IS_LOCKED
-  languages: [python, typescript, go, rust]
+  languages: [python, typescript, go, rust, ruby]
 docs:
   scan: ["docs/**/*.md"]
 gates: {}

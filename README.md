@@ -588,6 +588,15 @@ Keys are derived from content, not line numbers, so moving code around does not
 silently un-freeze the ratchet — and adding a key by hand to silence a new
 violation is a visible line in a reviewed diff.
 
+Re-seeding recomputes the frozen keys, never the deadline: a date already
+accepted survives, and a newly frozen violation does not reset the clock on the
+debt beside it. This matters because `sf ratchet` is part of the prescribed
+order after any guardrail change — a run that stamped today + `N` months on
+every entry would push every deadline out on every unrelated change, which
+`L2.POLICY_ONLY_TIGHTENS` then rejects. Renewing a date that has genuinely
+expired is a deliberate edit to the file, with the reasoning in the pull
+request, which is the conversation the date exists to force.
+
 ---
 
 ## Commands

@@ -52,6 +52,16 @@ check:
           function: (field_expression
             field: (field_identifier) @m
             (#match? @m "^(lock|write)$"))) @inner
+    ruby:
+      outer: |
+        (method body: (body_statement)) @target
+        (singleton_method body: (body_statement)) @target
+      inner: |
+        (call
+          receiver: (_) @ctx
+          method: (identifier) @m
+          (#match? @m "^(synchronize|lock|try_lock)$")
+          (#match? @ctx "(?i)(lock|mutex|semaphore)")) @inner
 defaults:
   # The second acquisition is the hazard, not the first.
   min_inner: 2

@@ -17,7 +17,7 @@ why: >-
 fix: >-
   Add the scanner to your CI workflow or task runner. `pip-audit` for Python,
   `npm audit` or `osv-scanner` for TypeScript, `govulncheck` for Go,
-  `cargo audit` for Rust.
+  `cargo audit` for Rust, `bundler-audit` for Ruby.
 ratchet: allowlist
 check:
   kind: toolchain
@@ -35,3 +35,4 @@ defaults:
     typescript: ["npm audit", "pnpm audit", "yarn audit", "osv-scanner", "snyk"]
     go: ["govulncheck", "osv-scanner", "nancy", "snyk"]
     rust: ["cargo audit", "cargo-audit", "cargo-deny", "osv-scanner"]
+    ruby: ["bundler-audit", "bundle-audit", "osv-scanner"]
