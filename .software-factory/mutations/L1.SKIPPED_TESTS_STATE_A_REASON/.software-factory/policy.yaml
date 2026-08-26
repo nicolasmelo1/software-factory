@@ -2,7 +2,7 @@
 version: 1
 project:
   name: mutation-L1.SKIPPED_TESTS_STATE_A_REASON
-  languages: [python, typescript, go, rust]
+  languages: [python, typescript, go, rust, ruby]
 docs:
   scan: ["docs/**/*.md"]
 gates: {}
