@@ -62,7 +62,7 @@ enum Cmd {
         /// Project name recorded in the policy.
         #[arg(long)]
         name: Option<String>,
-        /// Languages to parse: python, typescript, go.
+        /// Languages to parse: python, typescript, go, rust, ruby.
         #[arg(long, value_delimiter = ',', default_values_t = ["python".to_string(), "typescript".to_string(), "go".to_string()])]
         language: Vec<String>,
         /// Layers to enable. L1, L4 and L5 are the honest day-one set: L0

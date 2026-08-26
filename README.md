@@ -113,7 +113,7 @@ git config core.hooksPath .githooks
 ```
 
 Use `--language` for what you actually have: `python`, `typescript`, `go`,
-`rust`, or several comma-separated. `--layer L1,L4,L5,L6` is the honest day-one
+`rust`, `ruby`, or several comma-separated. `--layer L1,L4,L5,L6` is the honest day-one
 set — code quality, documentation cadence, the self-proving layer, and the
 security tooling. You get the generic rules; the structural ones stay off until
 you run the interview or write them yourself.
@@ -300,14 +300,14 @@ the tool — it is the guarantee that the tool is *still wired in*. So a rule
 names a concern, and the check asserts that something covering it actually runs
 in your CI or task runner.
 
-| Concern | Python | TypeScript | Go | Rust |
-|---|---|---|---|---|
-| Dependency vulnerabilities | pip-audit | npm audit, osv-scanner | govulncheck | cargo audit |
-| Committed secrets | gitleaks, detect-secrets, trufflehog (language-independent) | ← | ← | ← |
-| Insecure patterns | bandit, semgrep | semgrep, eslint-plugin-security | gosec | clippy, cargo-geiger |
-| Dead code | vulture | knip, ts-prune | staticcheck | dead_code, cargo udeps |
-| Data races | — | — | go test -race | ThreadSanitizer, loom |
-| Performance regression | pytest-benchmark | vitest bench | go test -bench | criterion |
+| Concern | Python | TypeScript | Go | Rust | Ruby |
+|---|---|---|---|---|---|
+| Dependency vulnerabilities | pip-audit | npm audit, osv-scanner | govulncheck | cargo audit | bundler-audit |
+| Committed secrets | gitleaks, detect-secrets, trufflehog (language-independent) | ← | ← | ← | ← |
+| Insecure patterns | bandit, semgrep | semgrep, eslint-plugin-security | gosec | clippy, cargo-geiger | brakeman, semgrep |
+| Dead code | vulture | knip, ts-prune | staticcheck | dead_code, cargo udeps | — |
+| Data races | — | — | go test -race | ThreadSanitizer, loom | — |
+| Performance regression | pytest-benchmark | vitest bench | go test -bench | criterion | — |
 
 `sf init` writes these steps into the generated workflow for the languages you
 selected. A concern with no listed tool for a language is not a violation —
@@ -484,7 +484,7 @@ check:
   run: "make export-openapi && git diff --exit-code -- contracts/"
 ```
 
-Languages today: **Python, TypeScript/TSX, Go, Rust.**
+Languages today: **Python, TypeScript/TSX, Go, Rust, Ruby.**
 
 `sf verify` requires every language a rule declares to be shown tripping it,
 otherwise three broken queries hide behind one that works.
