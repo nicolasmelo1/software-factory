@@ -105,6 +105,9 @@ pub enum CheckKind {
     Toolchain,
     /// The policy and the ratchet may be strengthened, never weakened. L2.
     PolicyTightening,
+    /// The catalog this repository agreed to, compared with the catalog the
+    /// running binary carries. See `checks::catalog_tightening`.
+    CatalogTightening,
     /// A check this tool cannot express, run as a command. L2.
     Command,
 }
@@ -224,7 +227,7 @@ pub struct Catalog {
 
 /// The built-in catalog is compiled into the binary so `sf` works in a repo
 /// that has never seen this tool. A repo may add its own rules on top.
-const BUILTIN: &[(&str, &str)] = &[
+pub const BUILTIN: &[(&str, &str)] = &[
     ("L0/exceptions-have-one-home.yaml", include_str!("../catalog/L0/exceptions-have-one-home.yaml")),
     ("L0/persistence-stays-in-repositories.yaml", include_str!("../catalog/L0/persistence-stays-in-repositories.yaml")),
     ("L0/one-entrypoint-per-file.yaml", include_str!("../catalog/L0/one-entrypoint-per-file.yaml")),
@@ -249,6 +252,7 @@ const BUILTIN: &[(&str, &str)] = &[
     ("L5/no-inert-rule.yaml", include_str!("../catalog/L5/no-inert-rule.yaml")),
     ("L2/factory-config-is-locked.yaml", include_str!("../catalog/L2/factory-config-is-locked.yaml")),
     ("L2/policy-only-tightens.yaml", include_str!("../catalog/L2/policy-only-tightens.yaml")),
+    ("L2/catalog-only-tightens.yaml", include_str!("../catalog/L2/catalog-only-tightens.yaml")),
     ("L2/derived-artifacts-match-their-source.yaml", include_str!("../catalog/L2/derived-artifacts-match-their-source.yaml")),
     ("L6/dependency-vulnerabilities-are-scanned.yaml", include_str!("../catalog/L6/dependency-vulnerabilities-are-scanned.yaml")),
     ("L6/secrets-are-scanned.yaml", include_str!("../catalog/L6/secrets-are-scanned.yaml")),

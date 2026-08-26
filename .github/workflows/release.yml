@@ -1,0 +1,141 @@
+# A tag is the only thing a consumer can pin to. Until this existed, the
+# install line in the README and the one `sf init` writes into a consuming
+# repository's CI both tracked the tip of main, so an upstream commit could
+# turn somebody else's build red with no action on their side.
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+# Nothing here writes to the repository. The release job needs contents: write
+# to create the release itself, and it is the only job that gets it.
+permissions:
+  contents: read
+
+jobs:
+  # The same five commands a pull request runs, against the tagged commit.
+  # A tag is a promise, and promising a build nobody re-checked at the moment
+  # of tagging is how a broken release gets published on a green history.
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - run: cargo build --release --locked
+      - run: cargo test --locked
+      - name: Prove the checks still fire
+        run: ./target/release/sf verify --allow-commands
+      - name: Check the repository
+        run: ./target/release/sf check --allow-commands
+      # The tag must name the version the binary reports, or `sf --version` in
+      # a bug report points at the wrong rules. Compared here rather than
+      # trusted, because the two are edited in different files by different
+      # people.
+      - name: The tag matches the built version
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -eu
+          built="v$(./target/release/sf --version | awk '{print $2}')"
+          if [ "$built" != "$TAG" ]; then
+            echo "tag $TAG does not match the built binary, which reports $built" >&2
+            echo "bump version in Cargo.toml and Cargo.lock, or retag" >&2
+            exit 1
+          fi
+          echo "$TAG matches the binary"
+
+  build:
+    needs: gate
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - runner: macos-latest
+            target: aarch64-apple-darwin
+          - runner: macos-latest
+            target: x86_64-apple-darwin
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - run: rustup target add ${{ matrix.target }}
+      - run: cargo build --release --locked --target ${{ matrix.target }}
+      # The digest travels with the binary. A consumer who downloads this and
+      # a consumer who builds from the tag must be able to confirm they are
+      # enforcing the same catalog, and the version number alone does not say
+      # that.
+      - name: Package
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -eu
+          mkdir -p dist
+          cp "target/$TARGET/release/sf" "dist/sf-$TARGET"
+          ( cd dist && shasum -a 256 "sf-$TARGET" > "sf-$TARGET.sha256" )
+          "target/$TARGET/release/sf" --version > "dist/sf-$TARGET.version" || true
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: sf-${{ matrix.target }}
+          path: dist/
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          path: artifacts
+          merge-multiple: true
+      - run: cargo build --release --locked
+      # Release notes are generated, not written. `sf --version` carries the
+      # catalog digest, and the catalog lock carries the reach of every rule
+      # this repository enables — which is exactly what a consumer needs in
+      # order to decide whether upgrading is safe. A hand-written changelog is
+      # a second list somebody forgets to update, the same argument
+      # `L4.RULE_PROSE_NAMES_A_REAL_COMMAND` already makes about prose naming
+      # a command.
+      - name: Compose the notes
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -eu
+          # Single-quoted on purpose: the backticks are literal markdown, and
+          # in double quotes bash would run them as command substitution.
+          # SC2016 reads that as a mistake; here it is the opposite.
+          {
+            printf '%s\n\n' "\`$(./target/release/sf --version)\`"
+            printf 'Enabled-rule reach is recorded in `.software-factory/catalog.lock.json`.\n'
+            printf 'After upgrading, run `sf lock` in your repository:\n'
+            printf '`L2.CATALOG_ONLY_TIGHTENS` reports every enabled rule that got weaker\n'
+            printf 'than the version you had agreed to, so an upgrade is a decision rather\n'
+            printf 'than a surprise.\n\n'
+            printf '## Rules\n\n'
+            ./target/release/sf catalog
+          } > notes.md
+          cat notes.md
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        # `gh` is on the runner already. A third-party release action would be
+        # one more SHA to pin and one more thing holding a write token.
+        run: |
+          set -eu
+          gh release create "$TAG" \
+            --title "$TAG" \
+            --notes-file notes.md \
+            --verify-tag \
+            artifacts/*

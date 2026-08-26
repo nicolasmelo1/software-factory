@@ -45,43 +45,7 @@ fn inert_rules(rule: &Rule, ctx: &Ctx) -> Result<Vec<Finding>> {
             continue;
         };
         let (id, candidate) = (&instance, &super::as_instance(candidate, &instance));
-        let options = super::options_for(candidate, ctx.policy)?;
-        let reason: Option<String> = match &candidate.check {
-            CheckKind::Lock if options.scope.is_empty() => {
-                Some("no scope: it locks nothing".to_string())
-            }
-            CheckKind::Command if options.run.is_none() => {
-                Some("no command set: there is nothing for it to run".to_string())
-            }
-            CheckKind::Toolchain => inert_toolchain_reason(&options, ctx),
-            CheckKind::Shape { languages }
-                if !covers_a_declared_language(languages.keys(), ctx) =>
-            {
-                Some("no query for any language this repository declares".to_string())
-            }
-            CheckKind::Nested { languages }
-                if !covers_a_declared_language(languages.keys(), ctx) =>
-            {
-                Some("no query for any language this repository declares".to_string())
-            }
-            CheckKind::TextPattern => {
-                if scan::select(ctx.files, &options.scope, &options.exclude)?.is_empty() {
-                    Some("scope matches no file in this repository: it can never see a line to check".to_string())
-                } else {
-                    None
-                }
-            }
-            CheckKind::Complexity => {
-                if !any_parseable_declared_file(ctx, &options)? {
-                    Some(
-                        "no file in scope parses into a language this repository declares: the ceiling can never be evaluated".to_string(),
-                    )
-                } else {
-                    None
-                }
-            }
-            _ => None,
-        };
+        let reason = inert_reason(candidate, ctx)?;
         let Some(reason) = reason else { continue };
         findings.push(
             Finding::new(
@@ -95,6 +59,67 @@ fn inert_rules(rule: &Rule, ctx: &Ctx) -> Result<Vec<Finding>> {
         );
     }
     Ok(findings)
+}
+
+/// Why an enabled rule can never produce a finding in this repository, if any.
+///
+/// Lifted out of `inert_rules`'s loop so that the reason and the reporting are
+/// separately readable, and so that covering one more check kind costs this
+/// function's own `L1.COMPLEXITY_CEILING` budget rather than the loop's. The
+/// trailing `_ => None` is the known gap: four kinds have no inertness test
+/// yet, and the compiler cannot ask for the next one.
+fn inert_reason(candidate: &Rule, ctx: &Ctx) -> Result<Option<String>> {
+    let options = super::options_for(candidate, ctx.policy)?;
+    let reason: Option<String> = match &candidate.check {
+        CheckKind::Lock if options.scope.is_empty() => {
+            Some("no scope: it locks nothing".to_string())
+        }
+        CheckKind::Command if options.run.is_none() => {
+            Some("no command set: there is nothing for it to run".to_string())
+        }
+        CheckKind::Toolchain => inert_toolchain_reason(&options, ctx),
+        // Nothing committed to compare the running catalog against, so
+        // the rule passes every run while agreeing to nothing. `sf lock`
+        // writes the fingerprint whenever this rule is enabled, so the
+        // only way to reach this state is to delete the file or to enable
+        // the rule without locking.
+        CheckKind::CatalogTightening
+            if !ctx.root.join(crate::fingerprint::CATALOG_LOCK_PATH).exists() =>
+        {
+            Some(format!(
+                "no catalog fingerprint at {}: it has nothing to compare this binary's catalog against — run `sf lock`",
+                crate::fingerprint::CATALOG_LOCK_PATH
+            ))
+        }
+        CheckKind::Shape { languages }
+            if !covers_a_declared_language(languages.keys(), ctx) =>
+        {
+            Some("no query for any language this repository declares".to_string())
+        }
+        CheckKind::Nested { languages }
+            if !covers_a_declared_language(languages.keys(), ctx) =>
+        {
+            Some("no query for any language this repository declares".to_string())
+        }
+        CheckKind::TextPattern => {
+            if scan::select(ctx.files, &options.scope, &options.exclude)?.is_empty() {
+                Some("scope matches no file in this repository: it can never see a line to check".to_string())
+            } else {
+                None
+            }
+        }
+        CheckKind::Complexity => {
+            if !any_parseable_declared_file(ctx, &options)? {
+                Some(
+                    "no file in scope parses into a language this repository declares: the ceiling can never be evaluated".to_string(),
+                )
+            } else {
+                None
+            }
+        }
+        _ => None,
+    };
+    Ok(reason)
 }
 
 /// Why a `toolchain` rule can never produce a finding here, if any.

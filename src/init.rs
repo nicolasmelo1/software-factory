@@ -315,6 +315,16 @@ pub fn update_locks(root: &Path, catalog: &Catalog) -> Result<Vec<String>> {
         lock.save(&root.join(&lock_file))?;
         written.push(lock_file);
     }
+    // The catalog fingerprint is not scope-driven like the lock rules above.
+    // It records the reach of every enabled rule so the next binary can be
+    // compared against it, and it is written only when the rule that reads it
+    // is on: a repository that did not adopt that rule should not find a file
+    // it never asked for, and `L4.ROOT_FILES_ARE_DECLARED` taught this command
+    // once already that scaffolding nobody asked for is scaffolding that goes
+    // red.
+    if policy.any_instance_enabled("L2.CATALOG_ONLY_TIGHTENS") {
+        written.push(crate::fingerprint::CatalogLock::of(catalog, &policy).write(root)?);
+    }
     Ok(written)
 }
 
@@ -537,7 +547,13 @@ fn workflow(languages: &[String], selected: &[&crate::catalog::Rule]) -> String 
          # this job never pushes, so the checkout token has no reason to stay\n          \
          # behind in .git/config where a later step can read it back out\n          \
          persist-credentials: false\n      \
-         - name: Install sf\n        run: cargo install --git https://github.com/nicolasmelo1/software-factory --locked\n      \
+         # Pinned to a tag, not to the tip of main. The catalog ships inside\n      \
+         # the binary, so tracking main means an upstream commit can change\n      \
+         # what an enabled rule matches and turn this build red with nothing\n      \
+         # in this repository having moved. Bump this deliberately, then run\n      \
+         # `sf lock`: L2.CATALOG_ONLY_TIGHTENS reports every enabled rule the\n      \
+         # upgrade made weaker.\n      \
+         - name: Install sf\n        run: cargo install --git https://github.com/nicolasmelo1/software-factory --tag v@@sf_version@@ --locked\n      \
          # verify first: a check that stopped firing makes the run below\n      \
          # meaningless, and it is the cheaper failure to discover.\n      \
          - name: Prove the checks still fire\n        run: sf verify\n      \
@@ -552,7 +568,7 @@ fn workflow(languages: &[String], selected: &[&crate::catalog::Rule]) -> String 
          run: sf check --changed \"origin/$BASE_REF\"\n",
     );
     if !selected.iter().any(|r| r.layer == crate::catalog::Layer::L6) {
-        return out;
+        return pinned(out);
     }
     // fetch-depth: 0 because the secret scanner diffs against the base
     // commit on a pull request, and a shallow clone leaves it nothing to
@@ -595,7 +611,17 @@ fn workflow(languages: &[String], selected: &[&crate::catalog::Rule]) -> String 
     for language in languages {
         out.push_str(hazard_steps(language));
     }
-    out
+    pinned(out)
+}
+
+/// The generated workflow installs the `sf` that generated it, by tag.
+///
+/// Substituted rather than written into the literal because the literal also
+/// carries `${{ ... }}` expressions GitHub has to see intact, so `format!` is
+/// not available here. `@@name@@` is the placeholder form this repository
+/// already uses for the parameterised rules in `templates/`.
+fn pinned(workflow: String) -> String {
+    workflow.replace("@@sf_version@@", env!("CARGO_PKG_VERSION"))
 }
 
 /// Each scanner is told to skip the mutation fixtures. Those are deliberately

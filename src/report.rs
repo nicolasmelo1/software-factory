@@ -41,7 +41,14 @@ impl Report {
         }
         let mut out = String::new();
         for (rule_id, findings) in &grouped {
-            let rule = catalog.get(rule_id);
+            // An instance (`RULE@name`, documented in the README for a monorepo
+            // that needs one rule twice) is not itself a catalog entry, so a
+            // direct lookup misses and the report loses the title, the `why`
+            // and the `fix` — the agent-facing documentation this rule exists
+            // to hand over at the one moment somebody is trying to comply.
+            let rule = catalog
+                .get(rule_id)
+                .or_else(|| catalog.get(crate::policy::base_rule_id(rule_id)));
             let title = rule.map(|r| r.title.as_str()).unwrap_or("(unknown rule)");
             let severity = findings[0].severity;
             out.push_str(&format!("\n{} {rule_id} — {title}\n", marker(severity)));
@@ -90,7 +97,11 @@ impl Report {
         seen.dedup();
         out.push_str("\n## Why these rules exist\n");
         for rule_id in seen {
-            if let Some(rule) = catalog.get(rule_id) {
+            // Same instance fallback as the text report above.
+            if let Some(rule) = catalog
+                .get(rule_id)
+                .or_else(|| catalog.get(crate::policy::base_rule_id(rule_id)))
+            {
                 out.push_str(&format!("\n### {} — {}\n\n{}\n\n**Fix.** {}\n", rule.id, rule.title, rule.why, rule.fix));
             }
         }
@@ -123,4 +134,67 @@ fn wrap(text: &str, indent: &str) -> String {
     }
     out.push_str(&line);
     out
+}
+
+/// `RULE@name` is a documented feature — the README uses
+/// `L1.COMPLEXITY_CEILING@legacy` to give one package a different ceiling —
+/// and an instance is not itself a catalog entry. Before the fallback in
+/// `text` and `markdown`, a finding from an instance rendered as
+/// `(unknown rule)` with no `why` and no `fix`: the report dropped exactly the
+/// prose the rule exists to hand over, at the one moment somebody is trying to
+/// comply. Nothing caught it because this repository had no instance in its own
+/// policy until `L2.DERIVED_ARTIFACTS_MATCH_THEIR_SOURCE@release`.
+#[cfg(test)]
+mod an_instance_keeps_its_prose {
+    use super::*;
+
+    fn report_for(rule_id: &str) -> Report {
+        Report {
+            findings: vec![Finding::new(
+                rule_id,
+                Severity::Medium,
+                "src/a.rs",
+                "key",
+                "a finding from an instance",
+            )],
+            frozen: 0,
+            rules_run: 1,
+        }
+    }
+
+    #[test]
+    fn the_text_report_resolves_an_instance_to_its_base_rule() {
+        let catalog = Catalog::builtin().expect("the shipped catalog loads");
+        let rendered = report_for("L1.COMPLEXITY_CEILING@legacy").text(&catalog);
+        assert!(
+            !rendered.contains("(unknown rule)"),
+            "an instance lost its title: {rendered}"
+        );
+        assert!(rendered.contains("No function exceeds the cyclomatic ceiling"));
+        assert!(rendered.contains("  why  "), "an instance lost its why: {rendered}");
+        assert!(rendered.contains("  fix  "), "an instance lost its fix: {rendered}");
+        // The instance id itself still has to be what the report names, or
+        // there is no way to tell which of two instances fired.
+        assert!(rendered.contains("L1.COMPLEXITY_CEILING@legacy"));
+    }
+
+    #[test]
+    fn the_markdown_report_resolves_an_instance_too() {
+        let catalog = Catalog::builtin().expect("the shipped catalog loads");
+        let rendered = report_for("L1.COMPLEXITY_CEILING@legacy").markdown(&catalog);
+        assert!(
+            rendered.contains("No function exceeds the cyclomatic ceiling"),
+            "the markdown report dropped the instance's prose: {rendered}"
+        );
+    }
+
+    /// A genuinely unknown id must still say so. The fallback splits on `@`,
+    /// so a bare id that is not in the catalog has to keep reporting as
+    /// unknown rather than resolving to something.
+    #[test]
+    fn an_id_that_is_not_in_the_catalog_still_reads_as_unknown() {
+        let catalog = Catalog::builtin().expect("the shipped catalog loads");
+        let rendered = report_for("L9.NOT_A_RULE@instance").text(&catalog);
+        assert!(rendered.contains("(unknown rule)"), "{rendered}");
+    }
 }

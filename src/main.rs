@@ -9,6 +9,7 @@ mod checks;
 mod clock;
 mod digest;
 mod finding;
+mod fingerprint;
 mod fixtures;
 mod init;
 mod interview;
@@ -38,7 +39,7 @@ use std::process::Command;
     long_about = "sf turns a language-neutral rule catalog into checks that fail, \
                   fixtures that prove those checks fire, and documentation that \
                   explains why each rule exists.",
-    version
+    version = fingerprint::version_line()
 )]
 struct Cli {
     /// Repository to operate on. Defaults to the enclosing git repository.

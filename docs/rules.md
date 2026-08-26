@@ -165,6 +165,16 @@ A disabled test carries its reason. Where the test API takes one — `pytest.mar
 
 ## L2 — Contract: no drift from the source of truth
 
+### L2.CATALOG_ONLY_TIGHTENS
+
+**A released rule never gets weaker than the version this repository locked**
+
+Compared with the catalog fingerprint committed in `.software-factory/catalog.lock.json`, no enabled rule may lose severity, gain an exclusion, narrow its scope, raise its ceiling, drop a forbidden pattern, restrict a forbidden pattern to fewer files, stop covering a language, drop a language from its tools map, allow more homes, forbid fewer locations, or disappear from the catalog entirely.
+
+**Why.** `L2.POLICY_ONLY_TIGHTENS` stops a repository from loosening its own policy, and it cannot see the other direction. The catalog ships inside the binary, so a consuming repository's policy names rule ids and nothing else: upgrading `sf` can change what an already-enabled rule matches with no diff in that repository at all. Additions are safe by construction, because the policy is what enumerates the rules that run and a rule nobody enabled never runs. The dangerous change is a rule that keeps its id and gets weaker, and it is dangerous in the quiet direction — a tightening turns a green repository red, which somebody notices in an hour, while a loosening turns a red repository green and reads exactly like having fixed something. This is not hypothetical: restricting a `text_pattern` entry to the one language whose spelling it describes is a correct change and a loosening at the same time, and every repository that had enabled that rule got a weaker rule with nothing on screen to say so.
+
+**Fix.** Read the named dimension and decide, as a person. If the loosening is right, accept it deliberately: run `sf lock` to record the new reach and say in the rules document why the rule is allowed to see less than it did. If it is not right, pin the previous version instead of re-locking — the fingerprint names the `sf` version and catalog digest it was written against, so there is something specific to pin to. Re-locking to clear the finding without deciding is the move this rule exists to make expensive.
+
 ### L2.DEPENDENCIES_CHANGE_DELIBERATELY
 
 **Dependency manifests move only with an explicit lock update**
