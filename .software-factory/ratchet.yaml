@@ -5,7 +5,7 @@
 version: 1
 rules:
   L6.PERFORMANCE_REGRESSION_IS_GUARDED:
-    review_by: 2027-02-25
+    review_by: 2027-02-18
     note: null
     allow:
     - rust
