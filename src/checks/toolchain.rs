@@ -25,6 +25,7 @@ pub fn run(rule: &Rule, opts: &Options, ctx: &Ctx) -> Result<Vec<Finding>> {
     let runners: Vec<String> = scan::select(ctx.files, &opts.scope, &opts.exclude)?
         .iter()
         .filter_map(|file| std::fs::read_to_string(&file.abs).ok())
+        .map(|content| without_comment_lines(&content))
         .collect();
     let haystack = runners.join("\n");
 
@@ -35,7 +36,10 @@ pub fn run(rule: &Rule, opts: &Options, ctx: &Ctx) -> Result<Vec<Finding>> {
             // is a statement about the ecosystem, not a violation.
             continue;
         };
-        if candidates.iter().any(|tool| haystack.contains(tool.as_str())) {
+        if candidates
+            .iter()
+            .any(|tool| haystack.contains(tool.as_str()))
+        {
             continue;
         }
         findings.push(
@@ -51,4 +55,43 @@ pub fn run(rule: &Rule, opts: &Options, ctx: &Ctx) -> Result<Vec<Finding>> {
         );
     }
     Ok(findings)
+}
+
+/// A mention of a tool inside a comment is prose, not a wired-in guarantee.
+/// `sf init` itself writes explanatory `#` comments naming the tools next to
+/// the steps that run them, so counting comment text let a freshly generated
+/// workflow satisfy these rules all by itself. Every file in scope here
+/// (YAML workflows, Makefile, justfile, Taskfile, .gitlab-ci.yml,
+/// .pre-commit-config.yaml, package.json) uses `#` for comments or none at
+/// all, so dropping `#`-leading lines cannot hide a real invocation — those
+/// are `uses:`/`run:`/recipe lines, which never start with `#`.
+fn without_comment_lines(content: &str) -> String {
+    content
+        .lines()
+        .filter(|line| !line.trim_start().starts_with('#'))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::without_comment_lines;
+
+    #[test]
+    fn a_tool_named_only_in_a_comment_is_not_evidence() {
+        let workflow = "\
+  # Committed secrets: we run gitleaks on every push.\n\
+  # (comment-only mention: nothing here actually invokes gitleaks)\n";
+        let stripped = without_comment_lines(workflow);
+        assert!(!stripped.contains("gitleaks"));
+    }
+
+    #[test]
+    fn a_real_invocation_survives_the_comment_strip() {
+        let workflow = "\
+  # Committed secrets: scanned by gitleaks.\n\
+  - uses: gitleaks/gitleaks-action@v2\n";
+        let stripped = without_comment_lines(workflow);
+        assert!(stripped.contains("gitleaks"));
+    }
 }
