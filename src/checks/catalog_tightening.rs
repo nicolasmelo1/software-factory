@@ -1,12 +1,12 @@
 //! L2 — a released rule never gets weaker without somebody saying so.
 //!
-//! `L2.POLICY_ONLY_TIGHTENS` stops a repository from loosening its own policy.
-//! It cannot see the other direction: the catalog lives inside the binary, so
-//! upstream can loosen a rule under every consumer at once and no consuming
-//! repository has a diff to show for it. That is not hypothetical. Restricting
-//! a `text_pattern` entry to one language is a correct change and a loosening
-//! at the same time, and a consumer whose build went from red to green after an
-//! upgrade has no way to tell that apart from having fixed something.
+//! `L2.POLICY_ONLY_TIGHTENS` stops a repository loosening its own policy. It
+//! cannot see the other direction: the catalog lives in the binary, so upstream
+//! can loosen a rule under every consumer at once with no diff downstream.
+//!
+//! Not hypothetical. Restricting a `text_pattern` entry to one language is both
+//! correct and a loosening, and a consumer whose build went red to green after
+//! an upgrade cannot tell that from having fixed something.
 //!
 //! A new rule needs none of this. `Policy::instances` iterates the policy, not
 //! the catalog, so a rule nobody enabled never runs — additions are safe by

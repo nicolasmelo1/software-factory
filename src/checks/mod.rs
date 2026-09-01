@@ -96,13 +96,12 @@ pub fn run_one(rule: &Rule, ctx: &Ctx) -> Result<Vec<Finding>> {
 /// Kinds whose subject is the repository's own configuration, evidence and
 /// generated artifacts rather than its source code.
 ///
-/// Split from `run_one` because a flat dispatch over every kind reached the
-/// `L1.COMPLEXITY_CEILING` the moment one more kind existed. Worth naming
-/// plainly: a dispatch table carries no branching a reader has to hold, so the
-/// ceiling firing here is the metric's limitation, not a defect in the code it
-/// fired on — see `plans/the-grain-has-a-ceiling-and-no-floor.md`. The split
-/// was chosen along the one seam that means something (source versus
-/// bookkeeping) rather than at whatever line brought the count under twelve.
+/// Split from `run_one` because a flat dispatch reached
+/// `L1.COMPLEXITY_CEILING` the moment one more kind existed. A dispatch table
+/// carries no branching a reader must hold, so the ceiling firing here is the
+/// metric's limitation, not a defect — see
+/// `plans/the-grain-has-a-ceiling-and-no-floor.md`. The seam chosen means
+/// something (source versus bookkeeping) rather than merely reaching twelve.
 fn run_bookkeeping(
     kind: &CheckKind,
     rule: &Rule,

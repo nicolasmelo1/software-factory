@@ -79,14 +79,12 @@ impl Ratchet {
     /// Replace a rule's frozen set with exactly today's violations, carrying
     /// `previous`'s date and note forward.
     ///
-    /// The date only ever moves closer. A re-seed is not a way to buy another
-    /// six months on debt already counted: `sf ratchet` is part of the
-    /// prescribed order after any guardrail change, so a run that stamped
-    /// today + N months on untouched entries would push every date out on
-    /// every unrelated change — which `L2.POLICY_ONLY_TIGHTENS` correctly
+    /// The date only ever moves closer; a re-seed cannot buy six more months
+    /// on debt already counted. `sf ratchet` runs after any guardrail change,
+    /// so stamping today + N months on untouched entries would push every date
+    /// out on every unrelated change — which `L2.POLICY_ONLY_TIGHTENS` rightly
     /// rejects, leaving the repository unable to follow its own instructions.
-    /// Renewing a date that has genuinely expired is a human's edit, with the
-    /// reasoning in the pull request.
+    /// Renewing a genuinely expired date is a human's edit.
     pub fn seed(
         &mut self,
         rule: &str,

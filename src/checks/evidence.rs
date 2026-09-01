@@ -4,8 +4,9 @@
 //!
 //! * activation comes from touched paths, so no label or pull-request
 //!   sentence can route around it;
-//! * the run names an actor that could have been a customer, so a replayed
-//!   sequence cannot be filed as evidence about an outcome;
+//! * the run names an actor that could have been a customer, so a replay
+//!   cannot be filed as evidence about an outcome;
+//!
 //! * the manifest is re-verified, not trusted, so a summary cannot assert a
 //!   pass the raw report never contained;
 //! * the implementation digest is recorded, so evidence expires the moment

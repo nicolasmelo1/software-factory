@@ -48,15 +48,15 @@ fn marker_for(path: &Path) -> Option<&'static str> {
 /// A shebang is not a comment, and a divider rule of `####` carries no prose.
 /// Neither should count toward a budget meant to measure explanation.
 fn is_prose_comment(line: &str, marker: &str) -> bool {
-    let trimmed = line.trim_start();
-    if !trimmed.starts_with(marker) {
+    if line.trim_start().starts_with("#!") {
         return false;
     }
-    if trimmed.starts_with("#!") {
-        return false;
+    match body_of(line, marker) {
+        Some(body) => {
+            !body.is_empty() && body.chars().any(char::is_alphanumeric)
+        }
+        None => false,
     }
-    let body = trimmed.trim_start_matches(marker).trim();
-    !body.is_empty() && body.chars().any(char::is_alphanumeric)
 }
 
 pub fn run(rule: &Rule, opts: &Options, ctx: &Ctx) -> Result<Vec<Finding>> {
@@ -92,29 +92,67 @@ pub fn run(rule: &Rule, opts: &Options, ctx: &Ctx) -> Result<Vec<Finding>> {
     Ok(findings)
 }
 
+/// The comment body after the marker, if the line is a comment at all.
+///
+/// Doc-comment sigils are part of the marker, not the body: Rust writes `///`
+/// and `//!`, and `trim_start_matches("//")` leaves the third character
+/// behind. A body of `/ ```yaml` is not a fence, which is how the first draft
+/// of this check charged a YAML example to the prose budget.
+fn body_of<'a>(line: &'a str, marker: &str) -> Option<&'a str> {
+    let trimmed = line.trim_start();
+    if !trimmed.starts_with(marker) {
+        return None;
+    }
+    let rest = trimmed.trim_start_matches(marker);
+    Some(rest.trim_start_matches(['/', '!', '#']).trim())
+}
+
 /// Contiguous runs of prose comment lines, as `(1-based start line, length)`.
 ///
 /// A blank line ends a block. That is the point: splitting an explanation into
 /// paragraphs is the cheapest honest way to stay under the ceiling, and a rule
 /// that counted across blank lines would forbid the fix it is asking for.
+///
+/// A fenced code block inside a comment does not count toward the length. An
+/// example is not prose and cannot be shortened by writing better, so charging
+/// it to the budget would only push authors to delete the example.
 fn blocks(source: &str, marker: &str) -> Vec<(usize, usize)> {
     let mut out = Vec::new();
     let mut start = 0usize;
     let mut len = 0usize;
-    for (index, line) in source.lines().enumerate() {
-        if is_prose_comment(line, marker) {
-            if len == 0 {
-                start = index + 1;
-            }
-            len += 1;
-        } else if len > 0 {
-            out.push((start, len));
-            len = 0;
+    let mut fenced = false;
+    let flush = |start: usize, len: &mut usize, out: &mut Vec<_>| {
+        if *len > 0 {
+            out.push((start, *len));
         }
+        *len = 0;
+    };
+    for (index, line) in source.lines().enumerate() {
+        let Some(body) = body_of(line, marker) else {
+            flush(start, &mut len, &mut out);
+            fenced = false;
+            continue;
+        };
+        if body.starts_with("```") {
+            fenced = !fenced;
+            continue;
+        }
+        if fenced {
+            continue;
+        }
+        // An empty comment line is a paragraph break written in the comment's
+        // own syntax, and reads as one. It ends the run exactly as a blank
+        // line does.
+        if !is_prose_comment(line, marker) {
+            flush(start, &mut len, &mut out);
+            continue;
+        }
+        if len == 0 {
+            start = index + 1;
+        }
+        len += 1;
     }
-    if len > 0 {
-        out.push((start, len));
-    }
+    flush(start, &mut len, &mut out);
     out
 }
 
@@ -155,6 +193,30 @@ mod tests {
     #[test]
     fn slash_marker_reads_typescript() {
         let src = "// one\n// two\nconst x = 1;\n";
+        assert_eq!(blocks(src, "//"), vec![(1, 2)]);
+    }
+
+    #[test]
+    fn a_rust_doc_comment_fence_is_still_a_fence() {
+        let src = "/// setup:\n/// ```yaml\n/// a: 1\n/// b: 2\n/// ```\n";
+        assert_eq!(blocks(src, "//"), vec![(1, 1)]);
+    }
+
+    #[test]
+    fn an_empty_doc_comment_line_is_a_paragraph_break() {
+        let src = "//! one\n//! two\n//!\n//! three\n";
+        assert_eq!(blocks(src, "//"), vec![(1, 2), (4, 1)]);
+    }
+
+    #[test]
+    fn an_empty_comment_line_is_a_paragraph_break() {
+        let src = "// one\n// two\n//\n// three\n";
+        assert_eq!(blocks(src, "//"), vec![(1, 2), (4, 1)]);
+    }
+
+    #[test]
+    fn a_fenced_example_does_not_spend_the_budget() {
+        let src = "// setup:\n// ```yaml\n// a: 1\n// b: 2\n// c: 3\n// ```\n// done\ncode()\n";
         assert_eq!(blocks(src, "//"), vec![(1, 2)]);
     }
 
