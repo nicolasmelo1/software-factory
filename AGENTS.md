@@ -23,9 +23,10 @@ ships.
   the languages the rule declares a query for.
 - **A rule must be pointed at something, or switched off in writing.**
   `L5.NO_INERT_RULE` fails an enabled lock with no scope, a hazard rule with no
-  tools, or a structural rule with no query for any language this repository
-  declares. Disabled with a reason in `docs/rules.md` is honest; enabled and
-  inert is a rule lying about its own coverage.
+  tools, a structural rule with no query for any language this repository
+  declares, or an instance whose `when` names a dependency version the manifest
+  no longer declares. Disabled with a reason in `docs/rules.md` is honest;
+  enabled and inert is a rule lying about its own coverage.
 - **Prose may only name commands this `sf` accepts.**
   `L4.RULE_PROSE_NAMES_A_REAL_COMMAND` reads every `sf ...` a rule's statement,
   why or fix quotes and compares it with the clap definition in `src/main.rs`,

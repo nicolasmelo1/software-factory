@@ -14,6 +14,7 @@ mod fixtures;
 mod init;
 mod interview;
 mod lang;
+mod manifest;
 mod policy;
 mod ratchet;
 mod report;

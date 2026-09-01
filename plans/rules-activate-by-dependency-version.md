@@ -75,17 +75,17 @@ inert.
 
 ## Acceptance criteria
 
-- [ ] `when: {dependency, manifest, version}` parses in the policy and decides
+- [x] `when: {dependency, manifest, version}` parses in the policy and decides
       whether a rule instance runs
       (proof: test:src/policy.rs)
-- [ ] A rule instance whose `when` no longer matches produces a finding naming
+- [x] A rule instance whose `when` no longer matches produces a finding naming
       the expected range and the version found
       (proof: test:.software-factory/mutations/L5.NO_INERT_RULE/)
-- [ ] A `when` naming a dependency no manifest declares is a finding, not a
+- [x] A `when` naming a dependency no manifest declares is a finding, not a
       skip (proof: test:.software-factory/mutations/L5.NO_INERT_RULE/)
-- [ ] `sf verify` still proves every conditional rule fires, with the fixture
+- [x] `sf verify` still proves every conditional rule fires, with the fixture
       carrying the manifest that satisfies its condition
       (proof: test:src/verify.rs)
-- [ ] Nothing reads a lock file to resolve a version
+- [x] Nothing reads a lock file to resolve a version
       (proof: unspecified:an absence is not checkable, it is a review note on
       the diff that adds `when`)

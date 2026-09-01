@@ -36,6 +36,17 @@ fn covers_a_declared_language<'a>(
     languages.any(|name| ctx.policy.project.languages.contains(name))
 }
 
+/// What a rule nobody pointed at anything owes: configuration, or an
+/// admission in writing.
+const CONFIGURE_OR_DISABLE: &str = "a configured rule, or an honest `enabled: false`";
+
+/// What a rule whose `when` went false owes instead. There is nothing to
+/// configure: the rule is about a dependency version this repository does not
+/// have, so the answers are to repoint it or to delete it along with the
+/// version it described.
+const REPOINT_OR_REMOVE: &str =
+    "a rule repointed at the version this repository installs, or removed with it";
+
 /// An enabled rule pointed at nothing. It passes every run and reads exactly
 /// like a rule that is protecting you.
 fn inert_rules(rule: &Rule, ctx: &Ctx) -> Result<Vec<Finding>> {
@@ -45,7 +56,15 @@ fn inert_rules(rule: &Rule, ctx: &Ctx) -> Result<Vec<Finding>> {
             continue;
         };
         let (id, candidate) = (&instance, &super::as_instance(candidate, &instance));
-        let reason = inert_reason(candidate, ctx)?;
+        // A `when` that no longer matches comes first: it explains why the
+        // rule is silent better than anything about its scope would, and it
+        // is the one inertness a repository can walk into by changing a
+        // dependency rather than by editing the policy.
+        let activation = ctx.policy.activation_of(ctx.root, id)?;
+        let (reason, expected) = match activation.stale_reason() {
+            Some(reason) => (Some(reason.to_string()), REPOINT_OR_REMOVE),
+            None => (inert_reason(candidate, ctx)?, CONFIGURE_OR_DISABLE),
+        };
         let Some(reason) = reason else { continue };
         findings.push(
             Finding::new(
@@ -55,7 +74,7 @@ fn inert_rules(rule: &Rule, ctx: &Ctx) -> Result<Vec<Finding>> {
                 format!("inert:{id}"),
                 format!("{id} is enabled but cannot produce a finding — {reason}"),
             )
-            .expected("a configured rule, or an honest `enabled: false`"),
+            .expected(expected),
         );
     }
     Ok(findings)

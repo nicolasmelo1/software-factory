@@ -24,5 +24,23 @@ rules:
     options:
       tools:
         java: ["error-prone", "jcstress"]
+  L1.NO_BLANKET_SUPPRESSION@tailwind3:
+    enabled: true
+    when:
+      dependency: tailwindcss
+      manifest: package.json
+      version: "^3"
+  L1.NO_BLANKET_SUPPRESSION@quickbooks:
+    enabled: true
+    when:
+      dependency: node-quickbooks
+      manifest: package.json
+      version: "^2"
+  L1.NO_BLANKET_SUPPRESSION@tailwind4:
+    enabled: true
+    when:
+      dependency: tailwindcss
+      manifest: package.json
+      version: "^4"
   L5.NO_INERT_RULE:
     enabled: true
