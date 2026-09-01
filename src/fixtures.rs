@@ -125,6 +125,28 @@ pub const FIXTURES: &[Fixture] = &[
         ],
     },
     Fixture {
+        rule: "L1.INDIRECTION_EARNS_ITS_NAME",
+        policy_extra: "",
+        extra_rules: "",
+        files: &[
+            // The hop and, under it, a wrapper that renames. A fixture that
+            // only carried the violation could not tell a rule that fires
+            // correctly from one that fires always.
+            (
+                "src/services/compressions.ts",
+                "import { insertCompression as insertCompressionDb, queryCompressionRows } from \"@db\";\n\nexport async function insertCompression(data: CompressionInsertData) {\n  return await insertCompressionDb(data);\n}\n\nexport async function listCompressions(reportId: number) {\n  return queryCompressionRows(reportId);\n}\n",
+            ),
+            (
+                "src/services/pricing.py",
+                "from db import price as _price\n\n\ndef price(order):\n    return _price(order)\n",
+            ),
+            (
+                "src/services/pricing.rs",
+                "use crate::db::price as price_row;\n\npub fn price(order: &Order) -> Money {\n    price_row(order)\n}\n",
+            ),
+        ],
+    },
+    Fixture {
         rule: "L1.NO_BLANKET_SUPPRESSION",
         policy_extra: "",
         extra_rules: "",

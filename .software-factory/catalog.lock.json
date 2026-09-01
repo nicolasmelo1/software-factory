@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "sf_version": "0.2.0",
-  "catalog_digest": "9f03093ac12d46845aa8dc5a1ca1465d7d1edffe278a99683e3851df5a44b258",
+  "catalog_digest": "b3e3d721a5b378b035ea58e31e98fd8de03adee919c263f8dc69a999bcdfa250",
   "rules": {
     "L0.EXCEPTIONS_HAVE_ONE_HOME": {
       "severity": "high",
@@ -30,6 +30,17 @@
       "scope": 0,
       "exclude": 0,
       "max": 12,
+      "forbidden": 0,
+      "narrowed_patterns": 0,
+      "languages": 0,
+      "tools": 0,
+      "must_live_in": 0,
+      "must_not_live_in": 0
+    },
+    "L1.INDIRECTION_EARNS_ITS_NAME": {
+      "severity": "medium",
+      "scope": 0,
+      "exclude": 0,
       "forbidden": 0,
       "narrowed_patterns": 0,
       "languages": 0,

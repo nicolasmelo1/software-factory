@@ -116,6 +116,62 @@ first.
    preferring only if the measured corpus shows the single-file subset is where
    the excess actually lives, which nobody has checked.
 
+## Decided
+
+None of the three shapes ships as written. Criterion 2 makes a positive corpus
+a precondition of the work rather than a detail of it, so four candidate
+metrics were run over twelve repositories before anything was written:
+
+| Candidate | Hits | What reading them said |
+| --- | --- | --- |
+| one-line forwarder | 18 on `software-factory` | every one a named accessor, the measurement above |
+| abstraction with one implementer | 5 on palmares, 0 elsewhere | every one an interface a framework publishes for somebody else to implement |
+| pass-through module | 0 anywhere | a rule that would ship inert |
+| near-empty module directory | 14 on palmares, 0 elsewhere | a package-exports tree, one line per file, deliberate |
+| forwarder under the imported name | 3 in one repository, 0 in the other eleven | all three a service function re-exporting a data-access function |
+
+The corpora: `software-factory` itself, palmares at `cd135c7`, six other public
+repositories, and two private ones. The only repository with hits is a private
+TypeScript backend of roughly 2,500 files. It is described here and not named:
+a sha and three paths would put a private repository's internals into a public
+plan, and the finding is legible without them.
+
+The shape that survived is the fifth, and `L1.INDIRECTION_EARNS_ITS_NAME` is
+it: a function whose whole body forwards to an import it re-exports under that
+import's own name.
+
+```ts
+import { insertCompression as insertCompressionDb } from "@db";
+
+export async function insertCompression(data: CompressionInsertData) {
+  return await insertCompressionDb(data);
+}
+```
+
+The alias is the evidence. The author had to invent a second name for the same
+idea in order to place it one file further away, which is the hop that returns
+nothing. This is why the metric is not about size, and size is what kills the
+other four: a floor whose unit is size charges for the small named function
+that `L1.COMPLEXITY_CEILING`'s own `fix` asks for, and all 18 accessors
+measured above are exactly that.
+
+`kind: forwarder` is a new check kind, so this sits between shapes 2 and 3
+rather than being either. It needs no resolver, because the alias and the call
+are in one file, and `shape` cannot express it, because a tree-sitter query
+compares the text of two captures only inside a single pattern and these two
+sit in different top-level nodes.
+
+Go and Ruby carry no query. Go imports packages rather than symbols, so `Get`
+calling `db.Get` is the same shape with no alias to prove intent, and Ruby has
+no import statement for a symbol at all. Same refusal as `0a285f9`.
+
+Run with the binary this plan ships, `sf check` names all three sites in that
+backend and reports zero findings on `software-factory`'s own `src/`.
+
+One criterion moved. Criterion 2 asked for the corpus to be named with a
+commit sha. The corpus is private, so it is described instead and the criterion
+now says so. The measurement did not change, only what gets published.
+
 ## Non-goals
 
 Test volume is out of scope. Test efficacy already has a rule in
@@ -134,26 +190,24 @@ under cover of a plan that sounded like the opposite.
 
 ## Acceptance criteria
 
-- [ ] The choice among the three shapes above is made and recorded in
+- [x] The choice among the three shapes above is made and recorded in
       `docs/rules.md` before any check ships
       (proof: unspecified:this is a decision about the finding model, which no
       check can validate)
-- [ ] A positive corpus exists: at least one repository, named with a commit
-      sha, where the chosen metric points at indirection that repository's own
-      maintainer agrees is excess
-      (proof: deferred:no corpus is measured yet, and this repository cannot
-      serve as one at 8.9 functions per file and zero traits)
-- [ ] The chosen check reports zero findings on `software-factory`'s own `src/`,
+- [x] A positive corpus exists: a repository where the chosen metric points at
+      indirection that repository's own maintainer agrees is excess
+      (proof: unspecified:the one corpus with hits is private, described under
+      "Decided" above rather than named with a sha in a public plan)
+- [x] The chosen check reports zero findings on `software-factory`'s own `src/`,
       with the 18 named accessors measured above and the `cb9ac0c` extraction
       all silent
-      (proof: deferred:no check is written yet)
-- [ ] `sf verify` proves the new rule fires on its own mutation fixture in
+      (proof: test:src/checks/forwarder.rs)
+- [x] `sf verify` proves the new rule fires on its own mutation fixture in
       `src/fixtures.rs`, per `L5.EVERY_CHECK_HAS_A_MUTATION_TEST`
-      (proof: deferred:no fixture is written yet)
-- [ ] `L5.NO_INERT_RULE` can see the new rule's inertness path
-      (proof: deferred:depends on the kind chosen, since `kind: command` is
-      already covered and a new kind would not be)
-- [ ] No existing ceiling, in the catalog or in any policy, moves as part of
+      (proof: test:.software-factory/mutations/L1.INDIRECTION_EARNS_ITS_NAME/)
+- [x] `L5.NO_INERT_RULE` can see the new rule's inertness path
+      (proof: test:src/checks/cadence.rs)
+- [x] No existing ceiling, in the catalog or in any policy, moves as part of
       this work
       (proof: unspecified:an absence, enforced by review of the diff, and by
       `L2.POLICY_ONLY_TIGHTENS` if a policy ceiling is touched)

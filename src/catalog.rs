@@ -60,6 +60,15 @@ pub struct LangQuery {
 /// A containment rule: `inner` must not appear anywhere inside `outer`.
 /// This is what makes the concurrency hazards checkable — "no blocking call
 /// while holding a lock" is a statement about nesting, not about placement.
+/// The two halves of a forwarder rule. Both are tree-sitter queries, and the
+/// comparison between them is the part no query can express: `import` binds
+/// `@original` and `@local`, `forward` binds `@name` and `@callee`.
+#[derive(Debug, Clone, Deserialize)]
+pub struct ForwarderQuery {
+    pub import: String,
+    pub forward: String,
+}
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct NestedQuery {
     pub outer: String,
@@ -86,6 +95,12 @@ pub enum CheckKind {
     },
     /// Cyclomatic ceiling per function. L1.
     Complexity,
+    /// A function that forwards to an import under that import's own name. L1.
+    Forwarder {
+        #[serde(default)]
+        languages: BTreeMap<String, ForwarderQuery>,
+    },
+
     /// Blanket escape hatches and unreasoned suppressions. L1.
     TextPattern,
     /// Hash manifest over generated / vendored / dependency-declaring files. L2.
@@ -174,6 +189,12 @@ impl Rule {
                     validate_query(name, &spec.inner)?;
                 }
             }
+            CheckKind::Forwarder { languages } => {
+                for (name, spec) in languages {
+                    validate_query(name, &spec.import)?;
+                    validate_query(name, &spec.forward)?;
+                }
+            }
             _ => {}
         }
         Ok(())
@@ -233,6 +254,7 @@ pub const BUILTIN: &[(&str, &str)] = &[
     ("L0/one-entrypoint-per-file.yaml", include_str!("../catalog/L0/one-entrypoint-per-file.yaml")),
     ("L0/no-cross-layer-import.yaml", include_str!("../catalog/L0/no-cross-layer-import.yaml")),
     ("L1/complexity-ceiling.yaml", include_str!("../catalog/L1/complexity-ceiling.yaml")),
+    ("L1/indirection-earns-its-name.yaml", include_str!("../catalog/L1/indirection-earns-its-name.yaml")),
     ("L1/no-blanket-suppression.yaml", include_str!("../catalog/L1/no-blanket-suppression.yaml")),
     ("L1/skipped-tests-state-a-reason.yaml", include_str!("../catalog/L1/skipped-tests-state-a-reason.yaml")),
     ("L1/no-untyped-escape-hatch.yaml", include_str!("../catalog/L1/no-untyped-escape-hatch.yaml")),

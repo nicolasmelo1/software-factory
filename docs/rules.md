@@ -97,6 +97,27 @@ skip `.software-factory/mutations`: `rubocop`/`standardrb` via
 `brakeman`'s own `--skip-files`. `sf init --language ruby` now prints all four
 forms in `FIXTURES_HINT`.
 
+**L1 has a floor as of this change, and it is one shape out of four measured.**
+[The grain has a ceiling and no floor](../plans/the-grain-has-a-ceiling-and-no-floor.md)
+left the finding model undecided on purpose. Four candidate metrics were run
+over twelve real repositories before anything shipped: the one-line forwarder
+(18 hits here, every one a correct named accessor), the abstraction with a
+single implementer (5 hits, every one a plugin seam a framework publishes on
+purpose), the pass-through module (0 hits anywhere), and the near-empty module
+directory (14 hits in one repository, all of them a package-exports tree). Only
+the fourth shape survived contact with a corpus, and it is the one
+`L1.INDIRECTION_EARNS_ITS_NAME` ships: a function whose whole body forwards to
+an import it re-exports under that import's own name. It is not a floor whose
+unit is size, which is what kills the other three: a size floor charges for the
+small named function `L1.COMPLEXITY_CEILING`'s own fix asks for. The alias is
+the evidence instead, and it is read from the same file, so no rule here
+resolves a symbol across files. `kind: forwarder` is a new check kind because a
+tree-sitter query cannot compare the text of two captures that sit in different
+top-level nodes. Go and Ruby carry no query: Go imports packages rather than
+symbols, so the shape appears with no alias to prove intent, and Ruby has no
+import statement for a symbol at all. Same refusal as the two Rust queries
+above.
+
 ## L0 — Shape: where things live
 
 ### L0.EXCEPTIONS_HAVE_ONE_HOME
@@ -130,6 +151,16 @@ Every function stays at or under the configured number of independent paths.
 **Why.** A ceiling is not a style preference: it is the only cheap, language-neutral proxy for "a reviewer can hold this in their head". Agents are especially prone to growing a working function by one more branch instead of splitting it, because appending a branch is a smaller diff than a refactor. The ceiling makes the refactor the cheaper option.
 
 **Fix.** Extract the branch cluster into a named function. Naming it is the point: the name is what the next reader (and the next agent) gets to reason with instead of the branches.
+
+### L1.INDIRECTION_EARNS_ITS_NAME
+
+**A hop that renames nothing is not a hop**
+
+A function whose whole body forwards to one imported callable does not carry that callable's own name.
+
+**Why.** L1 charges for too much in one place and never for too little spread across too many, so a layer that returns nothing for the hop it costs a reader has no representation here. Most candidate floors are unshippable: a floor whose unit is size charges for the small named function that L1.COMPLEXITY_CEILING's own fix asks for. This one is not about size. The alias is the evidence: the author had to invent a second name for the same idea in order to place it one file further away, which is a hop that teaches a reader nothing and an agent even less, since generating one more layer is cheaper than deciding a layer is not needed.
+
+**Fix.** Import the callable where it is used and delete the wrapper. If the wrapper is meant to be a seam, name it for what it adds, because a name a reader learns something from is the whole return on the hop. If the seam is real and the name genuinely cannot change, freeze it in the ratchet with a reason.
 
 ### L1.NO_BLANKET_SUPPRESSION
 

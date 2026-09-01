@@ -1,0 +1,77 @@
+id: L1.INDIRECTION_EARNS_ITS_NAME
+layer: L1
+title: A hop that renames nothing is not a hop
+severity: medium
+statement: >-
+  A function whose whole body forwards to one imported callable does not carry
+  that callable's own name.
+why: >-
+  L1 charges for too much in one place and never for too little spread across
+  too many, so a layer that returns nothing for the hop it costs a reader has
+  no representation here. Most candidate floors are unshippable: a floor whose
+  unit is size charges for the small named function that
+  L1.COMPLEXITY_CEILING's own fix asks for. This one is not about size. The
+  alias is the evidence: the author had to invent a second name for the same
+  idea in order to place it one file further away, which is a hop that teaches
+  a reader nothing and an agent even less, since generating one more layer is
+  cheaper than deciding a layer is not needed.
+fix: >-
+  Import the callable where it is used and delete the wrapper. If the wrapper
+  is meant to be a seam, name it for what it adds, because a name a reader
+  learns something from is the whole return on the hop. If the seam is real
+  and the name genuinely cannot change, freeze it in the ratchet with a reason.
+ratchet: allowlist
+check:
+  kind: forwarder
+  # Go and Ruby carry no query on purpose. Go imports packages and not
+  # symbols, so `Get` calling `db.Get` is the same shape with no alias to
+  # prove intent. Ruby has no import statement for a symbol at all. Inventing
+  # a form for either is how a rule starts producing findings nobody believes.
+  languages:
+    typescript:
+      import: |
+        (import_specifier
+          name: (identifier) @original
+          alias: (identifier) @local)
+      forward: |
+        (function_declaration
+          name: (identifier) @name
+          body: (statement_block
+            . (return_statement (call_expression function: (identifier) @callee)) .))
+        (function_declaration
+          name: (identifier) @name
+          body: (statement_block
+            . (return_statement
+                (await_expression (call_expression function: (identifier) @callee))) .))
+    python:
+      import: |
+        (aliased_import
+          name: (dotted_name (identifier) @original)
+          alias: (identifier) @local)
+      forward: |
+        (function_definition
+          name: (identifier) @name
+          body: (block
+            . (return_statement (call function: (identifier) @callee)) .))
+    rust:
+      import: |
+        (use_as_clause
+          path: (identifier) @original
+          alias: (identifier) @local)
+        (use_as_clause
+          path: (scoped_identifier name: (identifier) @original)
+          alias: (identifier) @local)
+      forward: |
+        (function_item
+          name: (identifier) @name
+          body: (block
+            . (call_expression function: (identifier) @callee) .))
+        (function_item
+          name: (identifier) @name
+          body: (block
+            . (expression_statement
+                (call_expression function: (identifier) @callee)) .))
+        (function_item
+          name: (identifier) @name
+          body: (block
+            . (try_expression (call_expression function: (identifier) @callee)) .))

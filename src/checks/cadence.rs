@@ -92,15 +92,21 @@ fn inert_rules(rule: &Rule, ctx: &Ctx) -> Result<Vec<Finding>> {
 fn inert_reason(candidate: &Rule, ctx: &Ctx) -> Result<Option<String>> {
     let options = super::options_for(candidate, ctx.policy)?;
     let reason: Option<String> = match &candidate.check {
-        // Two arms and one message: `Shape` and `Nested` carry different query
-        // types, so the bindings cannot be merged into a single or-pattern
-        // even though the question and the answer are identical.
+        // Three arms and one message: `Shape`, `Nested` and `Forwarder` carry
+        // different query types, so the bindings cannot be merged into a
+        // single or-pattern even though the question and the answer are
+        // identical.
         CheckKind::Shape { languages }
             if !covers_a_declared_language(languages.keys(), ctx) =>
         {
             Some("no query for any language this repository declares".to_string())
         }
         CheckKind::Nested { languages }
+            if !covers_a_declared_language(languages.keys(), ctx) =>
+        {
+            Some("no query for any language this repository declares".to_string())
+        }
+        CheckKind::Forwarder { languages }
             if !covers_a_declared_language(languages.keys(), ctx) =>
         {
             Some("no query for any language this repository declares".to_string())
@@ -309,6 +315,56 @@ mod inert_l3 {
         let coverage = message("inert:L3.GATE_COVERS_THE_PLAN");
         assert!(coverage.contains("plan"), "names what the gate is missing: {coverage}");
         assert!(coverage.contains("forever"), "says the rule can never fire here: {coverage}");
+    }
+}
+
+#[cfg(test)]
+mod inert_forwarder {
+    use crate::catalog::Catalog;
+    use crate::checks::Ctx;
+    use crate::policy::{FIXTURES_DIR, Policy};
+    use crate::ratchet::Ratchet;
+    use crate::scan;
+
+    /// The forwarder rule ships a query for typescript, python and rust, and
+    /// deliberately none for go or ruby. A repository that declares only go
+    /// therefore enables a rule that can never fire, which is the state
+    /// `L5.NO_INERT_RULE` exists to refuse. The policy is written here rather
+    /// than taken from a fixture because every generated fixture declares all
+    /// five languages, so none of them can hold this shape.
+    const GO_ONLY: &str = "version: 1\nproject:\n  name: go-only\n  languages: [go]\nrules:\n  L1.INDIRECTION_EARNS_ITS_NAME:\n    enabled: true\n";
+
+    #[test]
+    fn a_forwarder_with_no_query_for_a_declared_language_is_inert() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join(FIXTURES_DIR)
+            .join("L5.NO_INERT_RULE");
+        let policy: Policy = serde_yaml::from_str(GO_ONLY).expect("the policy parses");
+        let catalog = Catalog::builtin().expect("the built-in catalog loads");
+        let files = scan::walk(&root, &policy).expect("the fixture repo scans");
+        let ratchet = Ratchet::default();
+        let ctx = Ctx {
+            root: &root,
+            policy: &policy,
+            catalog: &catalog,
+            files: &files,
+            ratchet: &ratchet,
+            changed: None,
+            base: None,
+            today: crate::clock::today(),
+            allow_commands: false,
+        };
+        let rule = catalog.get("L5.NO_INERT_RULE").expect("ships in the catalog").clone();
+        let findings = super::inert_rules(&rule, &ctx).expect("inert_rules runs");
+        let reported = findings
+            .iter()
+            .find(|f| f.key == "inert:L1.INDIRECTION_EARNS_ITS_NAME")
+            .unwrap_or_else(|| panic!("the forwarder rule must be reported inert: {findings:?}"));
+        assert!(
+            reported.message.contains("no query for any language this repository declares"),
+            "says why it can never fire: {}",
+            reported.message
+        );
     }
 }
 
