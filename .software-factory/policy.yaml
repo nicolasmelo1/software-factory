@@ -14,7 +14,25 @@ docs:
 
 # A gate activates from the paths a change touches, never from a label
 # or a sentence in a pull request. See L3.GATE_HAS_FRESH_EVIDENCE.
-gates: {}
+gates:
+  # What a person actually meets: an existing codebase adopting this tool and
+  # getting a build that blocks their next bad change without burying them in
+  # the mess already there. The activation paths are the code that performs
+  # the adoption, so changing how a repository gets set up expires the proof
+  # that setting one up works.
+  adoption:
+    activation:
+      - "src/init.rs"
+      - "src/interview.rs"
+      - "interview/**"
+      - "templates/**"
+    evidence: ".software-factory/evidence/adoption.json"
+    plan: "plans/adoption-is-proven-end-to-end.md"
+    required_assertions:
+      - "cli.init_scaffolds_a_policy"
+      - "cli.verify_is_green_after_init"
+      - "cli.check_is_green_on_the_frozen_baseline"
+      - "cli.new_violation_fails_the_check"
 
 rules:
   # L0 — Error types live in one canonical module per domain

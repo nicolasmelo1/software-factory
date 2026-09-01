@@ -49,6 +49,13 @@ pub struct Options {
     // evidence
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub forbidden_in_goal: Vec<String>,
+    /// Words that name nothing in particular when they appear as a run's
+    /// `actor`. The field records what performed the run, and the whole
+    /// point of L3 is that the actor is shaped like the customer, so a
+    /// manifest crediting the run to "scripted" has recorded a replay, not
+    /// a proof.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub forbidden_actors: Vec<String>,
     // toolchain: language -> any one of these tool invocations must appear
     // somewhere the repository actually runs.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]

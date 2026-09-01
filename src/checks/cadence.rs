@@ -82,34 +82,19 @@ fn inert_rules(rule: &Rule, ctx: &Ctx) -> Result<Vec<Finding>> {
 
 /// Why an enabled rule can never produce a finding in this repository, if any.
 ///
-/// Lifted out of `inert_rules`'s loop so that the reason and the reporting are
-/// separately readable, and so that covering one more check kind costs this
-/// function's own `L1.COMPLEXITY_CEILING` budget rather than the loop's. The
-/// trailing `_ => None` is the known gap: four kinds have no inertness test
-/// yet, and the compiler cannot ask for the next one.
+/// Split the way `checks::run_one` splits: the kinds that read source through a
+/// grammar here, the bookkeeping kinds next door. Lifting it out of
+/// `inert_rules`'s loop keeps the reason and the reporting separately readable,
+/// and it means covering one more kind costs the budget of the half that
+/// actually grew — which is not free, and is the whole argument
+/// `L1.COMPLEXITY_CEILING` makes: the two L3 arms below pushed the single
+/// function that used to hold all of this to 14 paths against a ceiling of 12.
 fn inert_reason(candidate: &Rule, ctx: &Ctx) -> Result<Option<String>> {
     let options = super::options_for(candidate, ctx.policy)?;
     let reason: Option<String> = match &candidate.check {
-        CheckKind::Lock if options.scope.is_empty() => {
-            Some("no scope: it locks nothing".to_string())
-        }
-        CheckKind::Command if options.run.is_none() => {
-            Some("no command set: there is nothing for it to run".to_string())
-        }
-        CheckKind::Toolchain => inert_toolchain_reason(&options, ctx),
-        // Nothing committed to compare the running catalog against, so
-        // the rule passes every run while agreeing to nothing. `sf lock`
-        // writes the fingerprint whenever this rule is enabled, so the
-        // only way to reach this state is to delete the file or to enable
-        // the rule without locking.
-        CheckKind::CatalogTightening
-            if !ctx.root.join(crate::fingerprint::CATALOG_LOCK_PATH).exists() =>
-        {
-            Some(format!(
-                "no catalog fingerprint at {}: it has nothing to compare this binary's catalog against — run `sf lock`",
-                crate::fingerprint::CATALOG_LOCK_PATH
-            ))
-        }
+        // Two arms and one message: `Shape` and `Nested` carry different query
+        // types, so the bindings cannot be merged into a single or-pattern
+        // even though the question and the answer are identical.
         CheckKind::Shape { languages }
             if !covers_a_declared_language(languages.keys(), ctx) =>
         {
@@ -136,9 +121,42 @@ fn inert_reason(candidate: &Rule, ctx: &Ctx) -> Result<Option<String>> {
                 None
             }
         }
-        _ => None,
+        bookkeeping => inert_bookkeeping_reason(bookkeeping, &options, ctx),
     };
     Ok(reason)
+}
+
+/// The same question for the kinds that read configuration rather than source.
+///
+/// The trailing `_ => None` is the known gap, and the compiler cannot ask for
+/// the next one: `expiry`, `policy_tightening` and every `cadence` mode other
+/// than `gate_coverage` still have no inertness test.
+fn inert_bookkeeping_reason(check: &CheckKind, options: &Options, ctx: &Ctx) -> Option<String> {
+    match check {
+        CheckKind::Lock if options.scope.is_empty() => {
+            Some("no scope: it locks nothing".to_string())
+        }
+        CheckKind::Command if options.run.is_none() => {
+            Some("no command set: there is nothing for it to run".to_string())
+        }
+        CheckKind::Toolchain => inert_toolchain_reason(options, ctx),
+        CheckKind::Evidence => inert_evidence_reason(ctx),
+        CheckKind::Cadence { mode: CadenceMode::GateCoverage } => inert_gate_coverage_reason(ctx),
+        // Nothing committed to compare the running catalog against, so
+        // the rule passes every run while agreeing to nothing. `sf lock`
+        // writes the fingerprint whenever this rule is enabled, so the
+        // only way to reach this state is to delete the file or to enable
+        // the rule without locking.
+        CheckKind::CatalogTightening
+            if !ctx.root.join(crate::fingerprint::CATALOG_LOCK_PATH).exists() =>
+        {
+            Some(format!(
+                "no catalog fingerprint at {}: it has nothing to compare this binary's catalog against — run `sf lock`",
+                crate::fingerprint::CATALOG_LOCK_PATH
+            ))
+        }
+        _ => None,
+    }
 }
 
 /// Why a `toolchain` rule can never produce a finding here, if any.
@@ -165,6 +183,133 @@ fn inert_toolchain_reason(options: &Options, ctx: &Ctx) -> Option<String> {
         ));
     }
     None
+}
+
+/// Why an `evidence` rule can never produce a finding here, if any.
+///
+/// L3 is the layer the method calls "the whole method in one check", and it is
+/// also the one that reaches inertness without anybody editing a rule: gates
+/// live in their own top-level `gates:` map, so `enabled: true` and `gates: {}`
+/// coexist perfectly happily and the rule reports nothing, forever. That state
+/// is what this repository itself was in when the arm was written.
+///
+/// The second shape is the same hole as `inert_toolchain_reason`'s: a gate
+/// exists, so the map is not empty, but its `activation` list is. `activated`
+/// in `checks::evidence` matches a changed path against those globs and an
+/// empty glob set matches nothing, so the gate can never turn on, under any
+/// change, in either the known-change-set branch or the fail-closed one.
+fn inert_evidence_reason(ctx: &Ctx) -> Option<String> {
+    if ctx.policy.gates.is_empty() {
+        return Some(
+            "no gate declared in `gates:`: there is no customer-visible effect for it to require evidence of — declare one, or disable this rule in policy and say why in docs/rules.md".to_string(),
+        );
+    }
+    let dead = gates_with_no_activation(ctx);
+    if dead.len() == ctx.policy.gates.len() {
+        return Some(format!(
+            "every declared gate ({}) has an empty `activation`: no change to any file can ever turn one on, so this rule will report zero findings forever, not merely \"no evidence needed\"",
+            joined(dead.iter()),
+        ));
+    }
+    None
+}
+
+/// Why a `gate_coverage` rule can never produce a finding here, if any.
+///
+/// `gate_coverage` reads a gate's `plan` and compares the criteria there
+/// against `required_assertions`. `plan` is an `Option`, and the loop skips a
+/// gate without one, so a policy whose gates all omit it leaves the rule
+/// enabled and silent — and silence here reads as "the gates cover their
+/// plans", which is the opposite of what it means.
+fn inert_gate_coverage_reason(ctx: &Ctx) -> Option<String> {
+    if ctx.policy.gates.is_empty() {
+        return Some(
+            "no gate declared in `gates:`: there is no gate whose plan it could compare against — declare one, or disable this rule in policy and say why in docs/rules.md".to_string(),
+        );
+    }
+    if ctx.policy.gates.values().all(|gate| gate.plan.is_none()) {
+        return Some(format!(
+            "no declared gate ({}) names a `plan`: this rule only reads gates that do, so it will report zero findings forever",
+            joined(ctx.policy.gates.keys()),
+        ));
+    }
+    None
+}
+
+/// The gates a change can never activate, because they select no path at all.
+fn gates_with_no_activation(ctx: &Ctx) -> Vec<String> {
+    ctx.policy
+        .gates
+        .iter()
+        .filter(|(_, gate)| gate.activation.iter().all(|glob| glob.trim().is_empty()))
+        .map(|(name, _)| name.clone())
+        .collect()
+}
+
+#[cfg(test)]
+mod inert_l3 {
+    use super::super::Ctx;
+    use crate::catalog::Catalog;
+    use crate::policy::{FIXTURES_DIR, Policy, RULES_DIR};
+    use crate::ratchet::Ratchet;
+    use crate::scan;
+
+    /// `L5.NO_INERT_RULE`'s own mutation fixture declares one gate with an
+    /// empty `activation` and no `plan:`. Both L3 rules are switched on there
+    /// and neither can ever fire: `checks::evidence::activated` matches
+    /// against an empty glob set, and `gate_coverage` skips a gate with no
+    /// plan. Deleting either arm from `inert_reason` above makes this test
+    /// fail on the corresponding key.
+    ///
+    /// The gate is present rather than absent on purpose. `gates: {}` is the
+    /// state this repository was actually in, and it is also the state a
+    /// one-line `is_empty()` check would already catch — so the fixture holds
+    /// the harder shape, exactly as the `tools:` map beside it names only a
+    /// language nobody declares.
+    #[test]
+    fn a_gate_that_can_never_activate_makes_both_l3_rules_inert() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join(FIXTURES_DIR)
+            .join("L5.NO_INERT_RULE");
+        let policy = Policy::load(&root).expect("the fixture policy loads");
+        assert!(!policy.gates.is_empty(), "the fixture must declare a gate, not omit one");
+        let mut catalog = Catalog::builtin().expect("the built-in catalog loads");
+        catalog.extend_from_dir(&root.join(RULES_DIR)).expect("the fixture declares no local rules");
+        let files = scan::walk(&root, &policy).expect("the fixture repo scans");
+        let ratchet = Ratchet::default();
+        let ctx = Ctx {
+            root: &root,
+            policy: &policy,
+            catalog: &catalog,
+            files: &files,
+            ratchet: &ratchet,
+            changed: None,
+            base: None,
+            today: crate::clock::today(),
+            allow_commands: false,
+        };
+        let rule = catalog.get("L5.NO_INERT_RULE").expect("ships in the catalog").clone();
+        let findings = super::inert_rules(&rule, &ctx).expect("inert_rules runs");
+        let message = |key: &str| {
+            findings
+                .iter()
+                .find(|f| f.key == key)
+                .unwrap_or_else(|| panic!("an inert L3 rule must be reported: {key}"))
+                .message
+                .clone()
+        };
+
+        let evidence = message("inert:L3.GATE_HAS_FRESH_EVIDENCE");
+        assert!(evidence.contains("checkout"), "names the dead gate: {evidence}");
+        assert!(
+            evidence.contains("forever"),
+            "says the rule can never fire here, not that no evidence is due: {evidence}"
+        );
+
+        let coverage = message("inert:L3.GATE_COVERS_THE_PLAN");
+        assert!(coverage.contains("plan"), "names what the gate is missing: {coverage}");
+        assert!(coverage.contains("forever"), "says the rule can never fire here: {coverage}");
+    }
 }
 
 #[cfg(test)]

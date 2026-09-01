@@ -4,9 +4,10 @@ title: An enabled rule must be capable of producing a finding
 severity: high
 statement: >-
   A rule that is switched on must be configured to look at something: a lock
-  rule needs a scope, a toolchain rule needs tools, a gate rule needs a gate,
-  a text-pattern or complexity rule needs a scope that actually selects a
-  file it can evaluate, and a rule carrying a `when` needs a manifest that
+  rule needs a scope, a toolchain rule needs tools, an evidence rule needs a
+  gate a change can activate, a gate-coverage rule needs a gate that names a
+  plan, a text-pattern or complexity rule needs a scope that actually selects
+  a file it can evaluate, and a rule carrying a `when` needs a manifest that
   still satisfies it.
 why: >-
   `sf verify` proves a rule *can* fire, by running it against a fixture built
@@ -41,6 +42,15 @@ why: >-
   rule running — it is about a version this repository does not have — and
   is reported here rather than quietly disabling itself, which is also what
   stops `when` becoming a way to switch a rule off by editing a manifest.
+  And L3 reaches it through a third door, because gates live in their own
+  top-level `gates:` map: `enabled: true` and `gates: {}` coexist perfectly
+  happily, and the two rules the method calls "the whole method in one check"
+  then sit in every report having found nothing. This one was the least
+  hypothetical of all — it was the state of `software-factory`'s own policy,
+  under a rule written to catch exactly this, which could not see the layer it
+  mattered most in. Both L3 rules have the quieter form too: a gate whose
+  `activation` is empty can never be turned on by any change, and
+  `gate_coverage` silently skips every gate that names no `plan`.
 fix: >-
   Give the rule something to look at, or switch it off in policy and say why in
   the rules document. Disabled and documented is honest; enabled and inert is

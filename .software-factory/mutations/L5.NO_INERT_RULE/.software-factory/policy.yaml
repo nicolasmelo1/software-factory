@@ -5,7 +5,10 @@ project:
   languages: [python, typescript, go, rust, ruby]
 docs:
   scan: ["docs/**/*.md"]
-gates: {}
+gates:
+  checkout:
+    activation: []
+    evidence: "evidence/checkout.json"
 rules:
   L2.GENERATED_FILES_ARE_LOCKED:
     enabled: true
@@ -42,5 +45,9 @@ rules:
       dependency: tailwindcss
       manifest: package.json
       version: "^4"
+  L3.GATE_HAS_FRESH_EVIDENCE:
+    enabled: true
+  L3.GATE_COVERS_THE_PLAN:
+    enabled: true
   L5.NO_INERT_RULE:
     enabled: true
