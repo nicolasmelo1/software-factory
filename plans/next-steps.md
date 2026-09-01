@@ -22,6 +22,8 @@ precondition exists. Park it in the second table rather than deleting it.
 
 | 7 | [The grain has a ceiling and no floor](the-grain-has-a-ceiling-and-no-floor.md) | `sf check` on a repository nobody tuned it for names at least one indirection site whose own maintainer agrees should not exist, and stays silent on `software-factory`'s own `src/`, where every candidate hit measured so far is correct code. |
 
+| 8 | [A plan bigger than its proofs](a-plan-bigger-than-its-proofs.md) | `sf check` on this repository names the two plans whose criteria are entirely debt and stays silent on the two that name their proofs, and `sf verify` proves the rule fires on both a floor fixture and a ceiling fixture. |
+
 ## Parked
 
 | Work | Waiting on |
