@@ -315,13 +315,12 @@ pub fn update_locks(root: &Path, catalog: &Catalog) -> Result<Vec<String>> {
         lock.save(&root.join(&lock_file))?;
         written.push(lock_file);
     }
-    // The catalog fingerprint is not scope-driven like the lock rules above.
-    // It records the reach of every enabled rule so the next binary can be
-    // compared against it, and it is written only when the rule that reads it
-    // is on: a repository that did not adopt that rule should not find a file
-    // it never asked for, and `L4.ROOT_FILES_ARE_DECLARED` taught this command
-    // once already that scaffolding nobody asked for is scaffolding that goes
-    // red.
+    // Not scope-driven like the lock rules above: it records every enabled
+    // rule's reach so the next binary can be compared against it, and is
+    // written only when the rule that reads it is on. A repository that did
+    // not adopt that rule should not find a file it never asked for —
+    // `L4.ROOT_FILES_ARE_DECLARED` already taught this command that
+    // scaffolding nobody asked for is scaffolding that goes red.
     if policy.any_instance_enabled("L2.CATALOG_ONLY_TIGHTENS") {
         written.push(crate::fingerprint::CatalogLock::of(catalog, &policy).write(root)?);
     }

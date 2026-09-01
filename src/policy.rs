@@ -106,13 +106,12 @@ pub struct TextPattern {
     /// it must name the alternative, not just the ban.
     pub message: String,
     /// Restrict *this pattern* to a subset of the rule's own `scope` — the
-    /// same glob vocabulary, one level down. A rule with several spellings
-    /// of one concept, one per language, must not point language B's
-    /// spelling at language A's files: `:\s*any\b` is TypeScript's `any`,
-    /// but it also matches Ruby's `:any?` symbol wherever both live under
-    /// the same rule's scope. Empty means "wherever the rule's scope
-    /// already reaches", so a rule with one flat pattern list — the common
-    /// case — is unaffected.
+    /// same glob vocabulary, one level down. A rule with one spelling per
+    /// language must not point language B's spelling at language A's files:
+    /// `:\s*any\b` is TypeScript's `any`, and also Ruby's `:any?`.
+    ///
+    /// Empty means "wherever the rule's scope already reaches", so the common
+    /// case of one flat pattern list is unaffected.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub scope: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -133,8 +132,8 @@ pub struct RuleSetting {
     pub when: Option<When>,
 }
 
-/// A rule instance that is only correct while the dependency it describes is
-/// pinned to the version it was written for.
+/// A rule instance correct only while the dependency it describes stays pinned
+/// to the version it was written for.
 ///
 /// ```yaml
 /// PACK_RULE_ID@tailwind3:
@@ -414,13 +413,11 @@ pub fn repo_root(start: &Path) -> Result<PathBuf> {
     }
 }
 
-/// `when:` — parsing it, and the decision it makes about whether an instance
-/// runs. The fixture these read against is
-/// `.software-factory/mutations/L5.NO_INERT_RULE/`, materialized by
-/// `sf fixtures` from `src/fixtures.rs`: a mini-repo whose `package.json`
-/// pins `tailwindcss ^4.0.2` and which enables three conditional instances of
-/// one rule — `@tailwind3` (the pin moved), `@quickbooks` (a package the
-/// manifest never declared) and `@tailwind4` (the condition still holds).
+/// `when:` — parsing it, and whether an instance runs. These read against
+/// `.software-factory/mutations/L5.NO_INERT_RULE/`: a mini-repo pinning
+/// `tailwindcss ^4.0.2` that enables three conditional instances of one rule
+/// — `@tailwind3` (the pin moved), `@quickbooks` (never declared) and
+/// `@tailwind4` (still holds).
 #[cfg(test)]
 mod when_conditions {
     use super::*;

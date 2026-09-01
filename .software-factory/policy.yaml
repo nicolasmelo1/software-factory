@@ -35,6 +35,9 @@ gates:
       - "cli.new_violation_fails_the_check"
 
 rules:
+  # L1 — A comment block stays under the line ceiling
+  L1.COMMENT_STAYS_SUCCINCT:
+    enabled: true
   # L0 — Error types live in one canonical module per domain
   L0.EXCEPTIONS_HAVE_ONE_HOME:
     enabled: true
@@ -124,24 +127,21 @@ rules:
     enabled: true
     options:
       # Everything downstream of the version number in Cargo.toml, compared
-      # rather than trusted. A tag is the only thing a consumer can pin to,
-      # and each of these four is a way for a tag to promise something the
-      # binary does not deliver: a lockfile still naming the old version, an
-      # install line in the README pointing at a tag that predates the rules
-      # it documents, a catalog fingerprint nobody refreshed so the next
-      # upgrade compares against a stale baseline, and the workflow `sf init`
-      # writes into somebody else's repository pinning a version this build is
-      # not. The release workflow runs the same four through this rule, so the
-      # gate is one definition rather than a copy in CI.
+      # rather than trusted. A tag is all a consumer can pin to, and each of
+      # these four is a way for one to promise what the binary does not
+      # deliver: a stale lockfile, a README install line predating the rules
+      # it documents, an unrefreshed catalog fingerprint, and the workflow
+      # `sf init` writes elsewhere pinning a version this build is not.
       #
-      # Every one of the four is read-only, and that is load-bearing rather
-      # than tidy. The first draft ran `sf lock` here and compared the result
-      # with `git diff`, which rewrote every lock file in the middle of
-      # `sf check --allow-commands` and so erased the evidence
-      # `L2.FACTORY_CONFIG_IS_LOCKED` and `L2.DEPENDENCIES_CHANGE_DELIBERATELY`
-      # exist to read. Both reported green on a modified locked file. A
-      # `kind: command` rule runs inside a check that is otherwise read-only;
-      # it does not get to write.
+      # The release workflow runs the same four through this rule, so the gate
+      # is one definition rather than a copy in CI.
+      #
+      # All four are read-only, and that is load-bearing. The first draft ran
+      # `sf lock` here and diffed the result, rewriting every lock file mid
+      # `sf check` and erasing the evidence `L2.FACTORY_CONFIG_IS_LOCKED` and
+      # `L2.DEPENDENCIES_CHANGE_DELIBERATELY` exist to read — both went green
+      # on a modified locked file. A `kind: command` rule runs inside an
+      # otherwise read-only check; it does not get to write.
       run: |
         set -eu
         version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)

@@ -82,13 +82,12 @@ fn inert_rules(rule: &Rule, ctx: &Ctx) -> Result<Vec<Finding>> {
 
 /// Why an enabled rule can never produce a finding in this repository, if any.
 ///
-/// Split the way `checks::run_one` splits: the kinds that read source through a
-/// grammar here, the bookkeeping kinds next door. Lifting it out of
-/// `inert_rules`'s loop keeps the reason and the reporting separately readable,
-/// and it means covering one more kind costs the budget of the half that
-/// actually grew — which is not free, and is the whole argument
-/// `L1.COMPLEXITY_CEILING` makes: the two L3 arms below pushed the single
-/// function that used to hold all of this to 14 paths against a ceiling of 12.
+/// Split the way `checks::run_one` splits: grammar-reading kinds here,
+/// bookkeeping kinds next door. Lifting it out of `inert_rules`'s loop keeps
+/// reason and reporting separately readable, and covering one more kind then
+/// costs only the half that grew. That is `L1.COMPLEXITY_CEILING`'s argument:
+/// the two L3 arms below pushed the single function that held all of this to
+/// 14 paths against a ceiling of 12.
 fn inert_reason(candidate: &Rule, ctx: &Ctx) -> Result<Option<String>> {
     let options = super::options_for(candidate, ctx.policy)?;
     let reason: Option<String> = match &candidate.check {
@@ -168,13 +167,11 @@ fn inert_toolchain_reason(options: &Options, ctx: &Ctx) -> Option<String> {
     if options.tools.is_empty() {
         return Some("no tools declared: it can never find one missing".to_string());
     }
-    // The map is not empty, but none of its keys are a language this project
-    // declares — every entry in it names an ecosystem this repository does
-    // not have, so the per-language loop in `checks::toolchain::run` skips
-    // every declared language via its own `continue` and the rule reports
-    // nothing, forever. A distinct message from the empty-map case above:
-    // that one is about a rule nobody configured, this one is about a rule
-    // configured for a different project.
+    // Non-empty, but no key names a language this project declares, so the
+    // per-language loop in `checks::toolchain::run` `continue`s past every
+    // one and the rule reports nothing, forever. Distinct from the empty-map
+    // case above: that is a rule nobody configured, this is a rule configured
+    // for a different project.
     if !covers_a_declared_language(options.tools.keys(), ctx) {
         return Some(format!(
             "tools declared for {}, none for {}: it will report zero findings for this project, forever, not merely \"no tool found\" — add a tool entry for the missing language, or disable this rule instance in policy and say why in docs/rules.md",
@@ -320,16 +317,12 @@ mod inert_toolchain {
     use crate::ratchet::Ratchet;
     use crate::scan;
 
-    /// `L5.NO_INERT_RULE`'s own mutation fixture (`.software-factory/mutations/L5.NO_INERT_RULE`,
-    /// materialized by `sf fixtures` from `src/fixtures.rs`) enables
-    /// `L6.DATA_RACES_ARE_DETECTED@toolchain_gap` with a `tools:` map that
-    /// names only `java`, a language the fixture's mini-repo never declares
-    /// (`[python, typescript, go, rust, ruby]`). Before `inert_rules` learned
-    /// to look past `options.tools.is_empty()`, a non-empty map like this one
-    /// passed silently — the finding this test asserts on is the whole
-    /// difference. Reverting the second `CheckKind::Toolchain` arm in
-    /// `inert_rules` above makes this test fail: no finding carries the key
-    /// `inert:L6.DATA_RACES_ARE_DETECTED@toolchain_gap`.
+    /// `L5.NO_INERT_RULE`'s own fixture enables
+    /// `L6.DATA_RACES_ARE_DETECTED@toolchain_gap` with a `tools:` map naming
+    /// only `java`, which its mini-repo never declares. Before `inert_rules`
+    /// looked past `options.tools.is_empty()`, a non-empty map like this
+    /// passed silently. Reverting the second `CheckKind::Toolchain` arm above
+    /// makes this fail: no finding carries `inert:...@toolchain_gap`.
     #[test]
     fn a_non_empty_tools_map_missing_every_declared_language_is_inert() {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))

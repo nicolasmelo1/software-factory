@@ -110,12 +110,11 @@ jobs:
           merge-multiple: true
       - run: cargo build --release --locked
       # Release notes are generated, not written. `sf --version` carries the
-      # catalog digest, and the catalog lock carries the reach of every rule
-      # this repository enables — which is exactly what a consumer needs in
-      # order to decide whether upgrading is safe. A hand-written changelog is
-      # a second list somebody forgets to update, the same argument
-      # `L4.RULE_PROSE_NAMES_A_REAL_COMMAND` already makes about prose naming
-      # a command.
+      # catalog digest and the lock carries every enabled rule's reach, which
+      # is what a consumer needs to judge whether upgrading is safe. A
+      # hand-written changelog is a second list somebody forgets — the
+      # argument `L4.RULE_PROSE_NAMES_A_REAL_COMMAND` already makes about
+      # prose naming a command.
       - name: Compose the notes
         env:
           TAG: ${{ github.ref_name }}
