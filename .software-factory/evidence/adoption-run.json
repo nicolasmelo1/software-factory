@@ -1,0 +1,24 @@
+{
+  "scenario": "adoption",
+  "status": "passed",
+  "goal": "I maintain a TypeScript framework with a few years of history in it. Install the software factory, set it up the way the README says to, and tell me whether it will stop the next bad change I write without drowning me in the mess that is already there.",
+  "corpus": {
+    "repository": "palmares",
+    "commit": "cd135c71e1debc55c20e08059749fe37ee943e21",
+    "tracked_files": 1232
+  },
+  "sf": "sf 0.2.0 (catalog 9f03093ac12d, 35 rules)",
+  "observed": {
+    "rules_enabled_by_init": 13,
+    "violations_frozen_at_init": 1737,
+    "verify": "13/13 enabled rules proven to fire",
+    "check_on_baseline": "✓ 13 rules, no findings (2833 frozen by the ratchet)",
+    "check_after_one_new_violation": "2 findings across 2 rules (2833 frozen by the ratchet)"
+  },
+  "assertions": [
+    { "type": "cli.init_scaffolds_a_policy", "status": "passed" },
+    { "type": "cli.verify_is_green_after_init", "status": "passed" },
+    { "type": "cli.check_is_green_on_the_frozen_baseline", "status": "passed" },
+    { "type": "cli.new_violation_fails_the_check", "status": "passed" }
+  ]
+}

@@ -462,7 +462,7 @@ pub const FIXTURES: &[Fixture] = &[
     Fixture {
         rule: "L5.NO_INERT_RULE",
         policy_extra: "",
-        // Six ways to be inert, one per covered kind: a lock switched on
+        // Eight ways to be inert, one per covered kind: a lock switched on
         // over nothing, a text-pattern rule scoped at a path nothing in the
         // mini-repo matches, a complexity ceiling scoped the same way, a
         // toolchain rule whose `tools:` map names only a language ("java")
@@ -472,10 +472,13 @@ pub const FIXTURES: &[Fixture] = &[
         // instances: one written for `tailwindcss ^3` where `package.json`
         // now pins `^4.0.2`, and one about a package the manifest never
         // declared at all. The `@tailwind4` instance is the control: its
-        // `when` matches, so it must stay out of the report. Each of the six
-        // passes every run and reads in a report exactly like a rule that is
-        // protecting you.
-        extra_rules: "  L2.GENERATED_FILES_ARE_LOCKED:\n    enabled: true\n    options:\n      scope: []\n  L1.NO_BLANKET_SUPPRESSION@inert:\n    enabled: true\n    options:\n      scope: [\"nonexistent/**\"]\n  L1.COMPLEXITY_CEILING@inert:\n    enabled: true\n    options:\n      scope: [\"nonexistent/**\"]\n  L6.DATA_RACES_ARE_DETECTED@toolchain_gap:\n    enabled: true\n    options:\n      tools:\n        java: [\"error-prone\", \"jcstress\"]\n  L1.NO_BLANKET_SUPPRESSION@tailwind3:\n    enabled: true\n    when:\n      dependency: tailwindcss\n      manifest: package.json\n      version: \"^3\"\n  L1.NO_BLANKET_SUPPRESSION@quickbooks:\n    enabled: true\n    when:\n      dependency: node-quickbooks\n      manifest: package.json\n      version: \"^2\"\n  L1.NO_BLANKET_SUPPRESSION@tailwind4:\n    enabled: true\n    when:\n      dependency: tailwindcss\n      manifest: package.json\n      version: \"^4\"\n",
+        // `when` matches, so it must stay out of the report. Last, both L3
+        // rules, aimed at the gate this fixture's policy declares with an
+        // empty `activation` and no `plan:` — a gate that exists, so neither
+        // is inert for the trivial reason, and that no change can ever turn
+        // on. Each of the eight passes every run and reads in a report
+        // exactly like a rule that is protecting you.
+        extra_rules: "  L2.GENERATED_FILES_ARE_LOCKED:\n    enabled: true\n    options:\n      scope: []\n  L1.NO_BLANKET_SUPPRESSION@inert:\n    enabled: true\n    options:\n      scope: [\"nonexistent/**\"]\n  L1.COMPLEXITY_CEILING@inert:\n    enabled: true\n    options:\n      scope: [\"nonexistent/**\"]\n  L6.DATA_RACES_ARE_DETECTED@toolchain_gap:\n    enabled: true\n    options:\n      tools:\n        java: [\"error-prone\", \"jcstress\"]\n  L1.NO_BLANKET_SUPPRESSION@tailwind3:\n    enabled: true\n    when:\n      dependency: tailwindcss\n      manifest: package.json\n      version: \"^3\"\n  L1.NO_BLANKET_SUPPRESSION@quickbooks:\n    enabled: true\n    when:\n      dependency: node-quickbooks\n      manifest: package.json\n      version: \"^2\"\n  L1.NO_BLANKET_SUPPRESSION@tailwind4:\n    enabled: true\n    when:\n      dependency: tailwindcss\n      manifest: package.json\n      version: \"^4\"\n  L3.GATE_HAS_FRESH_EVIDENCE:\n    enabled: true\n  L3.GATE_COVERS_THE_PLAN:\n    enabled: true\n",
         files: &[
             // The bare `# noqa` is what makes the conditional instances
             // legible in a report: `@tailwind4`, whose `when` the manifest
@@ -542,6 +545,15 @@ pub fn fixture_policy(fixture: &Fixture) -> String {
         // not cite. The criterion cites a different one, which is the hole.
         "L3.GATE_COVERS_THE_PLAN" => {
             "gates:\n  checkout:\n    activation: [\"src/checkout/**\"]\n    evidence: \"evidence/checkout.json\"\n    plan: \"plans/rewrite-checkout.md\"\n    required_assertions: [\"api.ledger_balanced\"]\n"
+        }
+        // A gate that exists and can never fire. The map is not empty, so
+        // neither L3 rule is inert for the trivial reason; the `activation`
+        // list is, so no change can turn the gate on, and no `plan:` is named,
+        // so `gate_coverage` skips it. Deliberately the harder shape of each,
+        // for the same reason the `tools:` map above names only `java`: the
+        // empty-map case is the one a naive check already catches.
+        "L5.NO_INERT_RULE" => {
+            "gates:\n  checkout:\n    activation: []\n    evidence: \"evidence/checkout.json\"\n"
         }
         _ => "gates: {}\n",
     };

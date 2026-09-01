@@ -5,8 +5,9 @@ severity: critical
 statement: >-
   When a change touches a gate's activation paths, that gate's evidence
   manifest must exist, its referenced report must match the recorded SHA-256,
-  every required assertion must be `passed` with none `unsupported`, and the
-  digest of the implementation it certifies must still match the code on disk.
+  each run must name an actor that could have been a customer, every required
+  assertion must be `passed` with none `unsupported`, and the digest of the
+  implementation it certifies must still match the code on disk.
 why: >-
   This is the whole method in one check. Activation comes from touched paths,
   so nobody can skip the gate by omitting a label or writing "done" in a pull
@@ -14,10 +15,21 @@ why: >-
   claim a pass the raw report never contained. And the implementation digest is
   what makes evidence expire: change the code the evidence certified and the
   evidence dies with it, instead of quietly certifying something it never saw.
+  The actor is the property the other four are in service of: the gate is not
+  "the tests pass", it is that something shaped like the customer achieved the
+  effect, so a run filed under `scripted` has recorded a replay of a fixed
+  sequence and a replay proves the sequence rather than the outcome. That last
+  one is a denylist over free text and is worth no more than it claims — a
+  manifest set on getting past it writes "the script" and does. It is exactly
+  as strong as the goal check beside it: it names the value somebody reaches
+  for when they have not thought about the actor, and stops the field being
+  decoration nothing reads.
 fix: >-
   Re-run the proof against the real thing and regenerate the manifest with
   `sf seal <gate>`. If the run cannot pass, the finding is the product
-  behaviour, not the gate. Never hand-edit a digest.
+  behaviour, not the gate. If the finding is the actor, the fix is not a better
+  word in the manifest — it is running the scenario as the customer would meet
+  it. Never hand-edit a digest.
 ratchet: none
 check:
   kind: evidence
@@ -27,3 +39,16 @@ defaults:
     - "/home/"
     - "src/"
     - "tests/fixtures/"
+  # Matched whole-string and case-insensitively, not as substrings: an actor
+  # may legitimately be a browser driver or an agent, so "the script that
+  # drives Chrome" must pass while a bare "scripted" must not.
+  forbidden_actors:
+    - "scripted"
+    - "script"
+    - "automated"
+    - "automation"
+    - "ci"
+    - "none"
+    - "n/a"
+    - "unknown"
+    - "tbd"

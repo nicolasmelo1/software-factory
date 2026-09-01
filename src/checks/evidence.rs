@@ -4,6 +4,8 @@
 //!
 //! * activation comes from touched paths, so no label or pull-request
 //!   sentence can route around it;
+//! * the run names an actor that could have been a customer, so a replayed
+//!   sequence cannot be filed as evidence about an outcome;
 //! * the manifest is re-verified, not trusted, so a summary cannot assert a
 //!   pass the raw report never contained;
 //! * the implementation digest is recorded, so evidence expires the moment
@@ -23,7 +25,9 @@ use std::path::Path;
 pub struct Run {
     pub scenario: String,
     pub status: String,
-    /// What performed the run. A human name is fine; "scripted" is not a proof.
+    /// What performed the run. A human name is fine; "scripted" is not a
+    /// proof, and `check_actor` is what makes that sentence enforcement
+    /// rather than a comment.
     pub actor: String,
     pub report: String,
     #[serde(default)]
@@ -250,8 +254,11 @@ fn check_run(
     run: &Run,
 ) -> Result<Vec<Finding>> {
     let key = format!("{name}:{}", run.scenario);
+    // Who ran it is a property of the manifest, not of the report, so it is
+    // judged before anything downstream can short-circuit the run.
+    let mut findings = check_actor(rule, opts, gate, &key, run);
     if run.status != "passed" {
-        return Ok(vec![
+        findings.push(
             fail(
                 rule,
                 gate.evidence.clone(),
@@ -260,15 +267,19 @@ fn check_run(
             )
             .expected("passed")
             .actual(run.status.clone()),
-        ]);
+        );
+        return Ok(findings);
     }
     let report = match resolve_report(rule, ctx, &key, run)? {
         Ok(report) => report,
-        Err(finding) => return Ok(vec![finding]),
+        Err(finding) => {
+            findings.push(finding);
+            return Ok(findings);
+        }
     };
     if report.status != "passed" || (!report.scenario.is_empty() && report.scenario != run.scenario)
     {
-        return Ok(vec![
+        findings.push(
             fail(
                 rule,
                 run.report.clone(),
@@ -280,11 +291,65 @@ fn check_run(
             )
             .expected(format!("scenario {} status passed", run.scenario))
             .actual(format!("scenario {} status {}", report.scenario, report.status)),
-        ]);
+        );
+        return Ok(findings);
     }
-    let mut findings = check_assertions(rule, &key, gate, run, &report);
+    findings.extend(check_assertions(rule, &key, gate, run, &report));
     findings.extend(check_goal_fidelity(rule, opts, &key, run, &report));
     Ok(findings)
+}
+
+/// The first of L3's five properties, and the one nothing read until now.
+///
+/// `Run::actor` records what performed the run, and the gate exists to show
+/// that an actor shaped like the customer achieved the effect. A run credited
+/// to nobody, or to a word that means no more than "some code ran", is a
+/// replay of a fixed sequence — which proves the sequence, not the outcome.
+///
+/// The limit belongs in the open: this is a denylist over free text, so a
+/// manifest determined to get past it writes "the script" and does. It is
+/// exactly as strong as `forbidden_in_goal` below and no stronger. What it
+/// buys is that the field stops being decoration, because the values it names
+/// are the ones somebody reaches for when they have not thought about the
+/// actor at all.
+///
+/// Matching is whole-string and case-insensitive rather than substring, which
+/// `forbidden_in_goal` uses. `docs/method.md` is explicit that the actor may
+/// be an agent, a browser driver or a person, so "the script that drives
+/// Chrome" is a legitimate actor and a substring rule would reject it. The
+/// target is the placeholder, not every string containing it.
+fn check_actor(rule: &Rule, opts: &Options, gate: &Gate, key: &str, run: &Run) -> Vec<Finding> {
+    let actor = run.actor.trim();
+    if actor.is_empty() {
+        return vec![
+            fail(
+                rule,
+                gate.evidence.clone(),
+                format!("{key}:actor-missing"),
+                format!("run `{}` records no actor", run.scenario),
+            )
+            .expected("what performed the run")
+            .actual("empty"),
+        ];
+    }
+    let lowered = actor.to_lowercase();
+    opts.forbidden_actors
+        .iter()
+        .filter(|forbidden| lowered == forbidden.trim().to_lowercase())
+        .map(|forbidden| {
+            fail(
+                rule,
+                gate.evidence.clone(),
+                format!("{key}:actor:{forbidden}"),
+                format!(
+                    "run `{}` credits its actor to `{forbidden}`, which names nothing that could be a customer",
+                    run.scenario
+                ),
+            )
+            .expected("an actor shaped like the customer: a person, an agent, a browser driver")
+            .actual(run.actor.clone())
+        })
+        .collect()
 }
 
 /// The union of what policy demands and what the manifest admits it owed.
@@ -387,4 +452,70 @@ pub fn seal(root: &Path, gate_name: &str, gate: &Gate, ctx: &Ctx) -> Result<Mani
     }
     std::fs::write(&path, format!("{}\n", serde_json::to_string_pretty(&manifest)?))?;
     Ok(manifest)
+}
+
+#[cfg(test)]
+mod actor {
+    use super::{Run, check_actor};
+    use crate::catalog::{Catalog, Rule};
+    use crate::policy::{Gate, Options, Policy};
+
+    /// The shipped defaults, not a hand-written list: the point of these tests
+    /// is that the catalog carries the denylist, so writing one here would let
+    /// an empty `forbidden_actors:` in the YAML pass them all.
+    fn shipped() -> (Rule, Options) {
+        let catalog = Catalog::builtin().expect("the built-in catalog loads");
+        let rule = catalog.get("L3.GATE_HAS_FRESH_EVIDENCE").expect("ships in the catalog").clone();
+        let policy: Policy =
+            serde_yaml::from_str("version: 1\nproject:\n  name: t\n  languages: [rust]\n")
+                .expect("a minimal policy parses");
+        let options = crate::checks::options_for(&rule, &policy).expect("options merge");
+        assert!(
+            !options.forbidden_actors.is_empty(),
+            "the catalog must ship a denylist, or every assertion below is vacuous"
+        );
+        (rule, options)
+    }
+
+    fn findings_for(actor: &str) -> Vec<String> {
+        let (rule, options) = shipped();
+        let run = Run {
+            scenario: "checkout".to_string(),
+            status: "passed".to_string(),
+            actor: actor.to_string(),
+            report: "evidence/checkout-run.json".to_string(),
+            report_sha256: String::new(),
+            required_assertions: Vec::new(),
+        };
+        check_actor(&rule, &options, &Gate::default(), "checkout:checkout", &run)
+            .into_iter()
+            .map(|f| f.key)
+            .collect()
+    }
+
+    /// The sentence that sat in a doc comment on `Run::actor` while nothing
+    /// read the field. Reverting `check_actor` makes this test fail.
+    #[test]
+    fn scripted_is_not_a_proof() {
+        assert_eq!(findings_for("scripted"), vec!["checkout:checkout:actor:scripted".to_string()]);
+    }
+
+    #[test]
+    fn an_empty_actor_is_a_finding_of_its_own() {
+        assert_eq!(findings_for("   "), vec!["checkout:checkout:actor-missing".to_string()]);
+    }
+
+    #[test]
+    fn the_denylist_is_case_insensitive() {
+        assert_eq!(findings_for("Scripted"), vec!["checkout:checkout:actor:scripted".to_string()]);
+    }
+
+    /// `docs/method.md`: "Whether the actor is an agent, a browser driver or a
+    /// person depends on who your customer is." A substring rule would reject
+    /// this one for containing "script", which is why the match is whole-string.
+    #[test]
+    fn a_browser_driver_is_a_legitimate_actor() {
+        assert!(findings_for("the Playwright script that drives Chrome").is_empty());
+        assert!(findings_for("Nicolas, by hand").is_empty());
+    }
 }
