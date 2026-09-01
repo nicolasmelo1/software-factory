@@ -18,6 +18,8 @@ precondition exists. Park it in the second table rather than deleting it.
 
 | 5 | [A plan bigger than its proofs](a-plan-bigger-than-its-proofs.md) | `sf check` on this repository names the two plans whose criteria are entirely debt and the one plan with no criteria at all, stays silent on `rules-activate-by-dependency-version.md`, and `sf verify` proves the rule fires on both a floor fixture and a ceiling fixture. |
 
+| 6 | [A gate bigger than its proofs](a-gate-bigger-than-its-proofs.md) | A gate requiring no assertions, over a report carrying none, with an emptied goal denylist, turns `sf check` red, and this repository's own `adoption` gate stays green. |
+
 
 ## Parked
 
