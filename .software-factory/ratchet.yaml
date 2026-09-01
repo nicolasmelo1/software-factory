@@ -4,6 +4,35 @@
 # visible in review.
 version: 1
 rules:
+  L1.COMMENT_STAYS_SUCCINCT:
+    review_by: 2027-03-01
+    note: null
+    allow:
+    - .github/workflows/release.yml:112
+    - .software-factory/policy.yaml:129
+    - .software-factory/policy.yaml:140
+    - src/checks/cadence.rs:171
+    - src/checks/cadence.rs:323
+    - src/checks/cadence.rs:85
+    - src/checks/catalog_tightening.rs:3
+    - src/checks/evidence.rs:5
+    - src/checks/mod.rs:99
+    - src/checks/toolchain.rs:60
+    - src/fingerprint.rs:3
+    - src/fingerprint.rs:432
+    - src/fixtures.rs:381
+    - src/fixtures.rs:483
+    - src/init.rs:318
+    - src/policy.rs:108
+    - src/policy.rs:139
+    - src/policy.rs:417
+    - src/ratchet.rs:82
+    - src/report.rs:139
+  L4.EVERY_RULE_HAS_A_WHY:
+    review_by: 2027-03-01
+    note: null
+    allow:
+    - uncited:L1.COMMENT_STAYS_SUCCINCT
   L6.PERFORMANCE_REGRESSION_IS_GUARDED:
     review_by: 2027-02-18
     note: null

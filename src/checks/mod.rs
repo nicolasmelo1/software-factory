@@ -2,6 +2,7 @@
 
 pub mod cadence;
 pub mod catalog_tightening;
+pub mod comment_block;
 pub mod command;
 pub mod complexity;
 pub mod evidence;
@@ -85,6 +86,7 @@ pub fn run_one(rule: &Rule, ctx: &Ctx) -> Result<Vec<Finding>> {
         CheckKind::Shape { languages } => shape::run(rule, &opts, languages, ctx),
         CheckKind::Nested { languages } => nested::run(rule, &opts, languages, ctx),
         CheckKind::Complexity => complexity::run(rule, &opts, ctx),
+        CheckKind::CommentBlock => comment_block::run(rule, &opts, ctx),
         CheckKind::TextPattern => text_pattern::run(rule, &opts, ctx),
         // The kinds that read what the repository committed about itself.
         bookkeeping => run_bookkeeping(bookkeeping, rule, &opts, ctx),
@@ -121,6 +123,7 @@ fn run_bookkeeping(
         CheckKind::Shape { .. }
         | CheckKind::Nested { .. }
         | CheckKind::Complexity
-        | CheckKind::TextPattern => Ok(Vec::new()),
+        | CheckKind::TextPattern
+        | CheckKind::CommentBlock => Ok(Vec::new()),
     }
 }

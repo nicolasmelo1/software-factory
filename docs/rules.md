@@ -121,6 +121,16 @@ Modules marked private or generated are imported only from inside the package th
 
 ## L1 — Grain: how the code reads
 
+### L1.COMMENT_STAYS_SUCCINCT
+
+**A comment block stays under the line ceiling**
+
+A contiguous run of whole-line comments stays at or under the configured number of lines. A blank line starts a new run.
+
+**Why.** A comment earns its place by being read. Past a handful of lines it stops being read and starts being scrolled past, so the longest comments reliably explain the least. Agents inflate them hardest: prose is the cheapest thing to generate, it looks like diligence in a diff, and no compiler ever disagrees with it. The ceiling does not ban explanation — it forces the choice between a note, which belongs at the code, and an argument, which belongs in a document the code can link to.
+
+**Fix.** Cut to the sentence a reader needs at this line. If the reasoning is genuinely long, move it to a document and leave a comment pointing there — a link that survives the next refactor is worth more than a paragraph that will not be updated with the code beneath it. Splitting one run into paragraphs with a blank line is also a real fix, not a dodge: paragraphs are read.
+
 ### L1.COMPLEXITY_CEILING
 
 **No function exceeds the cyclomatic ceiling**

@@ -35,6 +35,9 @@ gates:
       - "cli.new_violation_fails_the_check"
 
 rules:
+  # L1 — A comment block stays under the line ceiling
+  L1.COMMENT_STAYS_SUCCINCT:
+    enabled: true
   # L0 — Error types live in one canonical module per domain
   L0.EXCEPTIONS_HAVE_ONE_HOME:
     enabled: true

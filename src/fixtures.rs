@@ -125,6 +125,24 @@ pub const FIXTURES: &[Fixture] = &[
         ],
     },
     Fixture {
+        rule: "L1.COMMENT_STAYS_SUCCINCT",
+        policy_extra: "        max: 3\n",
+        extra_rules: "",
+        files: &[
+            // Four lines where three are allowed, then a shorter run that must
+            // stay quiet. A fixture that only carries the violation cannot
+            // tell a rule that fires correctly from one that fires always.
+            (
+                "src/settings.yaml",
+                "# The retry budget is per attempt, not per job, because a job\n# that lost its lease has already consumed the attempt it was\n# leased for, and counting it twice turns a single slow worker\n# into an outage that looks like a retry storm.\nretries: 3\n\n# Per attempt.\ntimeout: 30\n",
+            ),
+            (
+                "src/notes.py",
+                "# One reason per line, four lines deep, which is one more than\n# this fixture's ceiling allows and therefore the finding this\n# rule exists to produce. The run below stays under it, so a rule\n# that fired unconditionally would be caught here too.\nVALUE = 1\n\n# Kept small on purpose.\nOTHER = 2\n",
+            ),
+        ],
+    },
+    Fixture {
         rule: "L1.NO_BLANKET_SUPPRESSION",
         policy_extra: "",
         extra_rules: "",
