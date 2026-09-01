@@ -49,10 +49,9 @@ The useful half of the problem is that some of the excess does have a site:
 - a directory of many files each holding almost nothing
 
 Those can be pointed at. Aggregate taste cannot, and refusing it is better
-than approximating it, the same way
-[the Ruby language adapter](ruby-language-adapter.md) refused to port
-`L0.PERSISTENCE_STAYS_IN_REPOSITORIES` rather than invent a Rails meaning for
-it.
+than approximating it, the same way the Ruby language adapter (`0a285f9`)
+refused to port `L0.PERSISTENCE_STAYS_IN_REPOSITORIES` rather than invent a
+Rails meaning for it.
 
 ## False-positive risk, measured
 

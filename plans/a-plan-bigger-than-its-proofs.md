@@ -14,28 +14,29 @@ is really three plans passes both.
 ## Measured, on this repository
 
 Debt is a criterion marked `deferred:` or `unspecified:`, which is to say a
-promise nothing yet proves.
+promise nothing yet proves. Retaken after the three plans that shipped were
+deleted from `plans/`.
 
 | Plan | Lines | Criteria | Debt |
 | --- | --- | --- | --- |
-| [ruby-joins-the-l6-hazard-rules](ruby-joins-the-l6-hazard-rules.md) | 76 | 4 | 0/4 |
 | [rules-activate-by-dependency-version](rules-activate-by-dependency-version.md) | 91 | 5 | 1/5 |
-| [the-grain-has-a-ceiling-and-no-floor](the-grain-has-a-ceiling-and-no-floor.md) | 166 | 6 | 6/6 |
+| [the-grain-has-a-ceiling-and-no-floor](the-grain-has-a-ceiling-and-no-floor.md) | 165 | 6 | 6/6 |
 | [structural-rules-assume-an-import-statement](structural-rules-assume-an-import-statement.md) | 222 | 6 | 6/6 |
-| [close-the-inert-rule-blind-spot](close-the-inert-rule-blind-spot.md) | 90 | 0 | n/a |
 | [expand-language-adapters](expand-language-adapters.md) | 26 | 0 | n/a |
-| [ruby-language-adapter](ruby-language-adapter.md) | 120 | 0 | n/a |
 
 Two things fall out. The two longest plans are the two where not one criterion
-names a real proof, and they sit at #6 and #7 in the order, so the work furthest
-out is the work least defined. And three plans declare no criteria at all.
+names a real proof, and they sit at #3 and #4 in the order, so the work furthest
+out is the work least defined. And a plan still declares no criteria at all.
+Deleting a shipped plan is what removed the other two zero-criteria rows, not
+anybody writing criteria for them.
 
 ## The floor comes first, or the ceiling is decoration
 
 A plan with zero criteria is green today. `plan_criteria` in
 `src/checks/cadence.rs` iterates the criteria it parses, so an empty list
 produces an empty finding list, and a 120-line plan promising nothing reads
-exactly like a plan whose promises are all proven.
+exactly like a plan whose promises are all proven — which is what
+`ruby-language-adapter.md` did for its whole life, up to shipping in `0a285f9`.
 
 That is the `L5.NO_INERT_RULE` shape one level up, and on its own it would be
 worth closing. The reason it has to be closed first is narrower: any ceiling
@@ -54,11 +55,12 @@ out how to prove.
 
 The objection to counting `deferred:` as debt is that a plan describes unbuilt
 work, so of course nothing is proven yet, and the ceiling would block every new
-plan on day one. Two plans in this repository answer it.
-`rules-activate-by-dependency-version.md` names `test:src/policy.rs` and
-`test:.software-factory/mutations/L5.NO_INERT_RULE/` for work nobody has started,
-and `ruby-joins-the-l6-hazard-rules.md` carries four criteria and no debt at all.
-Naming where the proof will live does not require the proof to exist. It requires
+plan on day one. Two plans answer it. `rules-activate-by-dependency-version.md`
+names `test:src/policy.rs` and
+`test:.software-factory/mutations/L5.NO_INERT_RULE/` for work nobody has
+started, and `ruby-joins-the-l6-hazard-rules.md` carried four criteria and no
+debt at all before it shipped in `e102548`. Naming where the proof will live
+does not require the proof to exist. It requires
 knowing what would settle the question, which is exactly the knowledge a plan too
 large to hold does not have.
 
@@ -69,9 +71,10 @@ the proof would go. That is the signal, and it is why the count is
 ## Where to set it
 
 At 60 percent, the rule names `the-grain-has-a-ceiling-and-no-floor.md` and
-`structural-rules-assume-an-import-statement.md`, and stays silent on the other
-two. `ratchet: allowlist` freezes those two so adopting the rule is not a demand
-to rewrite them the same afternoon.
+`structural-rules-assume-an-import-statement.md` on the ceiling and
+`expand-language-adapters.md` on the floor, and stays silent on
+`rules-activate-by-dependency-version.md`. `ratchet: allowlist` freezes those
+three so adopting the rule is not a demand to rewrite them the same afternoon.
 
 The fix is a split, not a rewrite: the half with proofs becomes the plan that
 enters the order now, the rest becomes its own file, parked with the precondition
@@ -122,17 +125,18 @@ it is worth shipping. Out of scope here.
       through `scan::select`, which is the intent and not yet written)
 - [ ] Run against this repository at a 60 percent ceiling, `sf check` names
       `the-grain-has-a-ceiling-and-no-floor.md` and
-      `structural-rules-assume-an-import-statement.md`, and reports nothing for
-      `ruby-joins-the-l6-hazard-rules.md` or
+      `structural-rules-assume-an-import-statement.md` on the ceiling and
+      `expand-language-adapters.md` on the floor, and reports nothing for
       `rules-activate-by-dependency-version.md`.
       (proof: deferred:no check is written yet)
-- [ ] No existing plan is edited to clear a finding. The three plans with no
-      criteria gain real ones or move to the parked table, and no ceiling
-      already in the catalog or in any policy moves as part of this work.
+- [ ] No existing plan is edited to clear a finding. The one plan left with no
+      criteria, `expand-language-adapters.md`, gains real ones or moves to the
+      parked table, and no ceiling already in the catalog or in any policy
+      moves as part of this work.
       (proof: unspecified:an absence, enforced by reading the diff, which no
       check here can assert)
 
 **Exit condition:** `sf check` on this repository names the two plans whose
-criteria are entirely debt and stays silent on the two that name their proofs,
-and `sf verify` proves the rule fires on both a floor fixture and a ceiling
-fixture.
+criteria are entirely debt and the one plan with no criteria at all, stays
+silent on `rules-activate-by-dependency-version.md`, and `sf verify` proves the
+rule fires on both a floor fixture and a ceiling fixture.

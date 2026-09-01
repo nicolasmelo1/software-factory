@@ -25,8 +25,7 @@ moment any of it becomes concurrent. All four remain proven by their fixtures;
 they are simply pointed at nothing here, and `L5.NO_INERT_RULE` is what forced
 each of them to become a written decision instead of a silent pass.
 
-**Ruby is a supported language as of
-[the ruby language adapter](../plans/ruby-language-adapter.md).**
+**Ruby is a supported language as of `0a285f9`.**
 `L0.EXCEPTIONS_HAVE_ONE_HOME`, `L0.NO_CROSS_LAYER_IMPORT`,
 `L1.SKIPPED_TESTS_STATE_A_REASON`, `L6.NO_BLOCKING_CALL_WHILE_HOLDING_A_LOCK`
 and `L6.ONE_LOCK_AT_A_TIME` now carry a `ruby:` query alongside their existing
@@ -91,8 +90,7 @@ available to name honestly, and a rule pointed at a tool that does not exist
 is exactly the lie `L5.NO_INERT_RULE` exists to catch.
 `L6.DATA_RACES_ARE_DETECTED` also omits Ruby: MRI's GVL makes the concept
 marginal, the same reasoning that already excludes Python and TypeScript from
-that rule. See
-[Ruby joins the L6 hazard rules](../plans/ruby-joins-the-l6-hazard-rules.md).
+that rule. The reasoning behind each of those choices shipped with `e102548`.
 A Rails adopter's own linter, type checker and test collector also need to
 skip `.software-factory/mutations`: `rubocop`/`standardrb` via
 `.rubocop.yml`/`.standard.yml`, and `rspec` via `--exclude-pattern`, alongside

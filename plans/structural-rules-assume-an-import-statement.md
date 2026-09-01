@@ -14,8 +14,8 @@ None of that means PostPilot's layering is clean. It means three of the four
 rules query for something Rails does not do, and the fourth queries for
 something Rails does differently than the model assumes.
 
-`L0.NO_CROSS_LAYER_IMPORT`'s Ruby query (added by
-[the Ruby language adapter](ruby-language-adapter.md)) matches
+`L0.NO_CROSS_LAYER_IMPORT`'s Ruby query (added by the Ruby language
+adapter, `0a285f9`) matches
 `require`/`require_relative` calls whose string argument names an internal or
 generated path. That query was written honestly about its own limit: Rails
 autoloads `app/` with no import statement at all, so the query has nothing to
@@ -121,9 +121,9 @@ bug-fix pull request:
    architectural layer" — a different rule wearing the same id, with
    `must_live_in` defaults (`**/_internal/**`, `**/generated/**`) that mean
    nothing for `app/controllers/**`. Reusing the id without reusing the
-   meaning is the same failure [the Ruby language
-   adapter](ruby-language-adapter.md) took care to avoid when it refused to
-   port `L0.PERSISTENCE_STAYS_IN_REPOSITORIES` literally.
+   meaning is the same failure the Ruby language adapter (`0a285f9`) took
+   care to avoid when it refused to port
+   `L0.PERSISTENCE_STAYS_IN_REPOSITORIES` literally.
 2. **A new Rails-specific L0 rule.** Its own id, its own `why`, its own
    `must_not_live_in` defaults naming `app/controllers/**` as the protected
    layer. Honest about being a different rule, and the only option that can
@@ -167,9 +167,9 @@ against `must_live_in`.
    value for an existing option, and it would be the first placement
    predicate in the catalog that is not a glob.
 2. **Accept nesting as a legitimate home, and say so in the rule's Ruby form**
-   — the way [the Ruby language adapter](ruby-language-adapter.md) already
-   accepted no-Ruby-form at all for two other rules rather than force a Rails
-   shape onto them. This is not "widen the glob to make the finding
+   — the way the Ruby language adapter (`0a285f9`) already accepted
+   no-Ruby-form at all for two other rules rather than force a Rails shape onto
+   them. This is not "widen the glob to make the finding
    disappear": the finding disappears because the *model* — one canonical
    file per domain's errors — does not describe the idiom the way it
    describes a Python or TypeScript exceptions module, and that argument is
