@@ -5,10 +5,10 @@ is a tree-sitter grammar in `src/lang.rs` — the node kinds that open a
 function, the node kinds that branch, the boolean operators — plus one query
 per L0 rule that has something to say about it.
 
-**Ruby is done.** See [the ruby language adapter](ruby-language-adapter.md)
-for the queries added, the two rules whose Ruby form was judged dishonest and
-deliberately left without one, and a real grammar bug the work exposed in the
-complexity engine itself, not in this rule's judgment calls.
+**Ruby is done**, shipped in `0a285f9`: the queries added, the two rules
+whose Ruby form was judged dishonest and deliberately left without one, and a
+real grammar bug the work exposed in the complexity engine itself, not in this
+rule's judgment calls.
 
 Java, C# and PHP are the next obvious candidates. Kotlin and Swift matter for
 anyone whose product is a mobile app.
