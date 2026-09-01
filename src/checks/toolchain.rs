@@ -57,14 +57,13 @@ pub fn run(rule: &Rule, opts: &Options, ctx: &Ctx) -> Result<Vec<Finding>> {
     Ok(findings)
 }
 
-/// A mention of a tool inside a comment is prose, not a wired-in guarantee.
-/// `sf init` itself writes explanatory `#` comments naming the tools next to
-/// the steps that run them, so counting comment text let a freshly generated
-/// workflow satisfy these rules all by itself. Every file in scope here
-/// (YAML workflows, Makefile, justfile, Taskfile, .gitlab-ci.yml,
-/// .pre-commit-config.yaml, package.json) uses `#` for comments or none at
-/// all, so dropping `#`-leading lines cannot hide a real invocation — those
-/// are `uses:`/`run:`/recipe lines, which never start with `#`.
+/// A tool named in a comment is prose, not a wired-in guarantee. `sf init`
+/// writes explanatory `#` comments naming tools beside the steps that run
+/// them, so counting comment text let a freshly generated workflow satisfy
+/// these rules by itself.
+///
+/// Every file in scope uses `#` for comments or none at all, so dropping
+/// `#`-leading lines cannot hide a real `uses:`/`run:`/recipe invocation.
 fn without_comment_lines(content: &str) -> String {
     content
         .lines()

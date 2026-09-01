@@ -125,6 +125,24 @@ pub const FIXTURES: &[Fixture] = &[
         ],
     },
     Fixture {
+        rule: "L1.COMMENT_STAYS_SUCCINCT",
+        policy_extra: "        max: 3\n",
+        extra_rules: "",
+        files: &[
+            // Four lines where three are allowed, then a shorter run that must
+            // stay quiet. A fixture that only carries the violation cannot
+            // tell a rule that fires correctly from one that fires always.
+            (
+                "src/settings.yaml",
+                "# The retry budget is per attempt, not per job, because a job\n# that lost its lease has already consumed the attempt it was\n# leased for, and counting it twice turns a single slow worker\n# into an outage that looks like a retry storm.\nretries: 3\n\n# Per attempt.\ntimeout: 30\n",
+            ),
+            (
+                "src/notes.py",
+                "# One reason per line, four lines deep, which is one more than\n# this fixture's ceiling allows and therefore the finding this\n# rule exists to produce. The run below stays under it, so a rule\n# that fired unconditionally would be caught here too.\nVALUE = 1\n\n# Kept small on purpose.\nOTHER = 2\n",
+            ),
+        ],
+    },
+    Fixture {
         rule: "L1.INDIRECTION_EARNS_ITS_NAME",
         policy_extra: "",
         extra_rules: "",
@@ -382,15 +400,15 @@ pub const FIXTURES: &[Fixture] = &[
         rule: "L2.CATALOG_ONLY_TIGHTENS",
         policy_extra: "",
         extra_rules: "",
-        // A fingerprint claiming `L1.COMPLEXITY_CEILING` was locked at a
-        // ceiling of 8. The catalog in this binary ships 12, so the rule this
-        // mini-repo pinned now permits four more paths per function than the
-        // version it agreed to — an upgrade nobody in that repository would
-        // see in a diff. One dimension on purpose: `sf verify` only proves a
-        // fixture produces at least one finding, so a fixture carrying every
-        // dimension at once would let a broken dimension hide behind a working
-        // one. The other nine are covered by the unit test in
-        // `src/fingerprint.rs`.
+        // A fingerprint claiming `L1.COMPLEXITY_CEILING` was locked at 8.
+        // This binary ships 12, so the pinned rule now permits four more paths
+        // per function than the version agreed to — an upgrade nobody sees in
+        // a diff.
+        //
+        // One dimension on purpose: `sf verify` proves only that a fixture
+        // produces some finding, so carrying every dimension would let a
+        // broken one hide behind a working one. The other nine are unit-tested
+        // in `src/fingerprint.rs`.
         files: &[(".software-factory/catalog.lock.json", "{\n  \"schema_version\": 1,\n  \"sf_version\": \"0.1.0\",\n  \"catalog_digest\": \"0000000000000000000000000000000000000000000000000000000000000000\",\n  \"rules\": {\n    \"L1.COMPLEXITY_CEILING\": {\n      \"severity\": \"medium\",\n      \"max\": 8\n    }\n  }\n}\n")],
     },
     Fixture {
@@ -484,22 +502,16 @@ pub const FIXTURES: &[Fixture] = &[
     Fixture {
         rule: "L5.NO_INERT_RULE",
         policy_extra: "",
-        // Eight ways to be inert, one per covered kind: a lock switched on
-        // over nothing, a text-pattern rule scoped at a path nothing in the
-        // mini-repo matches, a complexity ceiling scoped the same way, a
-        // toolchain rule whose `tools:` map names only a language ("java")
-        // this mini-repo never declares — non-empty, but it still can never
-        // find a language to check, which is the hole
-        // `options.tools.is_empty()` alone missed — and two conditional
-        // instances: one written for `tailwindcss ^3` where `package.json`
-        // now pins `^4.0.2`, and one about a package the manifest never
-        // declared at all. The `@tailwind4` instance is the control: its
-        // `when` matches, so it must stay out of the report. Last, both L3
-        // rules, aimed at the gate this fixture's policy declares with an
-        // empty `activation` and no `plan:` — a gate that exists, so neither
-        // is inert for the trivial reason, and that no change can ever turn
-        // on. Each of the eight passes every run and reads in a report
-        // exactly like a rule that is protecting you.
+        // Eight ways to be inert: a lock over nothing; a text-pattern and a
+        // complexity rule scoped where nothing matches; a toolchain rule
+        // naming only `java`, which the mini-repo never declares — non-empty,
+        // yet with no language to check, the hole `options.tools.is_empty()`
+        // missed; two stale conditional instances; and both L3 rules, aimed
+        // at a gate declared with an empty `activation` and no `plan:`.
+        //
+        // `@tailwind4` is the control: its `when` matches, so it must stay
+        // out. Each of the eight passes every run and reads exactly like a
+        // rule that is protecting you.
         extra_rules: "  L2.GENERATED_FILES_ARE_LOCKED:\n    enabled: true\n    options:\n      scope: []\n  L1.NO_BLANKET_SUPPRESSION@inert:\n    enabled: true\n    options:\n      scope: [\"nonexistent/**\"]\n  L1.COMPLEXITY_CEILING@inert:\n    enabled: true\n    options:\n      scope: [\"nonexistent/**\"]\n  L6.DATA_RACES_ARE_DETECTED@toolchain_gap:\n    enabled: true\n    options:\n      tools:\n        java: [\"error-prone\", \"jcstress\"]\n  L1.NO_BLANKET_SUPPRESSION@tailwind3:\n    enabled: true\n    when:\n      dependency: tailwindcss\n      manifest: package.json\n      version: \"^3\"\n  L1.NO_BLANKET_SUPPRESSION@quickbooks:\n    enabled: true\n    when:\n      dependency: node-quickbooks\n      manifest: package.json\n      version: \"^2\"\n  L1.NO_BLANKET_SUPPRESSION@tailwind4:\n    enabled: true\n    when:\n      dependency: tailwindcss\n      manifest: package.json\n      version: \"^4\"\n  L3.GATE_HAS_FRESH_EVIDENCE:\n    enabled: true\n  L3.GATE_COVERS_THE_PLAN:\n    enabled: true\n",
         files: &[
             // The bare `# noqa` is what makes the conditional instances

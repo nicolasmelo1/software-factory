@@ -119,7 +119,7 @@ first.
 ## Decided
 
 None of the three shapes ships as written. Criterion 2 makes a positive corpus
-a precondition of the work rather than a detail of it, so four candidate
+a precondition of the work rather than a detail of it, so five candidate
 metrics were run over twelve repositories before anything was written:
 
 | Candidate | Hits | What reading them said |

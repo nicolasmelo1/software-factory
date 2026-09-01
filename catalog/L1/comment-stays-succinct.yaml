@@ -1,0 +1,47 @@
+id: L1.COMMENT_STAYS_SUCCINCT
+layer: L1
+title: A comment block stays under the line ceiling
+severity: medium
+statement: >-
+  A contiguous run of whole-line comments stays at or under the configured
+  number of lines. A blank line starts a new run.
+why: >-
+  A comment earns its place by being read. Past a handful of lines it stops
+  being read and starts being scrolled past, so the longest comments reliably
+  explain the least. Agents inflate them hardest: prose is the cheapest thing
+  to generate, it looks like diligence in a diff, and no compiler ever
+  disagrees with it. The ceiling does not ban explanation — it forces the
+  choice between a note, which belongs at the code, and an argument, which
+  belongs in a document the code can link to.
+fix: >-
+  Cut to the sentence a reader needs at this line. If the reasoning is genuinely
+  long, move it to a document and leave a comment pointing there — a link that
+  survives the next refactor is worth more than a paragraph that will not be
+  updated with the code beneath it. Splitting one run into paragraphs with a
+  blank line is also a real fix, not a dodge: paragraphs are read.
+ratchet: allowlist
+check:
+  kind: comment_block
+defaults:
+  max: 6
+  scope:
+    - "**/*.py"
+    - "**/*.pyi"
+    - "**/*.yaml"
+    - "**/*.yml"
+    - "**/*.toml"
+    - "**/*.sh"
+    - "**/*.ts"
+    - "**/*.tsx"
+    - "**/*.js"
+    - "**/*.jsx"
+    - "**/*.go"
+    - "**/*.rs"
+    - "**/*.rb"
+  exclude:
+    # Lockfiles and vendored trees are not written by hand, so a long banner in
+    # one is not a comment anybody chose.
+    - "**/*.lock"
+    - "**/*.lock.json"
+    - "**/vendor/**"
+    - "**/node_modules/**"

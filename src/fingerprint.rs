@@ -1,13 +1,13 @@
 //! What a repository agreed to when it adopted a version of the catalog.
 //!
 //! The catalog ships inside the binary. A consumer's `policy.yaml` names rule
-//! ids and nothing else, so upgrading `sf` can change what an already-enabled
-//! rule matches with no diff in the consuming repository at all. A new rule is
-//! safe by construction — `Policy::instances` only iterates what the policy
-//! lists, so a rule nobody enabled never runs — but a rule that keeps its id
-//! and changes its reach arrives silently, and the direction that matters is
-//! the quiet one: a rule that got weaker turns a red repository green without
-//! anybody deciding that.
+//! ids and nothing else, so upgrading `sf` can change what an enabled rule
+//! matches with no downstream diff at all.
+//!
+//! A new rule is safe by construction: `Policy::instances` iterates only what
+//! the policy lists. A rule that keeps its id and changes its reach arrives
+//! silently, and the quiet direction is the one that matters — a weakened rule
+//! turns a red repository green with nobody deciding that.
 //!
 //! This module records the reach of every enabled rule at lock time, so the
 //! next binary can be compared against it. `Reach` deliberately reduces a rule
@@ -430,12 +430,10 @@ mod direction {
     }
 
     /// `Reach::of` reads `defaults` with `unwrap_or_default()`, so a rule whose
-    /// defaults stopped matching the option schema would fingerprint as all
-    /// zeroes instead of failing. All zeroes reads as "reaches nothing", which
-    /// is exactly the state in which a later loosening produces no finding.
-    /// `Rule::validate` already rejects such a rule at load; this asserts the
-    /// two agree, so the fingerprint can never be quietly built from a parse
-    /// that failed.
+    /// defaults stopped matching the schema fingerprints as all zeroes rather
+    /// than failing — and all zeroes reads as "reaches nothing", the exact
+    /// state in which a later loosening produces no finding. `Rule::validate`
+    /// already rejects such a rule at load; this asserts the two agree.
     #[test]
     fn no_shipped_rule_fingerprints_from_a_failed_parse() {
         let catalog = Catalog::builtin().expect("the shipped catalog loads");

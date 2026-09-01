@@ -136,14 +136,13 @@ fn wrap(text: &str, indent: &str) -> String {
     out
 }
 
-/// `RULE@name` is a documented feature — the README uses
-/// `L1.COMPLEXITY_CEILING@legacy` to give one package a different ceiling —
-/// and an instance is not itself a catalog entry. Before the fallback in
-/// `text` and `markdown`, a finding from an instance rendered as
-/// `(unknown rule)` with no `why` and no `fix`: the report dropped exactly the
-/// prose the rule exists to hand over, at the one moment somebody is trying to
-/// comply. Nothing caught it because this repository had no instance in its own
-/// policy until `L2.DERIVED_ARTIFACTS_MATCH_THEIR_SOURCE@release`.
+/// `RULE@name` is documented and an instance is not itself a catalog entry.
+/// Before the fallback in `text` and `markdown`, an instance's finding rendered
+/// as `(unknown rule)` with no `why` and no `fix` — dropping the prose the rule
+/// exists to hand over, at the moment somebody is trying to comply.
+///
+/// Nothing caught it: this repository had no instance of its own until
+/// `L2.DERIVED_ARTIFACTS_MATCH_THEIR_SOURCE@release`.
 #[cfg(test)]
 mod an_instance_keeps_its_prose {
     use super::*;

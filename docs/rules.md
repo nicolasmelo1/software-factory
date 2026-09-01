@@ -97,26 +97,27 @@ skip `.software-factory/mutations`: `rubocop`/`standardrb` via
 `brakeman`'s own `--skip-files`. `sf init --language ruby` now prints all four
 forms in `FIXTURES_HINT`.
 
-**L1 has a floor as of this change, and it is one shape out of four measured.**
+**L1 has a floor as of this change, and it is one shape out of five measured.**
 [The grain has a ceiling and no floor](../plans/the-grain-has-a-ceiling-and-no-floor.md)
 left the finding model undecided on purpose. Four candidate metrics were run
 over twelve real repositories before anything shipped: the one-line forwarder
 (18 hits here, every one a correct named accessor), the abstraction with a
 single implementer (5 hits, every one a plugin seam a framework publishes on
 purpose), the pass-through module (0 hits anywhere), and the near-empty module
-directory (14 hits in one repository, all of them a package-exports tree). Only
-the fourth shape survived contact with a corpus, and it is the one
-`L1.INDIRECTION_EARNS_ITS_NAME` ships: a function whose whole body forwards to
-an import it re-exports under that import's own name. It is not a floor whose
-unit is size, which is what kills the other three: a size floor charges for the
-small named function `L1.COMPLEXITY_CEILING`'s own fix asks for. The alias is
-the evidence instead, and it is read from the same file, so no rule here
-resolves a symbol across files. `kind: forwarder` is a new check kind because a
-tree-sitter query cannot compare the text of two captures that sit in different
-top-level nodes. Go and Ruby carry no query: Go imports packages rather than
-symbols, so the shape appears with no alias to prove intent, and Ruby has no
-import statement for a symbol at all. Same refusal as the two Rust queries
-above.
+directory (14 hits in one repository, all of them a package-exports tree). None
+of the four survived contact with a corpus. The shape that did is a fifth, and
+it is the one `L1.INDIRECTION_EARNS_ITS_NAME` ships: a function whose whole body
+forwards to an import it re-exports under that import's own name. Its unit is
+not size, and size is what kills the cheapest of the others: a floor measured in
+lines charges for the small named function `L1.COMPLEXITY_CEILING`'s own fix
+asks for. The alias is the evidence instead, and it is read from the file the
+finding lands in, so no rule here resolves a symbol across files.
+`kind: forwarder` is a new check kind because a tree-sitter query compares the
+text of two captures only inside one pattern, and the alias and the call sit in
+different top-level nodes. Go and Ruby carry no query: Go imports packages
+rather than symbols, so the shape appears with no alias to prove intent, and
+Ruby has no import statement for a symbol at all. Same refusal as the two Rust
+queries above.
 
 ## L0 — Shape: where things live
 
@@ -141,6 +142,16 @@ Modules marked private or generated are imported only from inside the package th
 **Fix.** Import from the package's public surface instead. If the symbol you need is not exposed there, exposing it deliberately is the change to make.
 
 ## L1 — Grain: how the code reads
+
+### L1.COMMENT_STAYS_SUCCINCT
+
+**A comment block stays under the line ceiling**
+
+A contiguous run of whole-line comments stays at or under the configured number of lines. A blank line starts a new run.
+
+**Why.** A comment earns its place by being read. Past a handful of lines it stops being read and starts being scrolled past, so the longest comments reliably explain the least. Agents inflate them hardest: prose is the cheapest thing to generate, it looks like diligence in a diff, and no compiler ever disagrees with it. The ceiling does not ban explanation — it forces the choice between a note, which belongs at the code, and an argument, which belongs in a document the code can link to.
+
+**Fix.** Cut to the sentence a reader needs at this line. If the reasoning is genuinely long, move it to a document and leave a comment pointing there — a link that survives the next refactor is worth more than a paragraph that will not be updated with the code beneath it. Splitting one run into paragraphs with a blank line is also a real fix, not a dodge: paragraphs are read.
 
 ### L1.COMPLEXITY_CEILING
 
