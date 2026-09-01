@@ -5,8 +5,9 @@ severity: high
 statement: >-
   A rule that is switched on must be configured to look at something: a lock
   rule needs a scope, a toolchain rule needs tools, a gate rule needs a gate,
-  and a text-pattern or complexity rule needs a scope that actually selects a
-  file it can evaluate.
+  a text-pattern or complexity rule needs a scope that actually selects a
+  file it can evaluate, and a rule carrying a `when` needs a manifest that
+  still satisfies it.
 why: >-
   `sf verify` proves a rule *can* fire, by running it against a fixture built
   to trip it. It says nothing about whether the rule is pointed at anything in
@@ -31,11 +32,21 @@ why: >-
   `tools:` maps carry python, typescript, go and rust and no `ruby:` key, and
   got three permanent green checkmarks that could never have said anything
   else — `sf verify` reported all three proven to fire and never mentioned
-  that the project's own language was invisible to them.
+  that the project's own language was invisible to them. The last shape is
+  the one a repository walks into without editing a line of policy: a rule
+  written for one version of a dependency, carrying a `when` that names it,
+  after somebody moved the pin. Its patterns then describe an API nobody
+  calls anymore, and a text-pattern rule matching nothing reads exactly like
+  a text-pattern rule protecting you. A condition that went false stops the
+  rule running — it is about a version this repository does not have — and
+  is reported here rather than quietly disabling itself, which is also what
+  stops `when` becoming a way to switch a rule off by editing a manifest.
 fix: >-
   Give the rule something to look at, or switch it off in policy and say why in
   the rules document. Disabled and documented is honest; enabled and inert is
-  a rule that lies about its own coverage.
+  a rule that lies about its own coverage. A rule whose `when` went false is
+  the one case with nothing to configure: repoint it at the version this
+  repository installs, or remove it along with the version it described.
 ratchet: none
 check:
   kind: cadence

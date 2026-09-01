@@ -56,6 +56,14 @@ pub fn run_all(ctx: &Ctx) -> Result<Vec<Finding>> {
         let Some(rule) = ctx.catalog.get(&base) else {
             anyhow::bail!("policy enables {instance}, but {base} is not a rule in the catalog");
         };
+        // An instance whose `when` no longer matches is about a dependency
+        // version this repository does not have, so running it would report
+        // findings on code that is now right. It is not silently dropped:
+        // `L5.NO_INERT_RULE` names it and the range it expected. See
+        // `policy::activation`.
+        if ctx.policy.activation_of(ctx.root, &instance)?.stale_reason().is_some() {
+            continue;
+        }
         findings.extend(run_one(&as_instance(rule, &instance), ctx)?);
     }
     Ok(findings)

@@ -518,6 +518,51 @@ otherwise three broken queries hide behind one that works.
 
 ---
 
+## Rules that are only about one version of a dependency
+
+A deprecation rule for Tailwind 3, or a shape rule for the QuickBooks v3 API,
+is only correct while that version is the one installed. Give the instance a
+`when`, and it activates from the manifest:
+
+```yaml
+rules:
+  L1.NO_BLANKET_SUPPRESSION@tailwind3:
+    enabled: true
+    when:
+      dependency: tailwindcss
+      manifest: package.json
+      version: "^3"
+```
+
+Once the pin moves to `^4`, that instance stops running, because it is about a
+version this repository no longer has. It does not go quiet: `L5.NO_INERT_RULE`
+names it, the range it was written for and the version found, so the answer is
+to repoint it or remove it. A condition that silently disabled itself would
+hand an agent a way to switch a rule off by editing a dependency.
+
+A `when` naming a package no manifest declares is a finding for the same
+reason, as is one naming a manifest that is missing or in a format this binary
+cannot read. Every way of not deciding is reported; none of them is a skip.
+
+- **The manifest range, never the lock.** The lock is more accurate and there
+  are several lock formats per ecosystem. The range in the manifest is what
+  the team decided, and the decision is what the rule is about. It is also
+  already covered by `L2.DEPENDENCIES_CHANGE_DELIBERATELY`, so the input
+  cannot move without a lock update in the same commit.
+- **Manifests read:** `package.json`, `Cargo.toml`, `pyproject.toml`
+  (PEP 621 and Poetry), `requirements*.txt`, `Gemfile`, `go.mod`.
+- **Ranges accepted:** `^3`, `~1.2`, `>=5`, `<4`, and a bare series like `3`
+  or `3.4`. The question is whether the pin is still in the series the rule
+  was written for, which the release numbers answer on their own.
+
+What this does not do is check that the rule's content is right for the
+version it claims. A regex written for Tailwind 3 stays a regex written for
+Tailwind 3 whether or not the condition matches; reading the upstream
+changelog and turning it into patterns is a job for
+[`factory-author`](#factory-author--when-you-hear-yourself-repeating-a-review-comment).
+
+---
+
 ## Monorepos, and more than one repository
 
 ### One rule, different settings per package

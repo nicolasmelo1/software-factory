@@ -1,6 +1,7 @@
 //! Per-repo policy: which rules are on, and how this repo's paths map onto
 //! the catalog's neutral vocabulary.
 
+use crate::manifest::{Declared, Version};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -119,6 +120,143 @@ pub struct RuleSetting {
     /// `defaults` without "absent" and "empty" collapsing into each other.
     #[serde(default)]
     pub options: serde_yaml::Value,
+    /// The dependency version this instance is about, if it is only about
+    /// one. See [`When`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub when: Option<When>,
+}
+
+/// A rule instance that is only correct while the dependency it describes is
+/// pinned to the version it was written for.
+///
+/// ```yaml
+/// PACK_RULE_ID@tailwind3:
+///   enabled: true
+///   when:
+///     dependency: tailwindcss
+///     manifest: package.json
+///     version: "^3"
+/// ```
+///
+/// A deprecation rule for Tailwind 3 is only correct while 3 is what is
+/// installed. Once the pin moves, its patterns describe an API nobody calls
+/// and it reports green forever, which reads exactly like a rule that is
+/// protecting you.
+///
+/// The condition is read from the manifest, which is inside the scope of
+/// `L2.DEPENDENCIES_CHANGE_DELIBERATELY`: the input cannot move without a
+/// lock update in the same commit, so `when` is gated by a rule that already
+/// exists rather than being a new thing to trust.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct When {
+    /// The package this rule is about, spelled as the manifest spells it.
+    pub dependency: String,
+    /// Which manifest declares it, relative to the repository root.
+    pub manifest: String,
+    /// The range this instance was written for: `^3`, `~7.1`, `>=5`, `3.4`.
+    pub version: String,
+}
+
+/// Whether a rule instance's `when` still describes this repository.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Activation {
+    /// No condition, or a condition the manifest satisfies.
+    Active,
+    /// The condition went false. The rule does not run — it is about a
+    /// version this repository does not have — and it does not go quiet
+    /// either: `L5.NO_INERT_RULE` reports this reason. Silently disabling
+    /// itself is how a policy becomes decoration, and it would hand an agent
+    /// a way to switch a rule off by editing a dependency.
+    Stale(String),
+}
+
+impl Activation {
+    pub fn stale_reason(&self) -> Option<&str> {
+        match self {
+            Activation::Active => None,
+            Activation::Stale(reason) => Some(reason),
+        }
+    }
+}
+
+/// Decide one instance's `when` against the manifest on disk.
+pub fn activation(root: &Path, setting: &RuleSetting) -> Result<Activation> {
+    let Some(when) = &setting.when else {
+        return Ok(Activation::Active);
+    };
+    let (dependency, manifest) = (&when.dependency, &when.manifest);
+    let stale = match crate::manifest::declared(root, manifest, dependency)? {
+        Declared::NoManifest => format!("its `when` reads `{manifest}`, which is not in this repository"),
+        Declared::UnknownFormat => format!(
+            "its `when` reads `{manifest}`, which is not a manifest this binary knows how to read ({})",
+            crate::manifest::READABLE
+        ),
+        Declared::Malformed(error) => {
+            format!("its `when` reads `{manifest}`, which did not parse: {error}")
+        }
+        Declared::Absent => format!(
+            "its `when` is about {dependency}, which `{manifest}` does not declare — a rule about a dependency no manifest declares is a rule about somebody else's resolution"
+        ),
+        Declared::Range(range) => match unsatisfied(&when.version, &range) {
+            Some(detail) => format!("its `when` is about {dependency} {}, and `{manifest}` {detail}", when.version),
+            None => return Ok(Activation::Active),
+        },
+    };
+    Ok(Activation::Stale(stale))
+}
+
+/// Why the declared range does not answer the expected one, if it does not.
+fn unsatisfied(expected: &str, declared: &str) -> Option<String> {
+    let Some(found) = Version::parse(declared) else {
+        return Some(match declared.trim().is_empty() {
+            true => "declares it with no version at all".to_string(),
+            false => format!("declares `{declared}`, which names no version to compare"),
+        });
+    };
+    if satisfies(expected, &found) {
+        return None;
+    }
+    Some(format!("declares `{declared}`"))
+}
+
+/// Does the version a manifest declares fall in the range a `when` names?
+///
+/// A deliberately small grammar — `^`, `~`, `>=`, `>`, `<=`, `<`, and a bare
+/// series like `3` or `3.4` — over the release numbers, and nothing else. A
+/// `when` asks whether the pin is still in the series the rule was written
+/// for. Answering that does not need pre-release ordering, and a rule
+/// activated by a pre-release tag would be a rule about a nightly build.
+pub fn satisfies(expected: &str, found: &Version) -> bool {
+    let trimmed = expected.trim();
+    let (operator, rest) = ["<=", ">=", "~>", "^", "~", "<", ">", "="]
+        .iter()
+        .find_map(|op| trimmed.strip_prefix(op).map(|rest| (*op, rest)))
+        .unwrap_or(("", trimmed));
+    let Some(base) = Version::parse(rest) else {
+        return false;
+    };
+    match operator {
+        ">=" => *found >= base,
+        ">" => *found > base,
+        "<=" => *found <= base,
+        "<" => *found < base,
+        "^" => *found >= base && shares_prefix(found, &base, significant(&base) + 1),
+        "~" | "~>" => *found >= base && shares_prefix(found, &base, base.0.len().min(2)),
+        // A bare `3` or `3.4` is the series itself: every component someone
+        // wrote has to match, and the ones they left off are free.
+        _ => shares_prefix(found, &base, base.0.len()),
+    }
+}
+
+/// The index of the leading component that decides compatibility. Caret on
+/// `0.x` locks the minor, which is what every ecosystem that has the operator
+/// means by it.
+fn significant(base: &Version) -> usize {
+    (0..base.0.len()).find(|index| base.at(*index) != 0).unwrap_or(0)
+}
+
+fn shares_prefix(found: &Version, base: &Version, width: usize) -> bool {
+    (0..width).all(|index| found.at(index) == base.at(index))
 }
 
 fn yes() -> bool {
@@ -226,6 +364,16 @@ impl Policy {
             .collect()
     }
 
+    /// Whether one instance's `when` still describes this repository. An
+    /// instance with no `when` — every instance, until a policy writes one —
+    /// is always active.
+    pub fn activation_of(&self, root: &Path, instance: &str) -> Result<Activation> {
+        match self.rules.get(instance) {
+            Some(setting) => activation(root, setting),
+            None => Ok(Activation::Active),
+        }
+    }
+
     /// Is any instance of this catalog rule enabled?
     pub fn any_instance_enabled(&self, rule_id: &str) -> bool {
         self.rules
@@ -255,6 +403,177 @@ pub fn repo_root(start: &Path) -> Result<PathBuf> {
         match current.parent() {
             Some(parent) => current = parent.to_path_buf(),
             None => anyhow::bail!("not inside a git repository"),
+        }
+    }
+}
+
+/// `when:` — parsing it, and the decision it makes about whether an instance
+/// runs. The fixture these read against is
+/// `.software-factory/mutations/L5.NO_INERT_RULE/`, materialized by
+/// `sf fixtures` from `src/fixtures.rs`: a mini-repo whose `package.json`
+/// pins `tailwindcss ^4.0.2` and which enables three conditional instances of
+/// one rule — `@tailwind3` (the pin moved), `@quickbooks` (a package the
+/// manifest never declared) and `@tailwind4` (the condition still holds).
+#[cfg(test)]
+mod when_conditions {
+    use super::*;
+    use crate::catalog::Catalog;
+    use crate::checks::Ctx;
+    use crate::ratchet::Ratchet;
+    use crate::scan;
+
+    fn fixture_root() -> PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR")).join(FIXTURES_DIR).join("L5.NO_INERT_RULE")
+    }
+
+    fn setting(yaml: &str) -> RuleSetting {
+        serde_yaml::from_str(yaml).expect("the rule setting parses")
+    }
+
+    #[test]
+    fn a_when_parses_into_the_three_fields_it_needs() {
+        let parsed = setting(
+            "enabled: true\nwhen:\n  dependency: tailwindcss\n  manifest: package.json\n  version: \"^3\"\n",
+        );
+        let when = parsed.when.expect("a `when` block parses");
+        assert_eq!(when.dependency, "tailwindcss");
+        assert_eq!(when.manifest, "package.json");
+        assert_eq!(when.version, "^3");
+        assert!(setting("enabled: true\n").when.is_none(), "a rule without one is unconditional");
+    }
+
+    /// The decision itself: the instance whose pin still matches runs and
+    /// reports, and the two whose conditions went false do not — while the
+    /// same rule, on the same line of the same file, is what all three are.
+    #[test]
+    fn the_instance_whose_pin_still_matches_is_the_only_one_that_runs() {
+        let root = fixture_root();
+        let policy = Policy::load(&root).expect("the fixture policy loads");
+        let catalog = Catalog::builtin().expect("the built-in catalog loads");
+        let files = scan::walk(&root, &policy).expect("the fixture repo scans");
+        let ratchet = Ratchet::default();
+        let ctx = Ctx {
+            root: &root,
+            policy: &policy,
+            catalog: &catalog,
+            files: &files,
+            ratchet: &ratchet,
+            changed: None,
+            base: None,
+            today: crate::clock::today(),
+            allow_commands: false,
+        };
+        let findings = crate::checks::run_all(&ctx).expect("the fixture checks run");
+        let fired = |instance: &str| findings.iter().any(|f| f.rule == instance);
+        assert!(
+            fired("L1.NO_BLANKET_SUPPRESSION@tailwind4"),
+            "the instance whose `when` the manifest satisfies must still run"
+        );
+        assert!(
+            !fired("L1.NO_BLANKET_SUPPRESSION@tailwind3"),
+            "an instance written for a pin that moved must not report on code that is now right"
+        );
+        assert!(
+            !fired("L1.NO_BLANKET_SUPPRESSION@quickbooks"),
+            "an instance about a dependency nothing declares must not report"
+        );
+    }
+
+    /// Not running is only half of it. A condition that went false has to say
+    /// so, or `when` is a way to switch a rule off by editing a manifest.
+    #[test]
+    fn a_condition_that_went_false_names_the_range_and_the_version_found() {
+        let root = fixture_root();
+        let policy = Policy::load(&root).expect("the fixture policy loads");
+        let moved = policy
+            .activation_of(&root, "L1.NO_BLANKET_SUPPRESSION@tailwind3")
+            .expect("the condition is decidable");
+        let reason = moved.stale_reason().expect("a pin that moved is stale");
+        assert!(reason.contains("^3"), "names the range it was written for: {reason}");
+        assert!(reason.contains("^4.0.2"), "names the version found: {reason}");
+
+        let undeclared = policy
+            .activation_of(&root, "L1.NO_BLANKET_SUPPRESSION@quickbooks")
+            .expect("the condition is decidable");
+        let reason = undeclared.stale_reason().expect("an undeclared dependency is stale");
+        assert!(reason.contains("node-quickbooks"), "names the package: {reason}");
+        assert!(reason.contains("does not declare"), "says what is missing: {reason}");
+
+        let holds = policy
+            .activation_of(&root, "L1.NO_BLANKET_SUPPRESSION@tailwind4")
+            .expect("the condition is decidable");
+        assert_eq!(holds, Activation::Active);
+    }
+
+    /// A `when` this tool cannot decide is a finding too. Silence here would
+    /// be the same hole in a different shape: the rule stops running and
+    /// nothing says why.
+    #[test]
+    fn a_manifest_that_is_missing_or_unreadable_is_reported_rather_than_assumed() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let conditional = |manifest: &str, version: &str| {
+            setting(&format!(
+                "enabled: true\nwhen:\n  dependency: serde\n  manifest: {manifest}\n  version: \"{version}\"\n"
+            ))
+        };
+        let missing = activation(root, &conditional("package.json", "^1"))
+            .expect("the condition is decidable");
+        let reason = missing.stale_reason().expect("no manifest is stale");
+        assert!(reason.contains("package.json"), "names the manifest: {reason}");
+
+        // Cargo.lock exists here and is deliberately not a manifest this tool
+        // reads: a `when` resolves the range the team wrote, never the version
+        // a resolver picked.
+        let unreadable =
+            activation(root, &conditional("Cargo.lock", "^1")).expect("the condition is decidable");
+        let reason = unreadable.stale_reason().expect("an unreadable manifest is stale");
+        assert!(reason.contains("Cargo.lock"), "names the file: {reason}");
+        assert!(reason.contains("Cargo.toml"), "names what it can read instead: {reason}");
+
+        // And the case that has to keep working: this repository's own
+        // manifest, read for a dependency it really declares.
+        assert_eq!(
+            activation(root, &conditional("Cargo.toml", "^1")).expect("decidable"),
+            Activation::Active
+        );
+        let moved =
+            activation(root, &conditional("Cargo.toml", "^2")).expect("the condition is decidable");
+        assert!(moved.stale_reason().is_some(), "serde is pinned to 1.x here, not 2.x");
+    }
+
+    #[test]
+    fn the_range_grammar_answers_the_question_a_when_is_asking() {
+        let matches: &[(&str, &str)] = &[
+            ("^3", "3.4.1"),
+            ("^3.4", "3.9.0"),
+            ("^0.110", "0.110.3"),
+            ("~1.2", "1.2.9"),
+            ("~> 7.1", "7.1.3"),
+            (">=5", "6.0.0"),
+            ("<4", "3.9.9"),
+            ("3", "3.0.0"),
+            ("3.4", "3.4.7"),
+        ];
+        for (expected, found) in matches {
+            let found = Version::parse(found).expect("the version parses");
+            assert!(satisfies(expected, &found), "{expected} should match {found:?}");
+        }
+        let misses: &[(&str, &str)] = &[
+            ("^3", "4.0.2"),
+            ("^3.4", "3.3.9"),
+            // Caret on a leading zero locks the minor: 0.110 and 0.111 are
+            // not the same series, which is what every ecosystem with the
+            // operator means by it.
+            ("^0.110", "0.111.0"),
+            ("~1.2", "1.3.0"),
+            (">=5", "4.9.9"),
+            ("<4", "4.0.0"),
+            ("3", "4.0.0"),
+            ("3.4", "3.5.0"),
+        ];
+        for (expected, found) in misses {
+            let found = Version::parse(found).expect("the version parses");
+            assert!(!satisfies(expected, &found), "{expected} should not match {found:?}");
         }
     }
 }

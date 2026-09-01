@@ -29,6 +29,14 @@ looking at nothing — it has been passing every run and reading like protection
 Either point it at something or switch it off and write down why in the rules
 document. Do not leave it enabled and inert.
 
+One shape of it arrives without anybody editing the policy: a rule carrying a
+`when` that names a dependency version, after somebody moved the pin. The
+finding names the range the rule was written for and the version the manifest
+declares now. There is nothing to configure — repoint the rule at the version
+this repository installs, or delete it along with the version it described.
+Editing the manifest back is not a resolution, and neither is dropping the
+`when`, which leaves the rule firing on code that is now right.
+
 ## The four honest resolutions
 
 1. **Fix the code.** The default. The `fix` line tells you the shape.
