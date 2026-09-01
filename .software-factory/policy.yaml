@@ -59,6 +59,9 @@ rules:
   # L1 — No function exceeds the cyclomatic ceiling
   L1.COMPLEXITY_CEILING:
     enabled: true
+  # L1 — A hop that renames nothing is not a hop
+  L1.INDIRECTION_EARNS_ITS_NAME:
+    enabled: true
   # L1 — Every suppression names a code and a reason
   L1.NO_BLANKET_SUPPRESSION:
     enabled: true

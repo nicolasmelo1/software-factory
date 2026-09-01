@@ -6,6 +6,7 @@ pub mod comment_block;
 pub mod command;
 pub mod complexity;
 pub mod evidence;
+pub mod forwarder;
 pub mod lock;
 pub mod nested;
 pub mod shape;
@@ -87,6 +88,7 @@ pub fn run_one(rule: &Rule, ctx: &Ctx) -> Result<Vec<Finding>> {
         CheckKind::Nested { languages } => nested::run(rule, &opts, languages, ctx),
         CheckKind::Complexity => complexity::run(rule, &opts, ctx),
         CheckKind::CommentBlock => comment_block::run(rule, &opts, ctx),
+        CheckKind::Forwarder { languages } => forwarder::run(rule, &opts, languages, ctx),
         CheckKind::TextPattern => text_pattern::run(rule, &opts, ctx),
         // The kinds that read what the repository committed about itself.
         bookkeeping => run_bookkeeping(bookkeeping, rule, &opts, ctx),
@@ -123,6 +125,7 @@ fn run_bookkeeping(
         | CheckKind::Nested { .. }
         | CheckKind::Complexity
         | CheckKind::TextPattern
-        | CheckKind::CommentBlock => Ok(Vec::new()),
+        | CheckKind::CommentBlock
+        | CheckKind::Forwarder { .. } => Ok(Vec::new()),
     }
 }
