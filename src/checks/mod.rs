@@ -101,8 +101,8 @@ pub fn run_one(rule: &Rule, ctx: &Ctx) -> Result<Vec<Finding>> {
 /// Split from `run_one` because a flat dispatch reached
 /// `L1.COMPLEXITY_CEILING` the moment one more kind existed. A dispatch table
 /// carries no branching a reader must hold, so the ceiling firing here is the
-/// metric's limitation, not a defect — see
-/// `plans/the-grain-has-a-ceiling-and-no-floor.md`. The seam chosen means
+/// metric's limitation, not a defect — see the grain plan, shipped
+/// in `8cc43fb`. The seam chosen means
 /// something (source versus bookkeeping) rather than merely reaching twelve.
 fn run_bookkeeping(
     kind: &CheckKind,

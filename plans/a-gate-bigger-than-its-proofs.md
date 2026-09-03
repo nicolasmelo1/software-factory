@@ -71,9 +71,9 @@ gap rather than a new one, and it should not be closed on its own.
 
 `software-factory`'s own `adoption` gate names a plan, requires four assertions,
 and the plan cites all four with no debt. So it demonstrates the shape working
-and cannot demonstrate the shape failing, exactly as
-[the grain has a ceiling and no floor](the-grain-has-a-ceiling-and-no-floor.md)
-records for its own metric. The fixture is where the failing shape has to live.
+and cannot demonstrate the shape failing, exactly as the grain plan, shipped in
+`8cc43fb`, recorded for its own metric. The fixture is where the failing shape
+has to live.
 
 ## What is not decided here
 

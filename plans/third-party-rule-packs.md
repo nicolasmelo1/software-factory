@@ -39,7 +39,8 @@ add` runs `sf verify` over the pack before writing anything.
 
 **Expiry.** A pack for a version you no longer run has to say so out loud, and
 that is what [rules-activate-by-dependency-version.md](rules-activate-by-dependency-version.md)
-builds. Without it, every pack is something to remember to remove.
+built, shipped in `927e8e2`. Without it, every pack is something to remember
+to remove.
 
 ## Deliberately not in scope
 
@@ -64,7 +65,7 @@ with a finding when the dependency's major version moves.
       (proof: deferred:depends on the install path, not designed yet)
 - [ ] Installed pack rules carry a `when` naming the dependency and version
       they describe
-      (proof: deferred:blocked on rules-activate-by-dependency-version.md)
+      (proof: deferred:the pack format carries no `when` field yet)
 - [ ] No pack is fetched or evaluated at check time
       (proof: unspecified:an absence, enforced by review of the diff that adds
       the subcommand)

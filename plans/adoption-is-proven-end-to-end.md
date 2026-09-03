@@ -50,16 +50,16 @@ of these rules in mind.
 
 ## Acceptance criteria
 
-- [ ] `sf init` on a repository that has never seen this tool writes a policy
+- [x] `sf init` on a repository that has never seen this tool writes a policy
       that loads, a rule document, a CI workflow and a pre-commit hook
       (proof: assertion:cli.init_scaffolds_a_policy)
-- [ ] `sf verify` is green immediately after that init, proving every rule it
+- [x] `sf verify` is green immediately after that init, proving every rule it
       enabled fires on its own fixture
       (proof: assertion:cli.verify_is_green_after_init)
-- [ ] `sf check` is green on the baseline init froze, so adoption does not hand
+- [x] `sf check` is green on the baseline init froze, so adoption does not hand
       anybody a red build on day one
       (proof: assertion:cli.check_is_green_on_the_frozen_baseline)
-- [ ] One new violation written after adoption turns `sf check` red and names
+- [x] One new violation written after adoption turns `sf check` red and names
       its file and line, so the ratchet froze the debt without disarming the
       rule
       (proof: assertion:cli.new_violation_fails_the_check)

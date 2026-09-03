@@ -14,21 +14,26 @@ is really three plans passes both.
 ## Measured, on this repository
 
 Debt is a criterion marked `deferred:` or `unspecified:`, which is to say a
-promise nothing yet proves. Retaken after the three plans that shipped were
-deleted from `plans/`.
+promise nothing yet proves. Retaken over what is left after
+`the-grain-has-a-ceiling-and-no-floor.md` shipped in `8cc43fb` and was deleted.
+This plan is not in its own table; its own count is under "Where to set it".
 
 | Plan | Lines | Criteria | Debt |
 | --- | --- | --- | --- |
-| [rules-activate-by-dependency-version](rules-activate-by-dependency-version.md) | 91 | 5 | 1/5 |
-| [the-grain-has-a-ceiling-and-no-floor](the-grain-has-a-ceiling-and-no-floor.md) | 165 | 6 | 6/6 |
-| [structural-rules-assume-an-import-statement](structural-rules-assume-an-import-statement.md) | 222 | 6 | 6/6 |
+| [the-gate-assumes-a-way-to-run-the-product](the-gate-assumes-a-way-to-run-the-product.md) | 165 | 7 | 6/7 |
 | [expand-language-adapters](expand-language-adapters.md) | 26 | 0 | n/a |
+| [structural-rules-assume-an-import-statement](structural-rules-assume-an-import-statement.md) | 222 | 6 | 6/6 |
+| [a-gate-bigger-than-its-proofs](a-gate-bigger-than-its-proofs.md) | 127 | 6 | 5/6 |
+| [third-party-rule-packs](third-party-rule-packs.md) | 71 | 4 | 4/4 |
+| [adoption-is-proven-end-to-end](adoption-is-proven-end-to-end.md) | 70 | 4 | 0/4 |
+| [rules-activate-by-dependency-version](rules-activate-by-dependency-version.md) | 91 | 5 | 1/5 |
 
-Two things fall out. The two longest plans are the two where not one criterion
-names a real proof, and they sit at #3 and #4 in the order, so the work furthest
-out is the work least defined. And a plan still declares no criteria at all.
-Deleting a shipped plan is what removed the other two zero-criteria rows, not
-anybody writing criteria for them.
+Two things fall out. The two longest plans are the two where almost no criterion
+names a real proof, and they sit at #1 and #3 in the order, so the work furthest
+out is the work least defined. And a plan still declares no criteria at all,
+which no amount of retaking has changed: the zero-criteria rows that went away
+went away because their plans shipped, not because anybody wrote criteria for
+them.
 
 ## The floor comes first, or the ceiling is decoration
 
@@ -70,11 +75,20 @@ the proof would go. That is the signal, and it is why the count is
 
 ## Where to set it
 
-At 60 percent, the rule names `the-grain-has-a-ceiling-and-no-floor.md` and
-`structural-rules-assume-an-import-statement.md` on the ceiling and
-`expand-language-adapters.md` on the floor, and stays silent on
-`rules-activate-by-dependency-version.md`. `ratchet: allowlist` freezes those
-three so adopting the rule is not a demand to rewrite them the same afternoon.
+At 60 percent, the rule names `a-gate-bigger-than-its-proofs.md`,
+`structural-rules-assume-an-import-statement.md`,
+`the-gate-assumes-a-way-to-run-the-product.md` and `third-party-rule-packs.md`
+on the ceiling and `expand-language-adapters.md` on the floor, and stays silent
+on `rules-activate-by-dependency-version.md` and
+`adoption-is-proven-end-to-end.md`. `ratchet: allowlist` freezes those five so
+adopting the rule is not a demand to rewrite them the same afternoon.
+
+Four over the ceiling out of seven is more than the two this plan measured when
+it was written. Two of the four are plans written since for work nobody has
+started, and one is the rule-packs plan that just came off the parked table.
+Whether that means 60 percent is the wrong number, or that this repository is
+planning further ahead than it can prove, is the first thing to settle when this
+work is picked up.
 
 The fix is a split, not a rewrite: the half with proofs becomes the plan that
 enters the order now, the rest becomes its own file, parked with the precondition
@@ -123,11 +137,10 @@ it is worth shipping. Out of scope here.
       that selects no plan file.
       (proof: deferred:the inertness path depends on whether the mode routes
       through `scan::select`, which is the intent and not yet written)
-- [ ] Run against this repository at a 60 percent ceiling, `sf check` names
-      `the-grain-has-a-ceiling-and-no-floor.md` and
-      `structural-rules-assume-an-import-statement.md` on the ceiling and
-      `expand-language-adapters.md` on the floor, and reports nothing for
-      `rules-activate-by-dependency-version.md`.
+- [ ] Run against this repository at the chosen ceiling, `sf check` names every
+      plan the table above puts over it and `expand-language-adapters.md` on the
+      floor, and reports nothing for `rules-activate-by-dependency-version.md`
+      or `adoption-is-proven-end-to-end.md`.
       (proof: deferred:no check is written yet)
 - [ ] No existing plan is edited to clear a finding. The one plan left with no
       criteria, `expand-language-adapters.md`, gains real ones or moves to the
@@ -136,7 +149,7 @@ it is worth shipping. Out of scope here.
       (proof: unspecified:an absence, enforced by reading the diff, which no
       check here can assert)
 
-**Exit condition:** `sf check` on this repository names the two plans whose
-criteria are entirely debt and the one plan with no criteria at all, stays
+**Exit condition:** `sf check` on this repository names every plan the measured
+table puts over the ceiling and the one plan with no criteria at all, stays
 silent on `rules-activate-by-dependency-version.md`, and `sf verify` proves the
 rule fires on both a floor fixture and a ceiling fixture.
