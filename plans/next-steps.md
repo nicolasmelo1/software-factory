@@ -18,7 +18,9 @@ precondition exists. Park it below rather than deleting it.
 
 | 5 | [A gate bigger than its proofs](a-gate-bigger-than-its-proofs.md) | A gate requiring no assertions, over a report carrying none, with an emptied goal denylist, turns `sf check` red, and this repository's own `adoption` gate stays green. |
 
-| 6 | [Rule packs for third-party APIs and libraries](third-party-rule-packs.md) | `sf pack add <name>@<version>` vendors a versioned set of rules with their fixtures into `.software-factory/rules/`, refuses any pack whose fixtures do not trip its own rules, and the installed rules deactivate with a finding when the dependency's major version moves. |
+| 6 | [Scaffolds are proven in micro-sandboxes](scaffolds-are-proven-in-micro-sandboxes.md) | A repository declares a scaffold, `sf scaffold` writes a router, service and query that `sf check` passes unedited, and `sf verify` goes red both when that output is mutated to violate a governing rule and when every rule over those paths is removed. |
+
+| 7 | [Rule packs for third-party APIs and libraries](third-party-rule-packs.md) | `sf pack add <name>@<version>` vendors a versioned set of rules with their fixtures into `.software-factory/rules/`, refuses any pack whose fixtures do not trip its own rules, and the installed rules deactivate with a finding when the dependency's major version moves. |
 
 
 ## Parked
