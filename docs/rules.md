@@ -98,7 +98,7 @@ skip `.software-factory/mutations`: `rubocop`/`standardrb` via
 forms in `FIXTURES_HINT`.
 
 **L1 has a floor as of this change, and it is one shape out of five measured.**
-[The grain has a ceiling and no floor](../plans/the-grain-has-a-ceiling-and-no-floor.md)
+The grain plan that shipped in `8cc43fb`
 left the finding model undecided on purpose. Four candidate metrics were run
 over twelve real repositories before anything shipped: the one-line forwarder
 (18 hits here, every one a correct named accessor), the abstraction with a
