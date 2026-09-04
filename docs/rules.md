@@ -259,11 +259,11 @@ Each ratchet entry and each policy exclusion declares a `review_by` date, and an
 
 **The guardrail may be strengthened, never quietly weakened**
 
-Compared with the revision under review, no rule may be disabled or removed, no exclusion added, no scope narrowed, no ceiling raised, no denylist value removed, no gate weakened, no new violation frozen, and no review date pushed out.
+Compared with the revision under review, no rule may be disabled or removed, no exclusion added, no scope narrowed, no ceiling raised, no denylist value removed, no gate weakened, no new violation frozen for a rule that was already enabled, and no review date pushed out. A newly enabled rule may seed the existing debt it exposes.
 
-**Why.** The lock makes a guardrail edit visible; this reads the edit and decides which direction it went. Weakening is the specific move an agent makes when a check stands between it and a green build, and it is the one that costs nothing to write and everything to notice six months later. An empty denylist is a particularly quiet loosening: the checker still runs but the values it was supposed to reject are all admitted. Strengthening passes silently, so the rule never taxes the direction you want.
+**Why.** The lock makes a guardrail edit visible; this reads the edit and decides which direction it went. Weakening is the specific move an agent makes when a check stands between it and a green build, and it is the one that costs nothing to write and everything to notice six months later. An empty denylist is a particularly quiet loosening: the checker still runs but the values it was supposed to reject are all admitted. A new rule is a strengthening even when it first sees old debt, so its initial ratchet is allowed; once enabled, adding a key is again a weakening. Strengthening passes silently, so the rule never taxes the direction you want.
 
-**Fix.** Restore what was weakened. If the loosening is genuinely right — the rule was wrong, the exclusion is narrower than the alternative — that is a human's call to merge, with the reasoning in the pull request, not a line an agent slips into a diff about something else.
+**Fix.** Restore what was weakened. If the loosening is genuinely right — the rule was wrong, the exclusion is narrower than the alternative — that is a human's call to merge, with the reasoning in the pull request, not a line an agent slips into a diff about something else. To adopt a newly enabled rule, run `sf ratchet` once; do not add keys by hand.
 
 ## L3 — Effect: a real actor achieved the outcome
 

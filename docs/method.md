@@ -78,9 +78,11 @@ is the same property the rest of L2 has.
 
 `L2.POLICY_ONLY_TIGHTENS` goes further and reads the direction of the change.
 Disabling a rule, widening an exclusion, narrowing a scope, raising a ceiling,
-freezing a new violation, deferring a review date — each of those is what an
-agent does when a check stands between it and a green build, each costs nothing
-to write, and each is invisible six months later. Strengthening passes
+freezing a new violation on an already-enabled rule, deferring a review date —
+each of those is what an agent does when a check stands between it and a green
+build, each costs nothing to write, and each is invisible six months later. A
+newly enabled rule may seed the debt it first exposes; that is its adoption
+baseline, while later additions remain a weakening. Strengthening passes
 silently, so the rule never taxes the direction you want.
 
 The rest of L2:
