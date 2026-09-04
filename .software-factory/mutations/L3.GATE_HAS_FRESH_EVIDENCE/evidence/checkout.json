@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "gate": "checkout",
+  "implementation_sha256": "8be5bb73c2645f3f97c371e7e062ece5207b1a43fe6bb346eb23cddb62b812a4",
+  "runs": [
+    {
+      "scenario": "checkout",
+      "status": "passed",
+      "actor": "a browser driver",
+      "report": "evidence/checkout-run.json",
+      "report_sha256": "4660d3023be85f67be2269b691218c00f6f2ccd4f23593b67539ba25820de825",
+      "required_assertions": []
+    }
+  ]
+}

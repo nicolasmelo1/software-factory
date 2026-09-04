@@ -10,7 +10,7 @@ gates:
     activation: ["src/checkout/**"]
     evidence: "evidence/checkout.json"
     plan: "plans/rewrite-checkout.md"
-    required_assertions: ["api.ledger_balanced"]
+    required_assertions: []
 rules:
   L3.GATE_COVERS_THE_PLAN:
     enabled: true

@@ -378,6 +378,21 @@ fn check_assertions(
     report: &Report,
 ) -> Vec<Finding> {
     let mut findings = Vec::new();
+    // A report that observed nothing is not evidence, even when the policy
+    // and manifest both under-declared what the run owed. The loops below
+    // compare individual assertions, so neither sees an empty report.
+    if report.assertions.is_empty() {
+        findings.push(
+            fail(
+                rule,
+                run.report.clone(),
+                format!("{key}:no-assertions"),
+                format!("the report for `{}` carries no assertions", run.scenario),
+            )
+            .expected("at least one assertion result")
+            .actual("none"),
+        );
+    }
     for assertion in &required_assertions(gate, run) {
         match report.assertions.iter().find(|a| &a.kind == assertion) {
             None => findings.push(
@@ -457,7 +472,7 @@ pub fn seal(root: &Path, gate_name: &str, gate: &Gate, ctx: &Ctx) -> Result<Mani
 
 #[cfg(test)]
 mod actor {
-    use super::{Run, check_actor};
+    use super::{AssertionResult, Report, Run, check_actor, check_assertions};
     use crate::catalog::{Catalog, Rule};
     use crate::policy::{Gate, Options, Policy};
 
@@ -518,5 +533,39 @@ mod actor {
     fn a_browser_driver_is_a_legitimate_actor() {
         assert!(findings_for("the Playwright script that drives Chrome").is_empty());
         assert!(findings_for("Nicolas, by hand").is_empty());
+    }
+
+    #[test]
+    fn a_report_that_asserts_nothing_is_not_evidence() {
+        let (rule, _) = shipped();
+        let run = Run {
+            scenario: "checkout".to_string(),
+            status: "passed".to_string(),
+            actor: "a browser driver".to_string(),
+            report: "evidence/checkout-run.json".to_string(),
+            report_sha256: String::new(),
+            required_assertions: Vec::new(),
+        };
+        let report = Report {
+            scenario: "checkout".to_string(),
+            status: "passed".to_string(),
+            goal: "Buy an item as a guest".to_string(),
+            assertions: Vec::new(),
+        };
+        let findings = check_assertions(&rule, "checkout:checkout", &Gate::default(), &run, &report);
+        assert_eq!(findings.len(), 1, "the empty report is its own failure");
+        assert_eq!(findings[0].key, "checkout:checkout:no-assertions");
+
+        let observed = Report {
+            assertions: vec![AssertionResult {
+                kind: "checkout.completed".to_string(),
+                status: "passed".to_string(),
+            }],
+            ..report
+        };
+        assert!(
+            check_assertions(&rule, "checkout:checkout", &Gate::default(), &run, &observed).is_empty(),
+            "a report that observed an assertion must not trip the floor"
+        );
     }
 }

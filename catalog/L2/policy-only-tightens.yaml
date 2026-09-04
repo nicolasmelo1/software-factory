@@ -4,13 +4,16 @@ title: The guardrail may be strengthened, never quietly weakened
 severity: critical
 statement: >-
   Compared with the revision under review, no rule may be disabled or removed,
-  no exclusion added, no scope narrowed, no ceiling raised, no gate weakened,
-  no new violation frozen, and no review date pushed out.
+  no exclusion added, no scope narrowed, no ceiling raised, no denylist value
+  removed, no gate weakened, no new violation frozen, and no review date
+  pushed out.
 why: >-
   The lock makes a guardrail edit visible; this reads the edit and decides
   which direction it went. Weakening is the specific move an agent makes when
   a check stands between it and a green build, and it is the one that costs
-  nothing to write and everything to notice six months later. Strengthening
+  nothing to write and everything to notice six months later. An empty
+  denylist is a particularly quiet loosening: the checker still runs but the
+  values it was supposed to reject are all admitted. Strengthening
   passes silently, so the rule never taxes the direction you want.
 fix: >-
   Restore what was weakened. If the loosening is genuinely right — the rule

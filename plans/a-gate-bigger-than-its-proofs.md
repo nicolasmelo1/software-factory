@@ -87,6 +87,26 @@ Also undecided: whether a gate with no `plan:` should be a finding on its own.
 It is defensible that a gate is allowed to exist before the plan that justifies
 it, and defensible that this is precisely how a gate ends up requiring nothing.
 
+## Decided
+
+The two L3 floors stay in their existing rule identities. A plan that gives a
+named gate only `deferred:` or `unspecified:` criteria cannot leave that gate's
+`required_assertions` empty; this belongs to `L3.GATE_COVERS_THE_PLAN`, because
+the question is whether the plan gives its gate anything to cover. A gate with
+no `plan:` remains allowed: it may exist before the work that justifies it is
+written, and turning that absence into a finding would be a separate policy
+decision.
+
+A report with zero assertions is distinct evidence debt and belongs to
+`L3.GATE_HAS_FRESH_EVIDENCE`. Its per-assertion loops otherwise faithfully
+compare nothing and report success, even when the gate and its manifest both
+require nothing.
+
+The two policy denylists join `L2.POLICY_ONLY_TIGHTENS`, rather than creating a
+third L3 rule. Removing entries from `forbidden_in_goal` or
+`forbidden_actors` is a policy movement, and the existing L2 comparison is the
+place that already makes every other quiet weakening visible.
+
 ## Non-goals
 
 `L3.GATE_HAS_FRESH_EVIDENCE`'s existing five clauses are not touched. Nothing
@@ -99,26 +119,25 @@ on them continuing to work.
 
 ## Acceptance criteria
 
-- [ ] The split above is decided and written into `docs/rules.md` before any
+- [x] The split above is decided and written into `docs/rules.md` before any
       check ships: one rule or three, and whether the policy-movement half lands
       in `L2` instead
-      (proof: unspecified:a decision about rule identity, which no check can
-      validate, and rule ids are a public contract)
-- [ ] A gate whose `required_assertions` is empty and whose plan cites no
+      (proof: unspecified:the rule identities are a public contract; the
+      decision and its rationale are recorded under "Decided")
+- [x] A gate whose `required_assertions` is empty and whose plan cites no
       undeferred criterion is a finding
-      (proof: deferred:no check is written yet)
-- [ ] A run whose report carries zero assertions is a finding, distinct from the
+      (proof: test:.software-factory/mutations/L3.GATE_COVERS_THE_PLAN/)
+- [x] A run whose report carries zero assertions is a finding, distinct from the
       one above, so a gate that demands nothing and a report that observed
       nothing do not hide behind each other
-      (proof: deferred:no check is written yet)
-- [ ] Emptying `forbidden_in_goal` or `forbidden_actors` across a policy change
+      (proof: test:src/checks/evidence.rs)
+- [x] Emptying `forbidden_in_goal` or `forbidden_actors` across a policy change
       is reported by `L2.POLICY_ONLY_TIGHTENS`
-      (proof: deferred:`option_size` in `src/checks/tightening.rs` compares
-      three keys and neither is one of them)
-- [ ] `sf verify` proves whatever ships fires on its own mutation fixture, and
+      (proof: test:src/checks/tightening.rs)
+- [x] `sf verify` proves whatever ships fires on its own mutation fixture, and
       the fixture carries the failing shape rather than the empty-map shape
-      (proof: deferred:no fixture is written yet)
-- [ ] `software-factory`'s own `adoption` gate stays green throughout, since it
+      (proof: test:.software-factory/mutations/L3.GATE_HAS_FRESH_EVIDENCE/)
+- [x] `software-factory`'s own `adoption` gate stays green throughout, since it
       is the negative control
       (proof: test:.software-factory/evidence/adoption-scenario.sh)
 

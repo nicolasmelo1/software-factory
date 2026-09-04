@@ -163,6 +163,20 @@ fn rule_findings(
             now_max.to_string(),
         ));
     }
+    for (name, was_count, now_count) in [
+        ("forbidden_in_goal", was.forbidden_in_goal, now.forbidden_in_goal),
+        ("forbidden_actors", was.forbidden_actors, now.forbidden_actors),
+    ] {
+        if now_count < was_count {
+            findings.push(weakened(
+                rule,
+                &format!("denylist-reduced:{id}:{name}"),
+                format!("{id} removed {} {name} value(s)", was_count - now_count),
+                format!("{was_count} value(s)"),
+                format!("{now_count} value(s)"),
+            ));
+        }
+    }
     findings
 }
 
@@ -216,9 +230,45 @@ struct Size {
     excludes: usize,
     scope: usize,
     max: Option<usize>,
+    forbidden_in_goal: usize,
+    forbidden_actors: usize,
 }
 
 fn option_size(raw: &serde_yaml::Value) -> Size {
     let options: Options = serde_yaml::from_value(raw.clone()).unwrap_or_default();
-    Size { excludes: options.exclude.len(), scope: options.scope.len(), max: options.max }
+    Size {
+        excludes: options.exclude.len(),
+        scope: options.scope.len(),
+        max: options.max,
+        forbidden_in_goal: options.forbidden_in_goal.len(),
+        forbidden_actors: options.forbidden_actors.len(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::rule_findings;
+    use crate::catalog::Catalog;
+    use crate::policy::RuleSetting;
+
+    #[test]
+    fn removing_goal_or_actor_denylist_values_is_a_weakening() {
+        let catalog = Catalog::builtin().expect("the shipped catalog loads");
+        let rule = catalog.get("L2.POLICY_ONLY_TIGHTENS").expect("the rule ships");
+        let previous: RuleSetting = serde_yaml::from_str(
+            "enabled: true\noptions:\n  forbidden_in_goal: [/Users/]\n  forbidden_actors: [scripted]\n",
+        )
+        .expect("the previous setting parses");
+        let current: RuleSetting = serde_yaml::from_str(
+            "enabled: true\noptions:\n  forbidden_in_goal: []\n  forbidden_actors: []\n",
+        )
+        .expect("the current setting parses");
+
+        let keys: Vec<_> = rule_findings(rule, "L3.GATE_HAS_FRESH_EVIDENCE", &previous, &current)
+            .into_iter()
+            .map(|finding| finding.key)
+            .collect();
+        assert!(keys.contains(&"denylist-reduced:L3.GATE_HAS_FRESH_EVIDENCE:forbidden_in_goal".to_string()));
+        assert!(keys.contains(&"denylist-reduced:L3.GATE_HAS_FRESH_EVIDENCE:forbidden_actors".to_string()));
+    }
 }
