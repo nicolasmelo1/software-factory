@@ -107,9 +107,9 @@ thin command that consumes the answers, exactly as `factory-init` and
 naming it wrongly is expensive: subcommand names are as public as rule ids.
 
 **Whether a gate is required to name a runnable harness.** That is a floor under
-L3, and [a gate bigger than its proofs](a-gate-bigger-than-its-proofs.md)
-already owns L3's floor. Landing half of it here would split one rule across two
-plans, which is the failure that plan is itself about.
+L3, and the shipped L3 proof-budget work owns the layer's existing floors.
+Landing half of it here would split one rule across two plans, which is the
+failure this plan is itself about.
 
 **Whether the doctor step earns its separation.** pstack splits readiness from
 driving. Our single worked example folds them together and has not wanted the

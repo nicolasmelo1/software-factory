@@ -68,7 +68,7 @@ pub fn run(rule: &Rule, opts: &Options, ctx: &Ctx) -> Result<Vec<Finding>> {
         return Ok(Vec::new());
     };
     let mut findings = policy_findings(rule, ctx, &before);
-    findings.extend(ratchet_findings(rule, ctx, &frozen_before));
+    findings.extend(ratchet_findings(rule, ctx, &before, &frozen_before));
     Ok(findings)
 }
 
@@ -180,9 +180,16 @@ fn rule_findings(
     findings
 }
 
-fn ratchet_findings(rule: &Rule, ctx: &Ctx, before: &Ratchet) -> Vec<Finding> {
+fn ratchet_findings(rule: &Rule, ctx: &Ctx, before_policy: &Policy, before: &Ratchet) -> Vec<Finding> {
     let mut findings = Vec::new();
     for (id, current) in &ctx.ratchet.rules {
+        // A new rule is a strengthening, but it may expose debt already in
+        // the repository. Its first ratchet is the adoption baseline, not a
+        // newly frozen violation. Once the rule has been enabled, every new
+        // key remains the quiet weakening this check must refuse.
+        if !previously_enabled(before_policy, id) {
+            continue;
+        }
         let previous = before.rules.get(id);
         let previously_frozen = previous.map(|p| p.allow.len()).unwrap_or(0);
         let added: Vec<&String> = current
@@ -226,6 +233,10 @@ fn ratchet_findings(rule: &Rule, ctx: &Ctx, before: &Ratchet) -> Vec<Finding> {
     findings
 }
 
+fn previously_enabled(policy: &Policy, id: &str) -> bool {
+    policy.rules.get(id).is_some_and(|setting| setting.enabled)
+}
+
 struct Size {
     excludes: usize,
     scope: usize,
@@ -247,9 +258,9 @@ fn option_size(raw: &serde_yaml::Value) -> Size {
 
 #[cfg(test)]
 mod tests {
-    use super::rule_findings;
+    use super::{previously_enabled, rule_findings};
     use crate::catalog::Catalog;
-    use crate::policy::RuleSetting;
+    use crate::policy::{Policy, RuleSetting};
 
     #[test]
     fn removing_goal_or_actor_denylist_values_is_a_weakening() {
@@ -270,5 +281,23 @@ mod tests {
             .collect();
         assert!(keys.contains(&"denylist-reduced:L3.GATE_HAS_FRESH_EVIDENCE:forbidden_in_goal".to_string()));
         assert!(keys.contains(&"denylist-reduced:L3.GATE_HAS_FRESH_EVIDENCE:forbidden_actors".to_string()));
+    }
+
+    #[test]
+    fn an_initial_ratchet_seed_is_allowed_only_for_a_newly_enabled_rule() {
+        let before: Policy = serde_yaml::from_str(
+            "version: 1\nproject:\n  name: before\n  languages: [rust]\nrules:\n  L1.COMMENT_STAYS_SUCCINCT:\n    enabled: true\n  L4.PLAN_PROOF_BUDGET:\n    enabled: false\n",
+        )
+        .expect("the baseline policy parses");
+
+        assert!(previously_enabled(&before, "L1.COMMENT_STAYS_SUCCINCT"));
+        assert!(
+            !previously_enabled(&before, "L4.PLAN_PROOF_BUDGET"),
+            "a previously disabled rule may seed the debt it exposes when enabled"
+        );
+        assert!(
+            !previously_enabled(&before, "L1.INDIRECTION_EARNS_ITS_NAME"),
+            "a rule absent from the baseline is newly enabled too"
+        );
     }
 }

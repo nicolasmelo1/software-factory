@@ -21,6 +21,7 @@ pub fn run(rule: &Rule, opts: &Options, ctx: &Ctx, mode: CadenceMode) -> Result<
         CadenceMode::RuleCitations => rule_citations(rule, opts, ctx),
         CadenceMode::PlanCadence => plan_cadence(rule, opts, ctx),
         CadenceMode::PlanCriteria => plan_criteria(rule, opts, ctx),
+        CadenceMode::PlanProofBudget => plan_proof_budget(rule, opts, ctx),
         CadenceMode::GateCoverage => gate_coverage(rule, ctx),
         CadenceMode::MutationCoverage => mutation_coverage(rule, ctx),
         CadenceMode::InertRules => inert_rules(rule, ctx),
@@ -126,7 +127,7 @@ fn inert_reason(candidate: &Rule, ctx: &Ctx) -> Result<Option<String>> {
                 None
             }
         }
-        bookkeeping => inert_bookkeeping_reason(bookkeeping, &options, ctx),
+        bookkeeping => inert_bookkeeping_reason(bookkeeping, &options, ctx)?,
     };
     Ok(reason)
 }
@@ -136,8 +137,8 @@ fn inert_reason(candidate: &Rule, ctx: &Ctx) -> Result<Option<String>> {
 /// The trailing `_ => None` is the known gap, and the compiler cannot ask for
 /// the next one: `expiry`, `policy_tightening` and every `cadence` mode other
 /// than `gate_coverage` still have no inertness test.
-fn inert_bookkeeping_reason(check: &CheckKind, options: &Options, ctx: &Ctx) -> Option<String> {
-    match check {
+fn inert_bookkeeping_reason(check: &CheckKind, options: &Options, ctx: &Ctx) -> Result<Option<String>> {
+    Ok(match check {
         CheckKind::Lock if options.scope.is_empty() => {
             Some("no scope: it locks nothing".to_string())
         }
@@ -147,6 +148,11 @@ fn inert_bookkeeping_reason(check: &CheckKind, options: &Options, ctx: &Ctx) -> 
         CheckKind::Toolchain => inert_toolchain_reason(options, ctx),
         CheckKind::Evidence => inert_evidence_reason(ctx),
         CheckKind::Cadence { mode: CadenceMode::GateCoverage } => inert_gate_coverage_reason(ctx),
+        CheckKind::Cadence { mode: CadenceMode::PlanProofBudget }
+            if scan::select(ctx.files, &options.scope, &options.exclude)?.is_empty() =>
+        {
+            Some("scope matches no plan file: it can never measure a plan's proof budget".to_string())
+        }
         // Nothing committed to compare the running catalog against, so
         // the rule passes every run while agreeing to nothing. `sf lock`
         // writes the fingerprint whenever this rule is enabled, so the
@@ -161,7 +167,7 @@ fn inert_bookkeeping_reason(check: &CheckKind, options: &Options, ctx: &Ctx) -> 
             ))
         }
         _ => None,
-    }
+    })
 }
 
 /// Why a `toolchain` rule can never produce a finding here, if any.
@@ -312,6 +318,10 @@ mod inert_l3 {
         let coverage = message("inert:L3.GATE_COVERS_THE_PLAN");
         assert!(coverage.contains("plan"), "names what the gate is missing: {coverage}");
         assert!(coverage.contains("forever"), "says the rule can never fire here: {coverage}");
+
+        let budget = message("inert:L4.PLAN_PROOF_BUDGET@inert");
+        assert!(budget.contains("scope"), "names the empty scope: {budget}");
+        assert!(budget.contains("proof budget"), "names the rule's subject: {budget}");
     }
 }
 
@@ -783,6 +793,105 @@ fn plan_criteria(rule: &Rule, opts: &Options, ctx: &Ctx) -> Result<Vec<Finding>>
         }
     }
     Ok(findings)
+}
+
+/// `L4.PLAN_PROOF_BUDGET`: a plan cannot erase its promises to evade a debt
+/// ceiling, and it cannot carry more undeclared proof debt than its budget.
+fn plan_proof_budget(rule: &Rule, opts: &Options, ctx: &Ctx) -> Result<Vec<Finding>> {
+    let max = opts.max.ok_or_else(|| anyhow::anyhow!("{} needs a `max` percentage", rule.id))?;
+    let mut findings = Vec::new();
+    for file in scan::select(ctx.files, &opts.scope, &opts.exclude)? {
+        let Ok(body) = std::fs::read_to_string(&file.abs) else {
+            continue;
+        };
+        findings.extend(plan_proof_budget_findings(rule, &file.rel, &body, max)?);
+    }
+    Ok(findings)
+}
+
+fn plan_proof_budget_findings(
+    rule: &Rule,
+    path: &str,
+    body: &str,
+    max: usize,
+) -> Result<Vec<Finding>> {
+    let criteria = parse_criteria(body)?;
+    if criteria.is_empty() {
+        return Ok(vec![
+            Finding::new(
+                &rule.id,
+                rule.severity,
+                path,
+                format!("no-criteria:{path}"),
+                "this plan has no acceptance criteria",
+            )
+            .expected("at least one acceptance criterion with a proof marker")
+            .actual("none"),
+        ]);
+    }
+
+    let debt = criteria
+        .iter()
+        .filter(|criterion| matches!(criterion.kind.as_deref(), Some("deferred" | "unspecified")))
+        .count();
+    if debt * 100 <= max * criteria.len() {
+        return Ok(Vec::new());
+    }
+    let percentage = debt * 100 / criteria.len();
+    Ok(vec![
+        Finding::new(
+            &rule.id,
+            rule.severity,
+            path,
+            format!("debt-budget:{path}"),
+            format!(
+                "this plan carries {debt} deferred or unspecified criterion(s) out of {} ({percentage}%), above its {max}% proof budget",
+                criteria.len()
+            ),
+        )
+        .expected(format!("at most {max}% deferred or unspecified criteria"))
+        .actual(format!("{percentage}%")),
+    ])
+}
+
+#[cfg(test)]
+mod proof_budget {
+    use super::plan_proof_budget_findings;
+    use crate::catalog::Catalog;
+
+    fn rule() -> crate::catalog::Rule {
+        Catalog::builtin()
+            .expect("the shipped catalog loads")
+            .get("L4.PLAN_PROOF_BUDGET")
+            .expect("the rule ships")
+            .clone()
+    }
+
+    #[test]
+    fn the_floor_and_ceiling_are_independent() {
+        let rule = rule();
+        let floor = plan_proof_budget_findings(&rule, "plans/floor.md", "# Floor\n", 60)
+            .expect("the floor plan parses");
+        assert_eq!(floor[0].key, "no-criteria:plans/floor.md");
+
+        let ceiling = plan_proof_budget_findings(
+            &rule,
+            "plans/ceiling.md",
+            "- [ ] First debt. (proof: deferred:not designed)\n- [ ] Second debt. (proof: unspecified:not designed)\n- [ ] A proof. (proof: test:tests/proof.rs)\n",
+            60,
+        )
+        .expect("the ceiling plan parses");
+        assert_eq!(ceiling[0].key, "debt-budget:plans/ceiling.md");
+
+        let within_budget = plan_proof_budget_findings(
+            &rule,
+            "plans/within-budget.md",
+            "- [ ] Debt. (proof: deferred:not designed)\n- [ ] A proof. (proof: test:tests/proof.rs)\n",
+            60,
+        )
+        .expect("the control plan parses");
+        assert!(within_budget.is_empty(), "a plan under the budget must stay quiet");
+    }
 }
 
 /// `L3.GATE_COVERS_THE_PLAN`: the plan names a proof the gate never asks for,

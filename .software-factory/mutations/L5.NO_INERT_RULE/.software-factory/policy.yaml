@@ -27,6 +27,10 @@ rules:
     options:
       tools:
         java: ["error-prone", "jcstress"]
+  L4.PLAN_PROOF_BUDGET@inert:
+    enabled: true
+    options:
+      scope: ["nonexistent/**"]
   L1.NO_BLANKET_SUPPRESSION@tailwind3:
     enabled: true
     when:
