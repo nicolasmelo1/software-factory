@@ -52,7 +52,7 @@ chmod +x sf-aarch64-apple-darwin && mv sf-aarch64-apple-darwin ~/.local/bin/sf
 Or build it, if you have cargo:
 
 ```sh
-cargo install --git https://github.com/nicolasmelo1/software-factory --tag v0.3.0 --locked
+cargo install --git https://github.com/nicolasmelo1/software-factory --tag v0.4.0 --locked
 ```
 
 **Pin the tag.** The rule catalog ships *inside* the binary, so tracking the
@@ -64,7 +64,7 @@ writes the same pinned form into the CI workflow it generates.
 version number alone does not identify the rules:
 
 ```
-sf 0.3.0 (catalog 2d97bfc6f0df, 37 rules)
+sf 0.4.0 (catalog f4c2b4b783a5, 38 rules)
 ```
 
 One static binary, no runtime, nothing to clone. Building it is a single
