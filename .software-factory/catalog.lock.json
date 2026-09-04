@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "sf_version": "0.3.0",
-  "catalog_digest": "769ffac0a9d621737bb8e81b5e018cc44c4f8dc6e2d039710756d8f8701a2c73",
+  "catalog_digest": "df9177c741f35a5ffe6f5fee779ed6542e1650a3244f3735715a3573bf922fa5",
   "rules": {
     "L0.EXCEPTIONS_HAVE_ONE_HOME": {
       "severity": "high",
@@ -229,6 +229,18 @@
       "severity": "medium",
       "scope": 1,
       "exclude": 0,
+      "forbidden": 0,
+      "narrowed_patterns": 0,
+      "languages": 0,
+      "tools": 0,
+      "must_live_in": 0,
+      "must_not_live_in": 0
+    },
+    "L4.PLAN_PROOF_BUDGET": {
+      "severity": "medium",
+      "scope": 1,
+      "exclude": 1,
+      "max": 60,
       "forbidden": 0,
       "narrowed_patterns": 0,
       "languages": 0,

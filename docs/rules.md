@@ -339,6 +339,16 @@ Each document in the plans directory contains an explicit exit condition, and is
 
 **Fix.** Add an `Exit condition:` line naming the observable effect, and put the plan in the execution order — or park it there with the precondition it waits on.
 
+### L4.PLAN_PROOF_BUDGET
+
+**A plan has a criterion floor and a bounded proof-debt budget**
+
+Each scoped plan declares at least one acceptance criterion, and the share marked `(proof: deferred:...)` or `(proof: unspecified:...)` stays at or below its configured percentage budget.
+
+**Why.** A ceiling without a floor is evaded by deleting the numerator: a plan that promises nothing looks as green as one whose promises are all proven. Debt markers are honest only when they stay visible as debt; without a budget, a plan can be several future tasks bound together while naming no place its claims will be settled. The ratio measures that gap rather than markdown length, because length measures how much someone wrote, not how much they failed to work out how to prove.
+
+**Fix.** Add a real acceptance criterion when the plan has none. If its debt exceeds the budget, split out the work whose proof is not designed yet and park it with the precondition it waits on. Name the future test or assertion where it is already known; use `deferred:` or `unspecified:` only for the part that genuinely remains undecided.
+
 ### L4.ROOT_FILES_ARE_DECLARED
 
 **New top-level files are declared before they appear**

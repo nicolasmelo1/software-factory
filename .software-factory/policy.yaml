@@ -184,6 +184,9 @@ rules:
   # L4 — Every acceptance criterion names the check that proves it
   L4.PLAN_CRITERION_NAMES_ITS_CHECK:
     enabled: true
+  # L4 — A plan has a criterion floor and a bounded proof-debt budget
+  L4.PLAN_PROOF_BUDGET:
+    enabled: true
   # L4 — New top-level files are declared before they appear
   L4.ROOT_FILES_ARE_DECLARED:
     enabled: true
