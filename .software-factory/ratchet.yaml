@@ -9,7 +9,6 @@ rules:
     note: null
     allow:
     - debt-budget:plans/structural-rules-assume-an-import-statement.md
-    - debt-budget:plans/the-gate-assumes-a-way-to-run-the-product.md
     - debt-budget:plans/third-party-rule-packs.md
   L6.PERFORMANCE_REGRESSION_IS_GUARDED:
     review_by: 2027-02-18

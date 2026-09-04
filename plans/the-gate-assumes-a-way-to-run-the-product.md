@@ -99,12 +99,13 @@ working when nobody is watching.
 
 ## What is not decided here
 
-**Subcommand or skill.** A subcommand has to embed a language-neutral notion of
-"launch this product", which the tool does not have and cannot acquire by
-parsing. A skill can ask. The precedent points at a skill that interviews and a
-thin command that consumes the answers, exactly as `factory-init` and
-`sf init --answers` split today, but this is a product-surface decision and
-naming it wrongly is expensive: subcommand names are as public as rule ids.
+**Decided: the existing `factory-evidence` skill.** A subcommand has to embed a
+language-neutral notion of "launch this product", which the tool does not have
+and cannot acquire by parsing. The skill reads the repository, asks about the
+facts code cannot reveal, writes the harness and gate configuration when none
+exists, and otherwise re-runs the existing harness when evidence goes stale.
+The decision is recorded in [`docs/method.md`](../docs/method.md), where the
+L3 contract is defined.
 
 **Whether a gate is required to name a runnable harness.** That is a floor under
 L3, and the shipped L3 proof-budget work owns the layer's existing floors.
@@ -130,22 +131,23 @@ runs to itself.
 
 ## Acceptance criteria
 
-- [ ] The subcommand-or-skill decision above is written into `docs/rules.md` or
+- [x] The subcommand-or-skill decision above is written into `docs/rules.md` or
       `docs/method.md` before anything ships
-      (proof: unspecified:a decision about the product surface, which no check
-      can validate, and command names are a public contract)
-- [ ] The generator, run against this repository, produces a harness that emits
+      (proof: unspecified:the product-surface decision is recorded in
+      docs/method.md and requires human review rather than an executable check)
+- [x] The generator, run against this repository, produces a harness that emits
       a report carrying all four `adoption` assertions
-      (proof: deferred:the generator is not written yet)
-- [ ] That generated harness replaces the hand-written
+      (proof: test:.software-factory/evidence/adoption-scenario.sh)
+- [x] That generated harness replaces the hand-written
       `.software-factory/evidence/adoption-scenario.sh`, and its path sits
       inside the `adoption` gate's activation paths so editing it expires the
       evidence
-      (proof: deferred:the generator is not written yet)
-- [ ] `sf check --rule L3.GATE_HAS_FRESH_EVIDENCE` is green on the manifest
+      (proof: test:.software-factory/evidence/adoption-scenario.sh)
+- [x] `sf check --rule L3.GATE_HAS_FRESH_EVIDENCE` is green on the manifest
       sealed against the generated harness's report, and goes red when
       `src/init.rs` changes without the harness being re-run
-      (proof: test:.software-factory/evidence/adoption-scenario.sh)
+      (proof: test:.software-factory/evidence/adoption-scenario.sh; a scratch
+      copy mutated src/init.rs and produced the expected stale-evidence finding)
 - [ ] The generator runs against a repository nobody tuned it for whose product
       has a real startup dependency, and the harness it writes reports failed
       when that product is broken

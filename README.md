@@ -786,7 +786,8 @@ sf skills --project   # <root>/.claude/skills, no question
 sf skills --user      # ~/.claude/skills, no question
 ```
 
-**Invoke them by name.** `/factory-init`, `/factory-triage` and so on: an agent
+**Invoke them by name.** `/factory-init`, `/factory-evidence`, `/factory-triage`
+and so on: an agent
 may pick one up from its description when the conversation matches, but that is
 not something to rely on, and a skill that silently did not load looks exactly
 like one that did and had nothing to say.
@@ -845,14 +846,16 @@ completion gate"* — where it designs the activation paths and required
 assertions, and insists the assertions be observations read back from the
 system, not claims the actor makes about itself.
 
-### `factory-evidence` — when a gate is red and you have to prove something
+### `factory-evidence` — when a feature needs proof
 
-> **You:** `/factory-evidence` the checkout gate is `stale` and I need to
-> merge today.
+> **You:** `/factory-evidence` create and prove the checkout gate for this
+> service.
 
-`stale` means the code changed since the evidence was sealed. The tempting move
-— and the one the skill is explicitly told not to make — is to re-run `sf seal`
-and move on. That is a lie with a hash on it.
+If no harness exists, it reads how the product starts, identifies the public
+flow and observations, then writes the runnable harness and L3 gate. The
+harness becomes an activation path, so editing it expires the evidence it
+produced. If a harness already exists and its evidence is `stale`, it runs that
+program again; it never re-seals an old run and calls it proof.
 
 It runs the real thing: starts the app, drives it through the entry point a
 customer would use, collects the observations, writes the report, and only then

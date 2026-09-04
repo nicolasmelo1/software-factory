@@ -15,6 +15,16 @@ pub const SKILLS: &[(&str, &str)] = &[
     ("factory-triage", include_str!("../skills/factory-triage/SKILL.md")),
 ];
 
+/// A skill removed from a shipped set must not remain discoverable after an
+/// upgrade. Only its managed entrypoint is removed; a directory carrying a
+/// user's other files is left intact.
+const RETIRED_SKILLS: &[&str] = &["factory-harness"];
+
+pub struct Installed {
+    pub written: Vec<String>,
+    pub removed: Vec<String>,
+}
+
 /// Where Claude Code looks for skills, in both scopes.
 pub fn project_dir() -> PathBuf {
     PathBuf::from(".claude/skills")
@@ -53,7 +63,7 @@ pub fn choose_dir(root: &Path) -> Result<PathBuf> {
     }
 }
 
-pub fn install(dir: &Path) -> Result<Vec<String>> {
+pub fn install(dir: &Path) -> Result<Installed> {
     let mut written = Vec::new();
     for (name, body) in SKILLS {
         let target = dir.join(name);
@@ -64,12 +74,25 @@ pub fn install(dir: &Path) -> Result<Vec<String>> {
             .with_context(|| format!("could not write {}", path.display()))?;
         written.push(path.display().to_string());
     }
-    Ok(written)
+    let mut removed = Vec::new();
+    for name in RETIRED_SKILLS {
+        let target = dir.join(name);
+        let path = target.join("SKILL.md");
+        if path.is_file() {
+            std::fs::remove_file(&path)
+                .with_context(|| format!("could not remove retired skill {}", path.display()))?;
+            removed.push(path.display().to_string());
+            // A retired skill normally owns its directory, but never remove
+            // a directory that acquired a user's supplementary files.
+            let _ = std::fs::remove_dir(target);
+        }
+    }
+    Ok(Installed { written, removed })
 }
 
 #[cfg(test)]
 mod completeness {
-    use super::SKILLS;
+    use super::{SKILLS, install};
     use std::collections::BTreeSet;
     use std::path::{Path, PathBuf};
 
@@ -103,5 +126,24 @@ mod completeness {
              directories on disk with no SKILLS entry: {unregistered:?}\n\
              SKILLS entries with no directory on disk: {missing:?}"
         );
+    }
+
+    #[test]
+    fn an_upgrade_removes_a_retired_managed_skill_but_keeps_user_files() {
+        let root = std::env::temp_dir().join(format!(
+            "sf-skills-upgrade-{}",
+            std::process::id()
+        ));
+        let retired = root.join("factory-harness");
+        std::fs::create_dir_all(&retired).expect("retired skill directory");
+        std::fs::write(retired.join("SKILL.md"), "old skill").expect("old skill");
+        std::fs::write(retired.join("notes.md"), "keep this").expect("user note");
+
+        let installed = install(&root).expect("skills install");
+
+        assert_eq!(installed.removed, vec![retired.join("SKILL.md").display().to_string()]);
+        assert!(!retired.join("SKILL.md").exists(), "the stale entrypoint is gone");
+        assert!(retired.join("notes.md").is_file(), "user files survive the upgrade");
+        std::fs::remove_dir_all(root).expect("scratch cleanup");
     }
 }
