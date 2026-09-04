@@ -26,6 +26,8 @@ gates:
       - "src/interview.rs"
       - "interview/**"
       - "templates/**"
+      - "skills/factory-harness/**"
+      - ".software-factory/evidence/adoption-scenario.sh"
     evidence: ".software-factory/evidence/adoption.json"
     plan: "plans/adoption-is-proven-end-to-end.md"
     required_assertions:

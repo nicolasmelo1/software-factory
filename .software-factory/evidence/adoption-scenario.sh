@@ -1,5 +1,9 @@
 #!/bin/sh
-# The `adoption` gate's scenario, as a repeatable run.
+# Generated with `factory-harness`: the `adoption` gate's repeatable scenario.
+#
+# Re-run `factory-harness` when the customer flow, its observations or the way
+# this repository is started changes. The gate activates on this file, so an
+# edited harness cannot certify an old run.
 #
 # Usage: adoption-scenario.sh <path-to-a-typescript-repo> [report-path]
 #

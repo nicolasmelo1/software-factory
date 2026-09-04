@@ -8,6 +8,10 @@ description: Run the proof behind a software-factory L3 gate and seal an evidenc
 A gate is red. Your job is to make it green **by proving the thing**, never by
 making the manifest say so.
 
+If the repository has no runnable harness yet, stop here and use
+`factory-harness` first. This skill re-runs an existing proof; it does not
+guess how to start a product.
+
 `sf` re-reads the raw report, recomputes its digest, and re-checks every
 required assertion. Nothing you write in the manifest survives contact with a
 report that does not back it.

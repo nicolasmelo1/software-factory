@@ -777,7 +777,7 @@ decision record stops describing what is enforced.
 
 ## The skills
 
-Four agent skills for Claude Code, shipped inside the binary so they cannot
+Five agent skills for Claude Code, shipped inside the binary so they cannot
 drift out of step with the `sf` they drive. Install them once:
 
 ```sh
@@ -786,7 +786,8 @@ sf skills --project   # <root>/.claude/skills, no question
 sf skills --user      # ~/.claude/skills, no question
 ```
 
-**Invoke them by name.** `/factory-init`, `/factory-triage` and so on: an agent
+**Invoke them by name.** `/factory-init`, `/factory-harness`, `/factory-triage`
+and so on: an agent
 may pick one up from its description when the conversation matches, but that is
 not something to rely on, and a skill that silently did not load looks exactly
 like one that did and had nothing to say.
@@ -863,6 +864,17 @@ seals. And it tells you plainly when an assertion did not pass:
 
 If the gate cannot go green, it stops and says so. A gate that will not pass is
 usually reporting a real defect, and the defect is worth more than the build.
+
+### `factory-harness` — when a product needs its first reproducible proof
+
+> **You:** `/factory-harness` create the checkout gate for this service.
+
+It reads how the product really starts, identifies the public flow and the
+observations that establish it, then writes a small runnable harness and its
+L3 gate. It never guesses a startup command or replaces the customer flow with
+a test helper. The harness becomes an activation path, so editing it expires
+the evidence it produced. Once it exists, `factory-evidence` is the skill that
+re-runs it after a product change.
 
 ### `factory-triage` — the daily one
 

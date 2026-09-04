@@ -121,6 +121,15 @@ comes to prove nothing:
 Whether the actor is an agent, a browser driver or a person depends on who your
 customer is. The rule is the same.
 
+**A runnable harness is discovered by a skill, not guessed by a subcommand.**
+`factory-harness` reads the repository's actual startup path, asks for the
+facts code cannot reveal, and writes the small program that drives one
+customer-visible flow and emits the gate report. The generated harness is an
+activation path of the gate it serves, so changing either the product or the
+way it is driven expires the evidence. `factory-evidence` then re-runs that
+existing harness when evidence goes stale; it never invents one under pressure
+to make a gate green.
+
 ### L4 — Cadence: docs, plans and rules stay attached
 
 Three separations, each of which fails a specific way when it collapses:
