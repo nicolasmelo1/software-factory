@@ -39,7 +39,7 @@ pub fn run(root: &Path, catalog: &Catalog, opts: &InitOptions) -> Result<Vec<Str
     // The interview can pull a rule in from a layer that was not selected —
     // saying "we use repositories" enables the L0 rule even on a day-one
     // L1/L4/L5 install, because the person just said the boundary is real.
-    let selected = select_rules(catalog, opts);
+    let selected = select_rules(catalog, opts, root);
     if selected.is_empty() {
         bail!("no rules match the requested layers");
     }
@@ -190,7 +190,7 @@ fn write_fixtures(
 /// answer justified, minus anything an answer ruled out. Saying "we use
 /// repositories" turns the L0 rule on even on a day-one L1/L4/L5 install,
 /// because the person just told you the boundary is real.
-fn select_rules<'a>(catalog: &'a Catalog, opts: &InitOptions) -> Vec<&'a crate::catalog::Rule> {
+fn select_rules<'a>(catalog: &'a Catalog, opts: &InitOptions, root: &Path) -> Vec<&'a crate::catalog::Rule> {
     let enabled: Vec<String> =
         opts.plan.as_ref().map(|p| p.enable.iter().cloned().collect()).unwrap_or_default();
     let disabled: Vec<String> =
@@ -201,8 +201,29 @@ fn select_rules<'a>(catalog: &'a Catalog, opts: &InitOptions) -> Vec<&'a crate::
         .filter(|r| {
             (opts.layers.iter().any(|l| l == r.layer.as_str()) || enabled.contains(&r.id))
                 && !disabled.contains(&r.id)
+                // `plans/next-steps.md` is deliberately an index rather than a
+                // plan and the rule excludes it. Enabling the proof budget in
+                // a fresh repository would therefore make the rule inert on
+                // day one, which is the exact state L5 refuses.
+                && (r.id != "L4.PLAN_PROOF_BUDGET" || has_scoped_plan(root))
         })
         .collect()
+}
+
+/// A plan the proof-budget rule can actually measure. The execution-order
+/// index is intentionally excluded by that rule, so it cannot justify turning
+/// the rule on during a fresh install.
+fn has_scoped_plan(root: &Path) -> bool {
+    std::fs::read_dir(root.join("plans"))
+        .ok()
+        .into_iter()
+        .flatten()
+        .filter_map(|entry| entry.ok())
+        .any(|entry| {
+            entry.file_type().is_ok_and(|kind| kind.is_file())
+                && entry.path().extension().is_some_and(|ext| ext == "md")
+                && entry.file_name() != "next-steps.md"
+        })
 }
 
 /// For files a repository may already own: hooks, workflows, allowlists, the
@@ -745,6 +766,42 @@ mod conformance {
             findings.is_empty(),
             "sf init left its own scaffolding undeclared: {:?}",
             findings.iter().map(|f| f.key.clone()).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn a_fresh_install_leaves_the_plan_budget_off_until_there_is_a_plan() {
+        let scratch = Scratch::new("plan-budget");
+        let root = scratch.0.as_path();
+        let catalog = Catalog::builtin().expect("builtin catalog");
+
+        init_for_test(root, &catalog);
+
+        let policy = Policy::load(root).expect("generated policy loads");
+        assert!(
+            !policy.any_instance_enabled("L4.PLAN_PROOF_BUDGET"),
+            "the next-steps index is not a plan the budget can measure"
+        );
+    }
+
+    #[test]
+    fn an_existing_plan_turns_the_plan_budget_on() {
+        let scratch = Scratch::new("plan-budget-existing");
+        let root = scratch.0.as_path();
+        std::fs::create_dir_all(root.join("plans")).expect("plans directory");
+        std::fs::write(
+            root.join("plans/checkout.md"),
+            "# Checkout\n\n**Exit condition:** checkout works.\n\n## Acceptance criteria\n\n- [ ] A shopper can pay.\n  (proof: deferred:the flow is not built)\n",
+        )
+        .expect("plan");
+        let catalog = Catalog::builtin().expect("builtin catalog");
+
+        init_for_test(root, &catalog);
+
+        let policy = Policy::load(root).expect("generated policy loads");
+        assert!(
+            policy.any_instance_enabled("L4.PLAN_PROOF_BUDGET"),
+            "an existing scoped plan makes the budget meaningful"
         );
     }
 

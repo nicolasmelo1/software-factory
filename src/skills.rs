@@ -11,7 +11,6 @@ use std::path::{Path, PathBuf};
 pub const SKILLS: &[(&str, &str)] = &[
     ("factory-init", include_str!("../skills/factory-init/SKILL.md")),
     ("factory-author", include_str!("../skills/factory-author/SKILL.md")),
-    ("factory-harness", include_str!("../skills/factory-harness/SKILL.md")),
     ("factory-evidence", include_str!("../skills/factory-evidence/SKILL.md")),
     ("factory-triage", include_str!("../skills/factory-triage/SKILL.md")),
 ];

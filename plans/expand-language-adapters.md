@@ -24,3 +24,16 @@ starts producing findings nobody believes.
 produces at least one finding that a maintainer of that language agrees is
 real — not merely a clean run, which is also what a rule that matches nothing
 produces.
+
+## Acceptance criteria
+
+- [ ] The language adapter declares the grammar vocabulary needed to read
+      functions, branches and boolean operators without inventing a shape that
+      language does not have.
+      (proof: test:src/lang.rs)
+- [ ] Each rule that has honest vocabulary in the language carries a query and
+      its mutation fixture proves the query fires.
+      (proof: test:src/fixtures.rs)
+- [ ] An initialized repository in the language runs `sf verify` and produces
+      a finding its maintainer agrees is real.
+      (proof: assertion:adapter.maintainer_accepted_finding)

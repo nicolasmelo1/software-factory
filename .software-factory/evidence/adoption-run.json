@@ -7,7 +7,7 @@
     "commit": "cd135c71e1debc55c20e08059749fe37ee943e21",
     "tracked_files": 1232
   },
-  "sf": "sf 0.3.0 (catalog 769ffac0a9d6, 37 rules)",
+  "sf": "sf 0.3.0 (catalog f4c2b4b783a5, 38 rules)",
   "observed": {
     "rules_enabled_by_init": 15,
     "violations_frozen_at_init": 1745,

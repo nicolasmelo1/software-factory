@@ -78,9 +78,11 @@ is the same property the rest of L2 has.
 
 `L2.POLICY_ONLY_TIGHTENS` goes further and reads the direction of the change.
 Disabling a rule, widening an exclusion, narrowing a scope, raising a ceiling,
-freezing a new violation, deferring a review date — each of those is what an
-agent does when a check stands between it and a green build, each costs nothing
-to write, and each is invisible six months later. Strengthening passes
+freezing a new violation on an already-enabled rule, deferring a review date —
+each of those is what an agent does when a check stands between it and a green
+build, each costs nothing to write, and each is invisible six months later. A
+newly enabled rule may seed the debt it first exposes; that is its adoption
+baseline, while later additions remain a weakening. Strengthening passes
 silently, so the rule never taxes the direction you want.
 
 The rest of L2:
@@ -122,13 +124,13 @@ Whether the actor is an agent, a browser driver or a person depends on who your
 customer is. The rule is the same.
 
 **A runnable harness is discovered by a skill, not guessed by a subcommand.**
-`factory-harness` reads the repository's actual startup path, asks for the
+`factory-evidence` reads the repository's actual startup path, asks for the
 facts code cannot reveal, and writes the small program that drives one
-customer-visible flow and emits the gate report. The generated harness is an
-activation path of the gate it serves, so changing either the product or the
-way it is driven expires the evidence. `factory-evidence` then re-runs that
-existing harness when evidence goes stale; it never invents one under pressure
-to make a gate green.
+customer-visible flow and emits the gate report when no harness exists. When
+one does exist, it re-runs it rather than inventing a replacement under
+pressure to make a gate green. The harness is an activation path of the gate it
+serves, so changing either the product or the way it is driven expires the
+evidence.
 
 ### L4 — Cadence: docs, plans and rules stay attached
 

@@ -99,18 +99,18 @@ working when nobody is watching.
 
 ## What is not decided here
 
-**Decided: a skill, `factory-harness`.** A subcommand has to embed a
+**Decided: the existing `factory-evidence` skill.** A subcommand has to embed a
 language-neutral notion of "launch this product", which the tool does not have
 and cannot acquire by parsing. The skill reads the repository, asks about the
-facts code cannot reveal, writes the harness and gate configuration, and runs
-the first proof. `factory-evidence` remains the smaller skill that re-runs an
-existing harness when evidence goes stale. The decision is recorded in
-[`docs/method.md`](../docs/method.md), where the L3 contract is defined.
+facts code cannot reveal, writes the harness and gate configuration when none
+exists, and otherwise re-runs the existing harness when evidence goes stale.
+The decision is recorded in [`docs/method.md`](../docs/method.md), where the
+L3 contract is defined.
 
 **Whether a gate is required to name a runnable harness.** That is a floor under
-L3, and [a gate bigger than its proofs](a-gate-bigger-than-its-proofs.md)
-already owns L3's floor. Landing half of it here would split one rule across two
-plans, which is the failure that plan is itself about.
+L3, and the shipped L3 proof-budget work owns the layer's existing floors.
+Landing half of it here would split one rule across two plans, which is the
+failure this plan is itself about.
 
 **Whether the doctor step earns its separation.** pstack splits readiness from
 driving. Our single worked example folds them together and has not wanted the

@@ -358,6 +358,24 @@ pub const FIXTURES: &[Fixture] = &[
         )],
     },
     Fixture {
+        rule: "L4.PLAN_PROOF_BUDGET",
+        policy_extra: "",
+        extra_rules: "",
+        // Three independent shapes: no criterion at all, debt over 60%, and
+        // a control at 50% that must stay quiet.
+        files: &[
+            ("plans/floor.md", "# Floor\n\nExit condition: this plan has a criterion.\n"),
+            (
+                "plans/ceiling.md",
+                "# Ceiling\n\nExit condition: this plan is split.\n\n## Acceptance criteria\n\n- [ ] First debt. (proof: deferred:not designed)\n- [ ] Second debt. (proof: unspecified:not designed)\n- [ ] A proof. (proof: test:tests/proof.rs)\n",
+            ),
+            (
+                "plans/within-budget.md",
+                "# Within budget\n\nExit condition: this plan stays defined.\n\n## Acceptance criteria\n\n- [ ] Debt. (proof: deferred:not designed)\n- [ ] A proof. (proof: test:tests/proof.rs)\n",
+            ),
+        ],
+    },
+    Fixture {
         rule: "L4.CLAIM_CITES_ITS_EVIDENCE",
         policy_extra: "",
         extra_rules: "",
@@ -515,17 +533,17 @@ pub const FIXTURES: &[Fixture] = &[
     Fixture {
         rule: "L5.NO_INERT_RULE",
         policy_extra: "",
-        // Eight ways to be inert: a lock over nothing; a text-pattern and a
-        // complexity rule scoped where nothing matches; a toolchain rule
-        // naming only `java`, which the mini-repo never declares — non-empty,
-        // yet with no language to check, the hole `options.tools.is_empty()`
-        // missed; two stale conditional instances; and both L3 rules, aimed
-        // at a gate declared with an empty `activation` and no `plan:`.
+        // Nine ways to be inert: a lock over nothing; source rules scoped
+        // where nothing matches; and a toolchain rule naming only `java`.
+        // Its non-empty map names no declared language, the hole it closes.
+        //
+        // Two stale conditional instances, both L3 rules aimed at a gate with
+        // no activation or plan, and a plan budget scoped to no plan join them.
         //
         // `@tailwind4` is the control: its `when` matches, so it must stay
-        // out. Each of the eight passes every run and reads exactly like a
+        // out. Each of the nine passes every run and reads exactly like a
         // rule that is protecting you.
-        extra_rules: "  L2.GENERATED_FILES_ARE_LOCKED:\n    enabled: true\n    options:\n      scope: []\n  L1.NO_BLANKET_SUPPRESSION@inert:\n    enabled: true\n    options:\n      scope: [\"nonexistent/**\"]\n  L1.COMPLEXITY_CEILING@inert:\n    enabled: true\n    options:\n      scope: [\"nonexistent/**\"]\n  L6.DATA_RACES_ARE_DETECTED@toolchain_gap:\n    enabled: true\n    options:\n      tools:\n        java: [\"error-prone\", \"jcstress\"]\n  L1.NO_BLANKET_SUPPRESSION@tailwind3:\n    enabled: true\n    when:\n      dependency: tailwindcss\n      manifest: package.json\n      version: \"^3\"\n  L1.NO_BLANKET_SUPPRESSION@quickbooks:\n    enabled: true\n    when:\n      dependency: node-quickbooks\n      manifest: package.json\n      version: \"^2\"\n  L1.NO_BLANKET_SUPPRESSION@tailwind4:\n    enabled: true\n    when:\n      dependency: tailwindcss\n      manifest: package.json\n      version: \"^4\"\n  L3.GATE_HAS_FRESH_EVIDENCE:\n    enabled: true\n  L3.GATE_COVERS_THE_PLAN:\n    enabled: true\n",
+        extra_rules: "  L2.GENERATED_FILES_ARE_LOCKED:\n    enabled: true\n    options:\n      scope: []\n  L1.NO_BLANKET_SUPPRESSION@inert:\n    enabled: true\n    options:\n      scope: [\"nonexistent/**\"]\n  L1.COMPLEXITY_CEILING@inert:\n    enabled: true\n    options:\n      scope: [\"nonexistent/**\"]\n  L6.DATA_RACES_ARE_DETECTED@toolchain_gap:\n    enabled: true\n    options:\n      tools:\n        java: [\"error-prone\", \"jcstress\"]\n  L4.PLAN_PROOF_BUDGET@inert:\n    enabled: true\n    options:\n      scope: [\"nonexistent/**\"]\n  L1.NO_BLANKET_SUPPRESSION@tailwind3:\n    enabled: true\n    when:\n      dependency: tailwindcss\n      manifest: package.json\n      version: \"^3\"\n  L1.NO_BLANKET_SUPPRESSION@quickbooks:\n    enabled: true\n    when:\n      dependency: node-quickbooks\n      manifest: package.json\n      version: \"^2\"\n  L1.NO_BLANKET_SUPPRESSION@tailwind4:\n    enabled: true\n    when:\n      dependency: tailwindcss\n      manifest: package.json\n      version: \"^4\"\n  L3.GATE_HAS_FRESH_EVIDENCE:\n    enabled: true\n  L3.GATE_COVERS_THE_PLAN:\n    enabled: true\n",
         files: &[
             // The bare `# noqa` is what makes the conditional instances
             // legible in a report: `@tailwind4`, whose `when` the manifest

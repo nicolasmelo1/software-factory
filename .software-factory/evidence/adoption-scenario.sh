@@ -1,7 +1,7 @@
 #!/bin/sh
-# Generated with `factory-harness`: the `adoption` gate's repeatable scenario.
+# Generated with `factory-evidence`: the `adoption` gate's repeatable scenario.
 #
-# Re-run `factory-harness` when the customer flow, its observations or the way
+# Re-run `factory-evidence` when the customer flow, its observations or the way
 # this repository is started changes. The gate activates on this file, so an
 # edited harness cannot certify an old run.
 #

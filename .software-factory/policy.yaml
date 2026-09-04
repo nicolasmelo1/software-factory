@@ -26,7 +26,7 @@ gates:
       - "src/interview.rs"
       - "interview/**"
       - "templates/**"
-      - "skills/factory-harness/**"
+      - "skills/factory-evidence/**"
       - ".software-factory/evidence/adoption-scenario.sh"
     evidence: ".software-factory/evidence/adoption.json"
     plan: "plans/adoption-is-proven-end-to-end.md"
@@ -185,6 +185,9 @@ rules:
     enabled: true
   # L4 — Every acceptance criterion names the check that proves it
   L4.PLAN_CRITERION_NAMES_ITS_CHECK:
+    enabled: true
+  # L4 — A plan has a criterion floor and a bounded proof-debt budget
+  L4.PLAN_PROOF_BUDGET:
     enabled: true
   # L4 — New top-level files are declared before they appear
   L4.ROOT_FILES_ARE_DECLARED:
