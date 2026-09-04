@@ -276,8 +276,12 @@ fn cmd_skills(root: PathBuf, dir: Option<PathBuf>, project: bool, user: bool) ->
         (None, _, true) => skills::user_dir()?,
         (None, false, false) => skills::choose_dir(&root)?,
     };
-    for path in skills::install(&dir)? {
+    let installed = skills::install(&dir)?;
+    for path in installed.written {
         println!("wrote {path}");
+    }
+    for path in installed.removed {
+        println!("removed retired skill {path}");
     }
     println!(
         "\nIn your project, invoke the skill by name — it will not be reached for on its own:\n\n  \
