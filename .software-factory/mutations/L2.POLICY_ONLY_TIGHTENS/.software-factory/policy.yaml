@@ -7,6 +7,11 @@ docs:
   scan: ["docs/**/*.md"]
 gates: {}
 rules:
+  L3.GATE_HAS_FRESH_EVIDENCE:
+    enabled: true
+    options:
+      forbidden_in_goal: []
+      forbidden_actors: []
   L2.POLICY_ONLY_TIGHTENS:
     enabled: true
     options:

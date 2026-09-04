@@ -1,0 +1,6 @@
+{
+  "scenario": "checkout",
+  "status": "passed",
+  "goal": "Buy an item as a guest",
+  "assertions": []
+}

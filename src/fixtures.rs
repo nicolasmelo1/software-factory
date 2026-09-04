@@ -290,10 +290,23 @@ pub const FIXTURES: &[Fixture] = &[
         rule: "L3.GATE_HAS_FRESH_EVIDENCE",
         policy_extra: "",
         extra_rules: "",
-        files: &[(
-            "src/checkout/charge.py",
-            "def charge(order):\n    \"\"\"Inside an activation path, with no evidence sealed for the gate.\"\"\"\n",
-        )],
+        // A complete-looking run whose report observes nothing. The digests
+        // are sealed after this fixture is generated, so the mutation reaches
+        // the assertion floor rather than the older missing-evidence paths.
+        files: &[
+            (
+                "src/checkout/charge.py",
+                "def charge(order):\n    \"\"\"Inside the activation path the evidence certifies.\"\"\"\n",
+            ),
+            (
+                "evidence/checkout-run.json",
+                "{\n  \"scenario\": \"checkout\",\n  \"status\": \"passed\",\n  \"goal\": \"Buy an item as a guest\",\n  \"assertions\": []\n}\n",
+            ),
+            (
+                "evidence/checkout.json",
+                "{\n  \"schema_version\": 1,\n  \"gate\": \"checkout\",\n  \"implementation_sha256\": \"8be5bb73c2645f3f97c371e7e062ece5207b1a43fe6bb346eb23cddb62b812a4\",\n  \"runs\": [\n    {\n      \"scenario\": \"checkout\",\n      \"status\": \"passed\",\n      \"actor\": \"a browser driver\",\n      \"report\": \"evidence/checkout-run.json\",\n      \"report_sha256\": \"4660d3023be85f67be2269b691218c00f6f2ccd4f23593b67539ba25820de825\",\n      \"required_assertions\": []\n    }\n  ]\n}\n",
+            ),
+        ],
     },
     Fixture {
         rule: "L4.DOC_LINKS_RESOLVE",
@@ -368,7 +381,7 @@ pub const FIXTURES: &[Fixture] = &[
             "# Rewrite checkout\n\nExit condition: the new checkout serves live traffic.\n\n\
              ## Acceptance criteria\n\n\
              - [ ] A guest can complete a purchase without an account.\n      \
-             (proof: assertion:api.guest_checkout_completed)\n",
+             (proof: deferred:the checkout assertion has not been designed)\n",
         )],
     },
     Fixture {
@@ -390,10 +403,10 @@ pub const FIXTURES: &[Fixture] = &[
     Fixture {
         rule: "L2.POLICY_ONLY_TIGHTENS",
         policy_extra: "        baseline: \"baseline\"\n",
-        extra_rules: "",
+        extra_rules: "  L3.GATE_HAS_FRESH_EVIDENCE:\n    enabled: true\n    options:\n      forbidden_in_goal: []\n      forbidden_actors: []\n",
         files: &[(
             "baseline/.software-factory/policy.yaml",
-            "version: 1\nproject:\n  name: baseline\n  languages: [python]\nrules:\n  L2.POLICY_ONLY_TIGHTENS:\n    enabled: true\n  L1.NO_BLANKET_SUPPRESSION:\n    enabled: true\n",
+            "version: 1\nproject:\n  name: baseline\n  languages: [python]\nrules:\n  L2.POLICY_ONLY_TIGHTENS:\n    enabled: true\n  L3.GATE_HAS_FRESH_EVIDENCE:\n    enabled: true\n    options:\n      forbidden_in_goal: [/Users/]\n      forbidden_actors: [scripted]\n",
         )],
     },
     Fixture {
@@ -575,10 +588,11 @@ pub fn fixture_policy(fixture: &Fixture) -> String {
         "L3.GATE_HAS_FRESH_EVIDENCE" => {
             "gates:\n  checkout:\n    activation: [\"src/checkout/**\"]\n    evidence: \"evidence/checkout.json\"\n"
         }
-        // A gate that names its plan and requires an assertion the plan does
-        // not cite. The criterion cites a different one, which is the hole.
+        // The gate names a plan but requires no assertion, and the plan has
+        // only visible debt. This is the floor: either side alone would make
+        // the gate look purposeful while requiring nothing of the run.
         "L3.GATE_COVERS_THE_PLAN" => {
-            "gates:\n  checkout:\n    activation: [\"src/checkout/**\"]\n    evidence: \"evidence/checkout.json\"\n    plan: \"plans/rewrite-checkout.md\"\n    required_assertions: [\"api.ledger_balanced\"]\n"
+            "gates:\n  checkout:\n    activation: [\"src/checkout/**\"]\n    evidence: \"evidence/checkout.json\"\n    plan: \"plans/rewrite-checkout.md\"\n    required_assertions: []\n"
         }
         // A gate that exists and can never fire. The map is not empty, so
         // neither L3 rule is inert for the trivial reason; the `activation`

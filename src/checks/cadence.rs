@@ -785,7 +785,8 @@ fn plan_criteria(rule: &Rule, opts: &Options, ctx: &Ctx) -> Result<Vec<Finding>>
     Ok(findings)
 }
 
-/// `L3.GATE_COVERS_THE_PLAN`: the plan names a proof the gate never asks for.
+/// `L3.GATE_COVERS_THE_PLAN`: the plan names a proof the gate never asks for,
+/// or names no non-deferred criterion while the gate requires nothing.
 ///
 /// This is the half `L3.GATE_HAS_FRESH_EVIDENCE` cannot see. That rule verifies
 /// the evidence for what the gate demanded; it has no way to know the gate
@@ -811,7 +812,27 @@ fn gate_coverage(rule: &Rule, ctx: &Ctx) -> Result<Vec<Finding>> {
             );
             continue;
         };
-        for criterion in parse_criteria(&body)? {
+        let criteria = parse_criteria(&body)?;
+        if gate.required_assertions.is_empty()
+            && !criteria
+                .iter()
+                .any(|criterion| matches!(criterion.kind.as_deref(), Some("assertion" | "test")))
+        {
+            findings.push(
+                Finding::new(
+                    &rule.id,
+                    rule.severity,
+                    plan.clone(),
+                    format!("empty-requirements:{name}"),
+                    format!(
+                        "gate `{name}` requires no assertions and its plan names no undeferred criterion"
+                    ),
+                )
+                .expected("a required assertion, or a plan criterion with an assertion or test proof")
+                .actual("no required assertions; only deferred, unspecified, or no criteria"),
+            );
+        }
+        for criterion in criteria {
             if criterion.kind.as_deref() != Some("assertion") {
                 continue;
             }

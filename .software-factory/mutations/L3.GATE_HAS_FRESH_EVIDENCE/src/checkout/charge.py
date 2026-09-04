@@ -1,2 +1,2 @@
 def charge(order):
-    """Inside an activation path, with no evidence sealed for the gate."""
+    """Inside the activation path the evidence certifies."""

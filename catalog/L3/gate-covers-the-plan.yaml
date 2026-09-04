@@ -1,9 +1,10 @@
 id: L3.GATE_COVERS_THE_PLAN
 layer: L3
-title: A gate requires every check its plan's criteria name
+title: A gate requires every check its plan's criteria name, and cannot require nothing
 statement: >-
   When a gate names a `plan`, every `(proof: assertion:ID)` a criterion in that
-  plan carries appears in that gate's `required_assertions`.
+  plan carries appears in that gate's `required_assertions`; if it requires no
+  assertions, that plan must still name at least one undeferred criterion.
 severity: critical
 why: >-
   This is the half `L3.GATE_HAS_FRESH_EVIDENCE` cannot see. That rule verifies
@@ -14,12 +15,16 @@ why: >-
   manifest is the same argument one level down: a manifest is written by the
   change under review, so a run that under-declares its own obligations passes.
   Policy sits outside the candidate implementation. The two lists are unioned, so
-  a manifest may add an assertion but never drop one.
+  a manifest may add an assertion but never drop one. The floor is deliberately
+  here rather than a new rule: coverage is only meaningful when the plan gives
+  the gate something non-deferred to cover, and a gate without `plan:` remains
+  allowed while it is being justified.
 fix: >-
   Add the assertion to `gates.<name>.required_assertions`, or change the
   criterion to name a check that does run. If the criterion cannot be proven in
   this gate, mark it `deferred:` or `unspecified:` and let the debt be visible
-  instead of implied.
+  instead of implied. A plan with only that debt needs a required assertion
+  before its gate can certify anything.
 ratchet: none
 check:
   kind: cadence

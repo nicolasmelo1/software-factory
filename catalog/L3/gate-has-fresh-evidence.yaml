@@ -5,8 +5,9 @@ severity: critical
 statement: >-
   When a change touches a gate's activation paths, that gate's evidence
   manifest must exist, its referenced report must match the recorded SHA-256,
-  each run must name an actor that could have been a customer, every required
-  assertion must be `passed` with none `unsupported`, and the digest of the
+  each run must name an actor that could have been a customer, every report
+  must carry at least one assertion, every required assertion must be `passed`
+  with none `unsupported`, and the digest of the
   implementation it certifies must still match the code on disk.
 why: >-
   This is the whole method in one check. Activation comes from touched paths,
@@ -23,7 +24,10 @@ why: >-
   manifest set on getting past it writes "the script" and does. It is exactly
   as strong as the goal check beside it: it names the value somebody reaches
   for when they have not thought about the actor, and stops the field being
-  decoration nothing reads.
+  decoration nothing reads. An empty assertion list is the same failure one
+  level down: the per-assertion loops can faithfully compare nothing and still
+  make a run that observed nothing look complete, so the report itself needs a
+  floor.
 fix: >-
   Re-run the proof against the real thing and regenerate the manifest with
   `sf seal <gate>`. If the run cannot pass, the finding is the product
