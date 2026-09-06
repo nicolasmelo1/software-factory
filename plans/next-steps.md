@@ -18,6 +18,8 @@ precondition exists. Park it below rather than deleting it.
 
 | 5 | [Rule packs for third-party APIs and libraries](third-party-rule-packs.md) | `sf pack add <name>@<version>` vendors a versioned set of rules with their fixtures into `.software-factory/rules/`, refuses any pack whose fixtures do not trip its own rules, and the installed rules deactivate with a finding when the dependency's major version moves. |
 
+| 6 | [A gate records how it was unblocked](gates-record-how-they-were-unblocked.md) | A model that has failed three times on the same finding key sees the edits it already tried and a minimal worked diff that cleared the same rule, and no escape that touches the policy, the ratchet or a lock is ever offered as one. |
+
 
 ## Parked
 
