@@ -118,7 +118,7 @@ fn replace_blocks(
         out.push_str(line);
         let end = format!("<!-- sf:end {name} -->");
         let mut closed = false;
-        while let Some(inner) = lines.next() {
+        for inner in lines.by_ref() {
             if inner.trim_end_matches(['\r', '\n']).trim() == end {
                 out.push_str(&format!("{}\n", generated[name]));
                 out.push_str(inner);
