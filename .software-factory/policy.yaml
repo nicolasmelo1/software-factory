@@ -125,7 +125,7 @@ rules:
       # the first `## L` heading. `sf docs` regenerates only the generated half,
       # so re-running it must be a no-op, which is what stops the document
       # sitting out of date with the rules it describes.
-      run: "./target/release/sf docs && git diff --exit-code -- docs/rules.md"
+      run: "./target/release/sf docs --check"
 
   # L2 — A release is consistent, checked by this tool against itself
   L2.DERIVED_ARTIFACTS_MATCH_THEIR_SOURCE@release:

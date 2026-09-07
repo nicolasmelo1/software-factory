@@ -1,5 +1,79 @@
 # software factory
 
+<!-- sf:generated rules-summary -->
+**Rules:** 38 shipped; 34 enabled; 4 switched off; 34 proven to fire; 3 violations frozen.
+
+**Frozen review dates**
+- `L4.PLAN_PROOF_BUDGET`: 2027-03-04
+- `L6.PERFORMANCE_REGRESSION_IS_GUARDED`: 2027-02-18
+<!-- sf:end rules-summary -->
+
+## Command surface
+
+<!-- sf:generated command-surface -->
+| Command | Long flags |
+| :-- | :-- |
+| `sf catalog` | --help, --layer, --root, --version |
+| `sf check` | --allow-commands, --changed, --format, --help, --root, --rule, --version |
+| `sf docs` | --check, --help, --root, --version |
+| `sf explain` | --help, --root, --version |
+| `sf fixtures` | --help, --root, --version |
+| `sf init` | --answers, --force, --help, --language, --layer, --name, --root, --rules-document, --version |
+| `sf interview` | --help, --json, --root, --version |
+| `sf lock` | --help, --root, --version |
+| `sf ratchet` | --help, --months, --root, --version |
+| `sf seal` | --help, --root, --version |
+| `sf skills` | --dir, --help, --project, --root, --user, --version |
+| `sf verify` | --allow-commands, --help, --root, --rule, --version |
+
+<!-- sf:end command-surface -->
+
+## Language coverage
+
+<!-- sf:generated language-coverage -->
+| Rule | Languages with a query |
+| :-- | :-- |
+| `L0.EXCEPTIONS_HAVE_ONE_HOME` | rust |
+| `L0.NO_CROSS_LAYER_IMPORT` | rust |
+| `L0.ONE_ENTRYPOINT_PER_FILE` | — |
+| `L0.PERSISTENCE_STAYS_IN_REPOSITORIES` | — |
+| `L1.COMMENT_STAYS_SUCCINCT` | — |
+| `L1.COMPLEXITY_CEILING` | rust |
+| `L1.INDIRECTION_EARNS_ITS_NAME` | rust |
+| `L1.NO_BLANKET_SUPPRESSION` | — |
+| `L1.NO_UNTYPED_ESCAPE_HATCH` | — |
+| `L1.SKIPPED_TESTS_STATE_A_REASON` | rust |
+| `L2.CATALOG_ONLY_TIGHTENS` | — |
+| `L2.DEPENDENCIES_CHANGE_DELIBERATELY` | — |
+| `L2.DERIVED_ARTIFACTS_MATCH_THEIR_SOURCE` | — |
+| `L2.FACTORY_CONFIG_IS_LOCKED` | — |
+| `L2.GENERATED_FILES_ARE_LOCKED` | — |
+| `L2.NO_PERMANENT_EXCEPTION` | — |
+| `L2.POLICY_ONLY_TIGHTENS` | — |
+| `L3.GATE_COVERS_THE_PLAN` | — |
+| `L3.GATE_HAS_FRESH_EVIDENCE` | — |
+| `L4.CLAIM_CITES_ITS_EVIDENCE` | — |
+| `L4.DOC_LINKS_RESOLVE` | — |
+| `L4.EVERY_RULE_HAS_A_WHY` | — |
+| `L4.PLAN_CRITERION_NAMES_ITS_CHECK` | — |
+| `L4.PLAN_DECLARES_EXIT_CONDITION` | — |
+| `L4.PLAN_PROOF_BUDGET` | — |
+| `L4.ROOT_FILES_ARE_DECLARED` | — |
+| `L4.RULE_PROSE_NAMES_A_REAL_COMMAND` | — |
+| `L5.EVERY_CHECK_HAS_A_MUTATION_TEST` | — |
+| `L5.NO_INERT_RULE` | — |
+| `L6.DATA_RACES_ARE_DETECTED` | — |
+| `L6.DEAD_CODE_IS_DETECTED` | — |
+| `L6.DEPENDENCY_VULNERABILITIES_ARE_SCANNED` | — |
+| `L6.INSECURE_PATTERNS_ARE_SCANNED` | — |
+| `L6.NO_BLOCKING_CALL_WHILE_HOLDING_A_LOCK` | rust |
+| `L6.ONE_LOCK_AT_A_TIME` | rust |
+| `L6.PERFORMANCE_REGRESSION_IS_GUARDED` | — |
+| `L6.SECRETS_ARE_SCANNED` | — |
+| `L6.WORKFLOWS_ARE_SCANNED` | — |
+
+<!-- sf:end language-coverage -->
+
 **A method for building software with agents, packaged as a single binary that runs against any repository.**
 
 ---

@@ -8,6 +8,7 @@ mod catalog;
 mod checks;
 mod clock;
 mod digest;
+mod docs;
 mod finding;
 mod fingerprint;
 mod fixtures;
@@ -118,8 +119,11 @@ enum Cmd {
     Lock,
     /// Write the mutation fixtures for every enabled rule.
     Fixtures,
-    /// Regenerate the rule sections of docs/rules.md from the catalog.
-    Docs,
+    /// Regenerate documentation. Add --check to make this read-only.
+    Docs {
+        #[arg(long)]
+        check: bool,
+    },
     /// Install the agent skills that drive this tool.
     Skills {
         /// Where to write them. Without this, and without --project or
@@ -255,7 +259,7 @@ fn dispatch_writing(command: Cmd, root: PathBuf) -> Result<i32> {
         Cmd::Ratchet { months } => cmd_ratchet(root, months),
         Cmd::Lock => cmd_lock(root),
         Cmd::Fixtures => cmd_fixtures(root),
-        Cmd::Docs => cmd_docs(root),
+        Cmd::Docs { check } => cmd_docs(root, check),
         Cmd::Seal { gate } => cmd_seal(root, gate),
         Cmd::Skills { dir, project, user } => cmd_skills(root, dir, project, user),
         // Every read-only command is handled above.
@@ -495,11 +499,25 @@ fn cmd_fixtures(root: PathBuf) -> Result<i32> {
     Ok(EXIT_OK)
 }
 
-fn cmd_docs(root: PathBuf) -> Result<i32> {
+fn cmd_docs(root: PathBuf, check: bool) -> Result<i32> {
     let catalog = local_catalog(&root)?;
-    init::refresh_rules_document(&root, &catalog)?;
-    println!("regenerated docs/rules.md (everything above the first `## L` heading was preserved)");
-    Ok(EXIT_OK)
+    if check {
+        let changed = docs::check(&root, &catalog)?;
+        if changed.is_empty() {
+            println!("documentation is up to date");
+            Ok(EXIT_OK)
+        } else {
+            for path in changed { println!("would change {}", path.display()); }
+            println!("run `sf docs` to update documentation");
+            Ok(finding::EXIT_FINDINGS)
+        }
+    } else {
+        init::refresh_rules_document(&root, &catalog)?;
+        let written = docs::apply(&root, &catalog)?;
+        println!("regenerated docs/rules.md (everything above the first `## L` heading was preserved)");
+        for path in written { println!("updated {}", path.display()); }
+        Ok(EXIT_OK)
+    }
 }
 
 fn cmd_seal(root: PathBuf, gate: String) -> Result<i32> {

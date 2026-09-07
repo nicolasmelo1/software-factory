@@ -14,7 +14,7 @@ use crate::ratchet::Ratchet;
 use crate::scan;
 use anyhow::{Result, bail};
 use std::collections::BTreeSet;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 pub struct InitOptions {
     pub name: String,
@@ -419,6 +419,15 @@ fn policy_document(opts: &InitOptions, selected: &[&crate::catalog::Rule], root:
 /// Everything before the first `## L` heading is this repository's own
 /// reasoning and is never touched.
 pub fn refresh_rules_document(root: &Path, catalog: &Catalog) -> Result<()> {
+    let (path, out) = rules_document_content(root, catalog)?;
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    std::fs::write(path, out)?;
+    Ok(())
+}
+
+pub fn rules_document_content(root: &Path, catalog: &Catalog) -> Result<(PathBuf, String)> {
     let policy = Policy::load(root)?;
     let selected: Vec<&crate::catalog::Rule> =
         catalog.rules.values().filter(|r| policy.any_instance_enabled(&r.id)).collect();
@@ -436,11 +445,7 @@ pub fn refresh_rules_document(root: &Path, catalog: &Catalog) -> Result<()> {
     };
     out.push('\n');
     out.push_str(&rule_sections(&selected));
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
-    std::fs::write(&path, out)?;
-    Ok(())
+    Ok((path, out))
 }
 
 fn rules_preamble(name: &str) -> String {
