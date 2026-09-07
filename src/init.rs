@@ -44,11 +44,12 @@ pub fn run(root: &Path, catalog: &Catalog, opts: &InitOptions) -> Result<Vec<Str
         bail!("no rules match the requested layers");
     }
 
+    let template_rules = interview_rules(opts)?;
     let mut written = Vec::new();
-    write(root, POLICY_PATH, &policy_document(opts, &selected, root), &mut written)?;
-    write(root, opts.rules_document.as_deref().unwrap_or("docs/rules.md"), &rules_document(opts, &selected), &mut written)?;
-    if let (Some(plan), Some(answers)) = (&opts.plan, &opts.answers) {
-        write_from_interview(root, plan, answers, &mut written)?;
+    write(root, POLICY_PATH, &policy_document(opts, &selected, root, &template_rules), &mut written)?;
+    write(root, opts.rules_document.as_deref().unwrap_or("docs/rules.md"), &rules_document(opts, &selected, &template_rules), &mut written)?;
+    if let Some(answers) = &opts.answers {
+        write_from_interview(root, answers, &template_rules, &mut written)?;
     }
     write_cadence_files(root, &selected, &mut written)?;
     write_if_absent(
@@ -63,17 +64,30 @@ pub fn run(root: &Path, catalog: &Catalog, opts: &InitOptions) -> Result<Vec<Str
     Ok(written)
 }
 
+/// Instantiate the templates the interview asked for, once. The policy has to
+/// enable each one and each fixture has to carry it, so both are computed from
+/// the same list — and a template that fails to fill in aborts the whole init
+/// before anything is written.
+fn interview_rules(
+    opts: &InitOptions,
+) -> Result<Vec<(String, crate::interview::Instantiated)>> {
+    let Some(plan) = &opts.plan else { return Ok(Vec::new()) };
+    plan.templates
+        .iter()
+        .map(|name| Ok((name.clone(), crate::interview::instantiate(name, &plan.vars)?)))
+        .collect()
+}
+
 /// Rules the interview asked for that are not in the catalog: templates with
 /// this repository's own names filled in, each with the fixture that proves it
 /// fires, plus the record of who decided what.
 fn write_from_interview(
     root: &Path,
-    plan: &crate::interview::Plan,
     answers: &crate::interview::Answers,
+    template_rules: &[(String, crate::interview::Instantiated)],
     written: &mut Vec<String>,
 ) -> Result<()> {
-    for name in &plan.templates {
-        let built = crate::interview::instantiate(name, &plan.vars)?;
+    for (name, built) in template_rules {
         write(root, &format!("{RULES_DIR}/{name}.yaml"), &built.body, written)?;
         let base = format!("{FIXTURES_DIR}/{}", built.rule.id);
         write(
@@ -82,6 +96,13 @@ fn write_from_interview(
             &fixtures::minimal_policy(&built.rule.id),
             written,
         )?;
+        // The fixture runs under a builtin-only catalog extended by its own
+        // rules dir (verify::run_fixture, `let _ = catalog`). A template rule
+        // is not builtin, so without its yaml here the fixture has nothing to
+        // trip and the mutation proves nothing — the rule would read as
+        // verified while being untested. Copy it beside the policy that
+        // enables it.
+        write(root, &format!("{base}/{RULES_DIR}/{name}.yaml"), &built.body, written)?;
         for (path, body) in &built.fixture {
             write(root, &format!("{base}/{path}"), body, written)?;
         }
@@ -366,7 +387,12 @@ fn interview_options(opts: &InitOptions, rule_id: &str) -> Option<String> {
     Some(format!("    options:\n{indented}"))
 }
 
-fn policy_document(opts: &InitOptions, selected: &[&crate::catalog::Rule], root: &Path) -> String {
+fn policy_document(
+    opts: &InitOptions,
+    selected: &[&crate::catalog::Rule],
+    root: &Path,
+    template_rules: &[(String, crate::interview::Instantiated)],
+) -> String {
     let mut out = String::new();
     out.push_str(
         "# Which rules this repository enforces, and how its paths map onto the\n\
@@ -410,6 +436,28 @@ fn policy_document(opts: &InitOptions, selected: &[&crate::catalog::Rule], root:
                 "    options:\n      # Nothing is locked until you say what is generated. An enabled\n      \
                  # lock with an empty scope is inert, and L5.NO_INERT_RULE will say so.\n      scope: []\n",
             );
+        }
+    }
+    out.push_str(&template_rule_entries(opts, template_rules));
+    out
+}
+
+/// The policy lines that switch on the template rules an interview
+/// instantiated. They are not in the builtin catalog, so the main loop in
+/// `policy_document` never sees them; enabling them here is what makes the
+/// interview's promise real instead of a rule that only reads well in
+/// docs/rules.md. Each rule's config rides in the template's own `defaults`.
+fn template_rule_entries(
+    opts: &InitOptions,
+    template_rules: &[(String, crate::interview::Instantiated)],
+) -> String {
+    let mut out = String::new();
+    for (_, built) in template_rules {
+        let rule = &built.rule;
+        out.push_str(&format!("  # {} — {}\n", rule.layer.as_str(), rule.title));
+        out.push_str(&format!("  {}:\n    enabled: true\n", rule.id));
+        if let Some(block) = interview_options(opts, &rule.id) {
+            out.push_str(&block);
         }
     }
     out
@@ -460,8 +508,15 @@ fn rules_preamble(name: &str) -> String {
     )
 }
 
-fn rules_document(opts: &InitOptions, selected: &[&crate::catalog::Rule]) -> String {
-    format!("{}\n{}", rules_preamble(&opts.name), rule_sections(selected))
+fn rules_document(
+    opts: &InitOptions,
+    selected: &[&crate::catalog::Rule],
+    template_rules: &[(String, crate::interview::Instantiated)],
+) -> String {
+    let mut all: Vec<&crate::catalog::Rule> = selected.to_vec();
+    all.extend(template_rules.iter().map(|(_, built)| &built.rule));
+    all.sort_by(|a, b| a.id.cmp(&b.id));
+    format!("{}\n{}", rules_preamble(&opts.name), rule_sections(&all))
 }
 
 fn rule_sections(selected: &[&crate::catalog::Rule]) -> String {
@@ -807,6 +862,71 @@ mod conformance {
         assert!(
             policy.any_instance_enabled("L4.PLAN_PROOF_BUDGET"),
             "an existing scoped plan makes the budget meaningful"
+        );
+    }
+
+    #[test]
+    fn a_template_rule_is_enabled_and_verifiable_after_init() {
+        let scratch = Scratch::new("template-rule");
+        let root = scratch.0.as_path();
+        let catalog = Catalog::builtin().expect("builtin catalog");
+
+        // Answers that activate a template: a web client fetching through a
+        // query cache instantiates `no-fetch-inside-an-effect`.
+        let answers = crate::interview::Answers {
+            version: 1,
+            answers: [
+                ("kind".to_string(), "web-client".to_string()),
+                ("client_data".to_string(), "react-query".to_string()),
+            ]
+            .into_iter()
+            .collect(),
+        };
+        let interview = crate::interview::Interview::load().expect("interview loads");
+        let plan = crate::interview::plan(&interview, &answers).expect("plan");
+        run(
+            root,
+            &catalog,
+            &InitOptions {
+                name: "probe".to_string(),
+                languages: vec!["typescript".to_string()],
+                layers: vec!["L1".to_string()],
+                force: false,
+                plan: Some(plan),
+                answers: Some(answers),
+                rules_document: None,
+            },
+        )
+        .expect("sf init succeeds");
+
+        const RULE: &str = "L1.NO_FETCH_INSIDE_AN_EFFECT";
+        let policy = Policy::load(root).expect("generated policy loads");
+
+        // Front 1: the generated policy switches the template rule on. Before
+        // the fix the rule's yaml and fixture were written but no policy entry
+        // was, so `sf check` skipped it — enabled nowhere, enforced never.
+        assert!(
+            policy.any_instance_enabled(RULE),
+            "template rule was written but never enabled in the generated policy"
+        );
+
+        // Fronts 1+2 together: `sf verify` proves the rule fires against the
+        // generated mutation fixture. This is what fails without the rules-dir
+        // copy — the fixture runner rebuilds a builtin-only catalog extended
+        // from the fixture's own rules dir, and a template rule is not builtin,
+        // so the fixture has nothing to trip.
+        let mut local = Catalog::builtin().expect("builtin catalog");
+        local.extend_from_dir(&root.join(RULES_DIR)).expect("local rules load");
+        let outcomes =
+            crate::verify::run(root, &policy, &local, Some(RULE), false).expect("verify runs");
+        let outcome = outcomes
+            .iter()
+            .find(|o| o.rule == RULE)
+            .expect("verify considered the template rule");
+        assert!(
+            outcome.fired,
+            "the generated fixture did not prove the rule fires: {}",
+            outcome.detail
         );
     }
 
