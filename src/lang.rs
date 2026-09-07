@@ -19,6 +19,19 @@ pub enum Lang {
     Ruby,
 }
 
+/// Every grammar this binary carries, and the extensions it claims. The
+/// lookup in `from_path` reads this table rather than a second match, so the
+/// documentation generated from it cannot describe a reach the dispatch does
+/// not have.
+pub const GRAMMARS: &[(Lang, &[&str])] = &[
+    (Lang::Python, &["py", "pyi"]),
+    (Lang::TypeScript, &["ts", "mts", "cts"]),
+    (Lang::Tsx, &["tsx"]),
+    (Lang::Go, &["go"]),
+    (Lang::Rust, &["rs"]),
+    (Lang::Ruby, &["rb", "rake", "gemspec", "ru"]),
+];
+
 impl Lang {
     pub fn name(&self) -> &'static str {
         match self {
@@ -44,15 +57,11 @@ impl Lang {
     }
 
     pub fn from_path(path: &Path) -> Option<Lang> {
-        match path.extension()?.to_str()? {
-            "py" | "pyi" => Some(Lang::Python),
-            "ts" | "mts" | "cts" => Some(Lang::TypeScript),
-            "tsx" => Some(Lang::Tsx),
-            "go" => Some(Lang::Go),
-            "rs" => Some(Lang::Rust),
-            "rb" | "rake" | "gemspec" | "ru" => Some(Lang::Ruby),
-            _ => None,
-        }
+        let extension = path.extension()?.to_str()?;
+        GRAMMARS
+            .iter()
+            .find(|(_, extensions)| extensions.contains(&extension))
+            .map(|(lang, _)| *lang)
     }
 
 

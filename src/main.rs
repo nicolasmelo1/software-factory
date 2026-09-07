@@ -43,7 +43,7 @@ use std::process::Command;
                   explains why each rule exists.",
     version = fingerprint::version_line()
 )]
-struct Cli {
+pub struct Cli {
     /// Repository to operate on. Defaults to the enclosing git repository.
     #[arg(long, global = true)]
     root: Option<PathBuf>,
@@ -87,6 +87,8 @@ enum Cmd {
     },
     /// Run every enabled rule.
     Check {
+        /// How to print the report: text for a person, json for a machine,
+        /// markdown for a pull request comment.
         #[arg(long, value_enum, default_value = "text")]
         format: Format,
         /// Git ref to diff against, so gates activate from touched paths and
@@ -106,6 +108,7 @@ enum Cmd {
     Explain { rule: String },
     /// List the catalog.
     Catalog {
+        /// List one layer only, by its identifier: L0 through L6.
         #[arg(long)]
         layer: Option<String>,
     },
@@ -121,6 +124,7 @@ enum Cmd {
     Fixtures,
     /// Regenerate documentation. Add --check to make this read-only.
     Docs {
+        /// Write nothing. Exit non-zero if any page would change, naming it.
         #[arg(long)]
         check: bool,
     },
@@ -147,8 +151,11 @@ enum Cmd {
     Seal { gate: String },
     /// Prove every enabled rule fires on its mutation fixture.
     Verify {
+        /// Prove one rule only.
         #[arg(long)]
         rule: Option<String>,
+        /// Let `command` rules actually run, so a command rule can be proven
+        /// to fire rather than reported as unproven.
         #[arg(long, env = "SF_ALLOW_COMMANDS")]
         allow_commands: bool,
     },

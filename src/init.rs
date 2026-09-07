@@ -480,7 +480,7 @@ fn rule_sections(selected: &[&crate::catalog::Rule]) -> String {
     out
 }
 
-fn layer_title(layer: Layer) -> &'static str {
+pub fn layer_title(layer: Layer) -> &'static str {
     match layer {
         Layer::L0 => "Shape: where things live",
         Layer::L1 => "Grain: how the code reads",

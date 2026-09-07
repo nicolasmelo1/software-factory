@@ -111,33 +111,33 @@ this at all. It carries blocks. It is not one.
 
 ## Acceptance criteria
 
-- [ ] `sf docs --check` writes nothing, exits nonzero, names every page that
+- [x] `sf docs --check` writes nothing, exits nonzero, names every page that
       would change and the command that fixes them
       (proof: test:src/docs.rs)
-- [ ] `sf check` no longer rewrites `docs/rules.md` while checking it, so a
+- [x] `sf check` no longer rewrites `docs/rules.md` while checking it, so a
       read-only run stays read-only
       (proof: test:src/docs.rs)
-- [ ] A generated block replaces only what sits between its markers, on a page
+- [x] A generated block replaces only what sits between its markers, on a page
       whose other content is left byte-identical
       (proof: test:src/docs.rs)
-- [ ] A page naming a block nothing produces fails, and a block nothing places
+- [x] A page naming a block nothing produces fails, and a block nothing places
       fails
       (proof: test:src/docs.rs)
-- [ ] Every count in `README.md` and `docs/` comes from a block: rules
+- [x] Every count in `README.md` and `docs/` comes from a block: rules
       shipped, enabled, switched off, proven, and violations frozen with their
       review date
       (proof: test:src/docs.rs)
-- [ ] The documented command surface is read out of the clap definition,
+- [x] The documented command surface is read out of the clap definition,
       through the same `accepted_commands()` that
       `L4.RULE_PROSE_NAMES_A_REAL_COMMAND` reads
       (proof: test:src/main.rs)
-- [ ] Which rules carry a query for which language is a generated table, and it
+- [x] Which rules carry a query for which language is a generated table, and it
       changes when a language adapter gains a query
       (proof: test:src/docs.rs)
-- [ ] Nothing generated carries a value that differs between two runs on the
+- [x] Nothing generated carries a value that differs between two runs on the
       same commit
       (proof: test:src/docs.rs)
-- [ ] The convention itself is written down in `docs/`, next to the rules it
+- [x] The convention itself is written down in `docs/`, next to the rules it
       is enforced by, rather than living in this plan
       (proof: test:src/checks/cadence.rs)
 - [ ] Whether this repository grows `docs/nav.yaml` and a manifest a site
