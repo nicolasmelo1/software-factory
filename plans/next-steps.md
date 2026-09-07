@@ -20,6 +20,12 @@ precondition exists. Park it below rather than deleting it.
 
 | 6 | [A gate records how it was unblocked](gates-record-how-they-were-unblocked.md) | A model that has failed three times on the same finding key sees the edits it already tried and a minimal worked diff that cleared the same rule, and no escape that touches the policy, the ratchet or a lock is ever offered as one. |
 
+| 7 | [A policy can govern a repository it does not live in](policy-governs-a-repo-it-does-not-live-in.md) | `sf check --policy <dir>` reports over a repository carrying no `.software-factory/` what the same policy reports when vendored into it, the flag is refused against a root with its own policy and by every subcommand that writes, and each report format names the policy that produced the run. |
+
+| 8 | [The documentation is read out of the code](docs-are-read-out-of-the-code.md) | `sf docs --check` runs in the gate, writes nothing, and goes red when the code moves and a page does not; every count and table in `README.md` and `docs/` that a machine can read comes from a marker block. |
+
+| 9 | [A gate outlives its plan](a-gate-outlives-its-plan.md) | `gates.adoption.plan` points at a document under `docs/design/`, a gate pointed back into `plans/` turns the new L3 rule red, and `plans/next-steps.md` read top to bottom is a list of things that have not happened. |
+
 
 ## Parked
 

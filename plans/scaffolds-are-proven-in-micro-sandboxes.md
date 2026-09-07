@@ -99,7 +99,7 @@ that is.
 - [ ] A rule that governs a scaffolded path names the scaffold command in its
       `fix`, so an agent writing the shape by hand is told what would have
       written it
-      (proof: test:src/checks/prose.rs)
+      (proof: test:src/checks/cadence.rs)
 - [ ] Whether declining a scaffold is recorded in the repository or left to
       the caller is decided before any check ships
       (proof: unspecified:a decision about where usage lives, which no check
