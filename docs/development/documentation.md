@@ -4,9 +4,9 @@ Documentation is hand-written everywhere except marker blocks. A block is
 replaced only between its matching markers:
 
 ```markdown
-<generated-block name="rules-summary">
+&lt;!-- sf:generated rules-summary --&gt;
 generated content
-</generated-block>
+&lt;!-- sf:end rules-summary --&gt;
 ```
 
 The supported blocks are `rules-summary`, `command-surface`, and
