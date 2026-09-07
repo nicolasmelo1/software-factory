@@ -83,12 +83,45 @@ const TEMPLATES: &[(&str, &str)] = &[
 /// Rule ids the templates can produce. Documenting one is legitimate even
 /// though it is not in the catalog until an interview instantiates it.
 pub fn template_rule_ids() -> Vec<String> {
+    template_docs().into_iter().map(|template| template.rule_id).collect()
+}
+
+pub struct TemplateDoc {
+    pub name: String,
+    pub rule_id: String,
+    pub title: String,
+    pub placeholders: Vec<String>,
+}
+
+/// What the shipped templates are, read out of the templates themselves so a
+/// reference page cannot list one this binary does not carry.
+pub fn template_docs() -> Vec<TemplateDoc> {
     TEMPLATES
         .iter()
-        .filter_map(|(_, body)| {
-            body.lines().find_map(|line| line.strip_prefix("id: ").map(str::to_string))
+        .map(|(name, body)| TemplateDoc {
+            name: (*name).to_string(),
+            rule_id: field(body, "id: ").unwrap_or_default(),
+            title: field(body, "title: ").unwrap_or_default(),
+            placeholders: placeholders(body),
         })
         .collect()
+}
+
+fn field(body: &str, prefix: &str) -> Option<String> {
+    body.lines().find_map(|line| line.strip_prefix(prefix).map(|value| value.trim().to_string()))
+}
+
+/// `@@name@@`, in the order a reader meets them, deduplicated.
+fn placeholders(body: &str) -> Vec<String> {
+    let mut found = BTreeSet::new();
+    let mut rest = body;
+    while let Some(start) = rest.find("@@") {
+        let after = &rest[start + 2..];
+        let Some(end) = after.find("@@") else { break };
+        found.insert(after[..end].to_string());
+        rest = &after[end + 2..];
+    }
+    found.into_iter().collect()
 }
 
 impl Interview {

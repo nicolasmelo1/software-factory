@@ -14,7 +14,8 @@ pattern before cementing a shape. It is deliberate here for one reason: this
 repository is the demonstration, so every rule it ships must be running
 somewhere. Do not copy this choice into a new project — copy the advice.
 
-**Four rules are switched off, each because it is not about this repository.**
+**Some rules are switched off here, each because it is not about this
+repository.**
 `L0.ONE_ENTRYPOINT_PER_FILE` and `L0.PERSISTENCE_STAYS_IN_REPOSITORIES` ship no
 Rust query, because neither concept has a Rust meaning yet and inventing one so
 a coverage table looks full is how a rule starts producing findings nobody
