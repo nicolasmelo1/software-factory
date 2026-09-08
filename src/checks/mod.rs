@@ -97,19 +97,19 @@ pub fn run_all(ctx: &Ctx) -> Result<Vec<Finding>> {
         // and the target did not vendor. Silence there reads as coverage, so
         // each one says inapplicable instead — `L5.NO_INERT_RULE`'s argument,
         // one level down.
-        if ctx.overlay.is_some() && inapplicable_under_overlay(&base) {
-            findings.push(Finding::new(
-                &instance,
-                rule.severity,
-                crate::policy::POLICY_PATH,
-                format!("inapplicable:{instance}"),
-                format!(
-                    "{instance} needs repo-local state an overlay run does not carry — the policy governing this run lives at {} and the state this rule reads lives in the repository being checked",
-                    ctx.overlay.as_ref().map(|o| o.path.as_str()).unwrap_or("?")
-                ),
-            ));
-            continue;
-        }
+        if let (Some(overlay), true) = (&ctx.overlay, inapplicable_under_overlay(&base)) {
+                findings.push(Finding::new(
+                    &instance,
+                    rule.severity,
+                    format!("{}/policy.yaml", overlay.path),
+                    format!("inapplicable:{instance}"),
+                    format!(
+                        "{instance} needs repo-local state an overlay run does not carry — the policy governing this run lives at {} and the state this rule reads lives in the repository being checked",
+                        overlay.path
+                    ),
+                ));
+                continue;
+            }
         findings.extend(run_one(&as_instance(rule, &instance), ctx)?);
     }
     Ok(findings)
@@ -142,7 +142,7 @@ pub fn run_one(rule: &Rule, ctx: &Ctx) -> Result<Vec<Finding>> {
             return Ok(vec![Finding::new(
                 &rule.id,
                 rule.severity,
-                crate::policy::POLICY_PATH,
+                format!("{}/policy.yaml", overlay.path),
                 format!("inapplicable:{}", rule.id),
                 format!(
                     "{base} needs repo-local state an overlay run does not carry — the policy governing this run lives at {}, and the evidence, ratchet and locks this rule reads live in the repository being checked",

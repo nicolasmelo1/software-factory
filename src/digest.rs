@@ -32,7 +32,8 @@ pub fn tree(entries: &mut [(String, String)]) -> String {
 pub fn dir_digest(dir: &Path) -> Result<String> {
     let mut entries: Vec<(String, String)> = walkdir::WalkDir::new(dir)
         .into_iter()
-        .filter_map(|entry| entry.ok())
+        .collect::<Result<Vec<_>, _>>()?
+        .into_iter()
         .filter(|entry| entry.file_type().is_file())
         .map(|entry| {
             let rel = entry

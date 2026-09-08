@@ -69,7 +69,6 @@ sf check [options]
 | `--changed <CHANGED>` | Git ref to diff against, so gates activate from touched paths and the policy can be compared with the one being replaced | none |
 | `--rule <RULE>` | Run one rule only | none |
 | `--allow-commands` | Let `command` rules actually run. | off |
-| `--policy <POLICY>` | Govern this run with a policy that lives somewhere else: a directory carrying `policy.yaml` and optional `rules/`, read read-only over a repository carrying none of its own. | none |
 
 ### `sf docs`
 

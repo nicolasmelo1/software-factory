@@ -454,7 +454,7 @@ fn cmd_check(
         }
         None => local_catalog(&root)?,
     };
-    Ok(emit(&catalog, format, findings, frozen, rules_run, overlay))
+    emit(&catalog, format, findings, frozen, rules_run, overlay)
 }
 
 /// The overlay half of `check`: the target carries no factory directory, so
@@ -525,14 +525,14 @@ fn emit(
     frozen: usize,
     rules_run: usize,
     overlay: Option<checks::Overlay>,
-) -> i32 {
+) -> Result<i32> {
     let report = report::Report { findings, frozen, rules_run, overlay };
     match format {
         Format::Text => print!("{}", report.text(catalog)),
-        Format::Json => println!("{}", report.json().expect("the report serialises")),
+        Format::Json => println!("{}", report.json()?),
         Format::Markdown => print!("{}", report.markdown(catalog)),
     }
-    report.exit_code()
+    Ok(report.exit_code())
 }
 
 /// One rule, or every enabled one.

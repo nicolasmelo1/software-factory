@@ -342,7 +342,10 @@ impl Docs {
 
 impl Policy {
     pub fn load(root: &Path) -> Result<Policy> {
-        Self::load_from(&root.join(".software-factory"))
+        let factory_dir = Path::new(POLICY_PATH)
+            .parent()
+            .expect("the policy path includes its factory directory");
+        Self::load_from(&root.join(factory_dir))
     }
 
     /// Load the policy out of a directory that *is* the factory directory:
