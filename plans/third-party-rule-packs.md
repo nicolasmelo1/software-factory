@@ -30,9 +30,8 @@ Installing one from a URL is installing a script. Packs are either vendored
 into the repository at install time, where they sit in the diff and under
 `L2.FACTORY_CONFIG_IS_LOCKED` like every other rule file, or they are not
 worth having. Governing a repository from a policy that lives outside it is a
-separate question, answered in
-[a policy can govern a repository it does not live in](policy-governs-a-repo-it-does-not-live-in.md):
-that is a read path, and never an install path for a pack.
+separate question, answered by `sf check --policy` in `c8a1db6`: that is a
+read path, and never an install path for a pack.
 
 **Proof.** `L5.EVERY_CHECK_HAS_A_MUTATION_TEST` says an enabled rule with
 nothing proving it fires is not a rule. A pack of forty rules and no fixtures
