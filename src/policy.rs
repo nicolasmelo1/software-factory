@@ -342,10 +342,18 @@ impl Docs {
 
 impl Policy {
     pub fn load(root: &Path) -> Result<Policy> {
-        let path = root.join(POLICY_PATH);
+        Self::load_from(&root.join(".software-factory"))
+    }
+
+    /// Load the policy out of a directory that *is* the factory directory:
+    /// `policy.yaml` at its top level, local rules under `rules/`. This is the
+    /// overlay form — the same document, read from wherever it lives — and
+    /// `load` is simply the vendored case of it.
+    pub fn load_from(dir: &Path) -> Result<Policy> {
+        let path = dir.join("policy.yaml");
         let body = std::fs::read_to_string(&path).with_context(|| {
             format!(
-                "no policy at {} — run `sf init` in this repository first",
+                "no policy at {} — run `sf init` in this repository first, or point `--policy` at the directory that carries one",
                 path.display()
             )
         })?;
@@ -466,6 +474,7 @@ mod when_conditions {
             base: None,
             today: crate::clock::today(),
             allow_commands: false,
+            overlay: None,
         };
         let findings = crate::checks::run_all(&ctx).expect("the fixture checks run");
         let fired = |instance: &str| findings.iter().any(|f| f.rule == instance);
@@ -579,5 +588,31 @@ mod when_conditions {
             let found = Version::parse(found).expect("the version parses");
             assert!(!satisfies(expected, &found), "{expected} should not match {found:?}");
         }
+    }
+}
+
+#[cfg(test)]
+mod overlay_load {
+    use super::Policy;
+    use std::path::Path;
+
+    /// The overlay form of the same document: `load` is the vendored case of
+    /// `load_from`, and a directory that is the factory directory loads with
+    /// nothing vendored into the root it will be pointed at.
+    #[test]
+    fn a_policy_directory_loads_without_the_repository_it_governs() {
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join(".software-factory");
+        let policy = Policy::load_from(&dir).expect("the factory directory loads as an overlay");
+        assert_eq!(policy.project.name, "software-factory");
+    }
+
+    #[test]
+    fn a_directory_without_a_policy_is_named_in_the_error() {
+        let dir = std::env::temp_dir().join("sf-no-policy-here");
+        let error = Policy::load_from(&dir).expect_err("nothing to load");
+        assert!(
+            format!("{error:#}").contains("--policy"),
+            "the error names the flag that reaches here: {error:#}"
+        );
     }
 }

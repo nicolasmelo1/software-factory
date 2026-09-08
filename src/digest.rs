@@ -25,3 +25,25 @@ pub fn tree(entries: &mut [(String, String)]) -> String {
         .join("\n");
     hex(joined.as_bytes())
 }
+
+/// Digest of every file under a directory, as a set. This is what an overlay
+/// report names: the policy that produced the run, identified by its exact
+/// bytes rather than by a path that may point somewhere else tomorrow.
+pub fn dir_digest(dir: &Path) -> Result<String> {
+    let mut entries: Vec<(String, String)> = walkdir::WalkDir::new(dir)
+        .into_iter()
+        .filter_map(|entry| entry.ok())
+        .filter(|entry| entry.file_type().is_file())
+        .map(|entry| {
+            let rel = entry
+                .path()
+                .strip_prefix(dir)
+                .expect("walked entry is under dir")
+                .to_string_lossy()
+                .replace('\\', "/");
+            let digest = file(entry.path())?;
+            Ok((rel, digest))
+        })
+        .collect::<Result<Vec<_>>>()?;
+    Ok(tree(&mut entries))
+}

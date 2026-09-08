@@ -301,6 +301,7 @@ pub fn seed_ratchet(root: &Path, catalog: &Catalog, months: i64) -> Result<(Ratc
         base: None,
         today: clock::today(),
         allow_commands: false,
+        overlay: None,
     };
     let review_by = clock::plus_months(&ctx.today, months);
     let mut ratchet = Ratchet::default();
@@ -338,6 +339,7 @@ pub fn update_locks(root: &Path, catalog: &Catalog) -> Result<Vec<String>> {
         base: None,
         today: clock::today(),
         allow_commands: false,
+        overlay: None,
     };
     let mut written = Vec::new();
     for (instance, base) in policy.instances() {
@@ -806,6 +808,7 @@ mod conformance {
             base: None,
             today: clock::today(),
             allow_commands: false,
+            overlay: None,
         };
         checks::run_one(rule, &ctx).expect("check runs")
     }
