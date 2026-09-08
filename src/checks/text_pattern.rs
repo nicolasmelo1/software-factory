@@ -156,6 +156,7 @@ mod ruby_does_not_read_typescripts_pattern {
             base: None,
             today: crate::clock::today(),
             allow_commands: false,
+            overlay: None,
         };
         checks::run_one(rule, &ctx).expect("check runs")
     }

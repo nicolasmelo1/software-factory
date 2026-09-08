@@ -944,6 +944,7 @@ mod capture {
                 base: None,
                 today: crate::clock::today(),
                 allow_commands: false,
+                overlay: None,
             };
             let rule = catalog.get("L1.COMPLEXITY_CEILING").expect("ships");
             Ok(checks::run_one(rule, &ctx)?

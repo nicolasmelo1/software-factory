@@ -1,14 +1,8 @@
 //! Rendering. The terminal output is deliberately verbose about *why*: the
 //! failure message is the only documentation an agent reliably reads.
-//!
-//! The trail is the dynamic half of that output. The `fix` renders identically
-//! every run, so a looping model receives the same bytes and learns nothing;
-//! once the escape log has attempts against a finding key, the finding also
-//! renders what has already been tried, and past the threshold a worked
-//! repair joins it. An empty log renders byte-for-byte as before.
 
 use crate::catalog::Catalog;
-use crate::finding::{Finding, Severity, EXIT_FINDINGS, EXIT_OK};
+use crate::finding::{EXIT_FINDINGS, EXIT_OK, Finding, Severity};
 use anyhow::Result;
 use serde::Serialize;
 use std::collections::BTreeMap;
@@ -36,21 +30,21 @@ pub struct Report {
     pub findings: Vec<Finding>,
     pub frozen: usize,
     pub rules_run: usize,
-    /// What the escape log says about each stuck finding key. Keys absent
-    /// from the map have no trail, and absent is the ordinary case: a first
-    /// run of `sf check` in a repository with a cold log renders identically
-    /// to the version without this feature.
+    /// The policy that governed this run when it governed from outside:
+    /// where it lives and which exact bytes it carried. Absent for a vendored
+    /// run, where the policy is part of the repository and needs no
+    /// introduction. A green overlay run must not be quotable later as a
+    /// governed one, so every format names this — and that the run carried no
+    /// ratchet.
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     pub trail: BTreeMap<String, Trail>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub overlay: Option<crate::checks::Overlay>,
 }
 
 impl Report {
     pub fn exit_code(&self) -> i32 {
-        if self.findings.is_empty() {
-            EXIT_OK
-        } else {
-            EXIT_FINDINGS
-        }
+        if self.findings.is_empty() { EXIT_OK } else { EXIT_FINDINGS }
     }
 
     pub fn json(&self) -> Result<String> {
@@ -59,7 +53,7 @@ impl Report {
 
     pub fn text(&self, catalog: &Catalog) -> String {
         if self.findings.is_empty() {
-            return format!(
+            let mut green = format!(
                 "✓ {} rules, no findings{}\n",
                 self.rules_run,
                 if self.frozen > 0 {
@@ -68,46 +62,24 @@ impl Report {
                     String::new()
                 }
             );
-        }
-        let mut grouped: BTreeMap<&str, Vec<&Finding>> = BTreeMap::new();
-        for finding in &self.findings {
-            grouped
-                .entry(finding.rule.as_str())
-                .or_default()
-                .push(finding);
+            if let Some(overlay) = &self.overlay {
+                green.push_str(&format!("  {}\n", overlay.disclaimer()));
+            }
+            return green;
         }
         let mut out = String::new();
-        for (rule_id, findings) in &grouped {
-            // An instance (`RULE@name`, documented in the README for a monorepo
-            // that needs one rule twice) is not itself a catalog entry, so a
-            // direct lookup misses and the report loses the title, the `why`
-            // and the `fix` — the agent-facing documentation this rule exists
-            // to hand over at the one moment somebody is trying to comply.
-            let rule = catalog
-                .get(rule_id)
-                .or_else(|| catalog.get(crate::policy::base_rule_id(rule_id)));
-            let title = rule.map(|r| r.title.as_str()).unwrap_or("(unknown rule)");
-            let severity = findings[0].severity;
-            out.push_str(&format!("\n{} {rule_id} — {title}\n", marker(severity)));
-            if let Some(rule) = rule {
-                out.push_str(&format!("  why  {}\n", wrap(&rule.why, "       ")));
-                out.push_str(&format!("  fix  {}\n", wrap(&rule.fix, "       ")));
-            }
-            for finding in findings {
-                out.push_str(&format!("    {} — {}\n", finding.location, finding.message));
-                if let Some(expected) = &finding.expected {
-                    out.push_str(&format!("       expected {expected}\n"));
-                }
-                if let Some(actual) = &finding.actual {
-                    out.push_str(&format!("       actual   {actual}\n"));
-                }
-                out.push_str(&trail_lines(&self.trail, &finding.key, "       "));
-            }
+        if let Some(overlay) = &self.overlay {
+            out.push_str(&format!("  {}\n", overlay.disclaimer()));
+        }
+        let grouped = group_findings(&self.findings);
+        let rules = grouped.len();
+        for (rule_id, findings) in grouped {
+            render_rule_group(catalog, &mut out, rule_id, &findings, &self.trail);
         }
         out.push_str(&format!(
             "\n{} findings across {} rules{}\n",
             self.findings.len(),
-            grouped.len(),
+            rules,
             if self.frozen > 0 {
                 format!(" ({} frozen by the ratchet)", self.frozen)
             } else {
@@ -119,11 +91,11 @@ impl Report {
 
     pub fn markdown(&self, catalog: &Catalog) -> String {
         let mut out = String::from("# Software factory report\n\n");
+        if let Some(overlay) = &self.overlay {
+            out.push_str(&format!("> {}\n\n", overlay.disclaimer()));
+        }
         if self.findings.is_empty() {
-            out.push_str(&format!(
-                "No findings across {} enabled rules.\n",
-                self.rules_run
-            ));
+            out.push_str(&format!("No findings across {} enabled rules.\n", self.rules_run));
             return out;
         }
         out.push_str("| Rule | Location | Finding |\n| --- | --- | --- |\n");
@@ -143,13 +115,52 @@ impl Report {
                 .get(rule_id)
                 .or_else(|| catalog.get(crate::policy::base_rule_id(rule_id)))
             {
-                out.push_str(&format!(
-                    "\n### {} — {}\n\n{}\n\n**Fix.** {}\n",
-                    rule.id, rule.title, rule.why, rule.fix
-                ));
+                out.push_str(&format!("\n### {} — {}\n\n{}\n\n**Fix.** {}\n", rule.id, rule.title, rule.why, rule.fix));
             }
         }
         out
+    }
+}
+
+fn group_findings(findings: &[Finding]) -> BTreeMap<&str, Vec<&Finding>> {
+    let mut grouped: BTreeMap<&str, Vec<&Finding>> = BTreeMap::new();
+    for finding in findings {
+        grouped.entry(finding.rule.as_str()).or_default().push(finding);
+    }
+    grouped
+}
+
+/// One grouped rule's block: its prose, then every finding under it. The
+/// instance fallback (`RULE@name` is documented and is not itself a catalog
+/// entry) keeps an instance's `why` and `fix` in the report — the
+/// agent-facing documentation this exists to hand over at the one moment
+/// somebody is trying to comply.
+fn render_rule_group(
+    catalog: &Catalog,
+    out: &mut String,
+    rule_id: &str,
+    findings: &[&Finding],
+    trail: &BTreeMap<String, Trail>,
+) {
+    let rule = catalog
+        .get(rule_id)
+        .or_else(|| catalog.get(crate::policy::base_rule_id(rule_id)));
+    let title = rule.map(|r| r.title.as_str()).unwrap_or("(unknown rule)");
+    let severity = findings[0].severity;
+    out.push_str(&format!("\n{} {rule_id} — {title}\n", marker(severity)));
+    if let Some(rule) = rule {
+        out.push_str(&format!("  why  {}\n", wrap(&rule.why, "       ")));
+        out.push_str(&format!("  fix  {}\n", wrap(&rule.fix, "       ")));
+    }
+    for finding in findings {
+        out.push_str(&format!("    {} — {}\n", finding.location, finding.message));
+        if let Some(expected) = &finding.expected {
+            out.push_str(&format!("       expected {expected}\n"));
+        }
+        if let Some(actual) = &finding.actual {
+            out.push_str(&format!("       actual   {actual}\n"));
+        }
+        out.push_str(&trail_lines(trail, &finding.key, "       "));
     }
 }
 
@@ -225,6 +236,7 @@ mod an_instance_keeps_its_prose {
             frozen: 0,
             rules_run: 1,
             trail: BTreeMap::new(),
+            overlay: None,
         }
     }
 
@@ -237,14 +249,8 @@ mod an_instance_keeps_its_prose {
             "an instance lost its title: {rendered}"
         );
         assert!(rendered.contains("No function exceeds the cyclomatic ceiling"));
-        assert!(
-            rendered.contains("  why  "),
-            "an instance lost its why: {rendered}"
-        );
-        assert!(
-            rendered.contains("  fix  "),
-            "an instance lost its fix: {rendered}"
-        );
+        assert!(rendered.contains("  why  "), "an instance lost its why: {rendered}");
+        assert!(rendered.contains("  fix  "), "an instance lost its fix: {rendered}");
         // The instance id itself still has to be what the report names, or
         // there is no way to tell which of two instances fired.
         assert!(rendered.contains("L1.COMPLEXITY_CEILING@legacy"));
@@ -272,6 +278,57 @@ mod an_instance_keeps_its_prose {
 }
 
 #[cfg(test)]
+mod overlay_provenance {
+    use super::Report;
+    use std::collections::BTreeMap;
+    use crate::checks::Overlay;
+    use crate::catalog::Catalog;
+
+    fn report_with_overlay() -> Report {
+        Report {
+            findings: vec![],
+            frozen: 0,
+            rules_run: 3,
+            trail: BTreeMap::new(),
+            overlay: Some(Overlay {
+                path: "../factory-policy/.software-factory".to_string(),
+                digest: "3857f5559a3e".to_string(),
+            }),
+        }
+    }
+
+    /// A green overlay run is the dangerous one: without the line, it reads
+    /// exactly like a governed repository passing its own gate.
+    #[test]
+    fn every_format_names_the_overlay_on_a_green_run() {
+        let catalog = Catalog::builtin().expect("the shipped catalog loads");
+        let report = report_with_overlay();
+        let text = report.text(&catalog);
+        assert!(text.contains("policy overlay: ../factory-policy/.software-factory"), "{text}");
+        assert!(text.contains("no ratchet"), "{text}");
+        assert!(text.contains("3857f5559a3e"), "{text}");
+        let markdown = report.markdown(&catalog);
+        assert!(markdown.contains("policy overlay:"), "{markdown}");
+        assert!(markdown.contains("no ratchet"), "{markdown}");
+    }
+
+    #[test]
+    fn a_json_report_carries_the_provenance_as_data() {
+        let report = report_with_overlay();
+        let json = report.json().expect("the report serialises");
+        assert!(json.contains("\"overlay\""), "{json}");
+        assert!(json.contains("\"digest\""), "{json}");
+    }
+
+    #[test]
+    fn a_vendored_report_carries_no_disclaimer() {
+        let catalog = Catalog::builtin().expect("the shipped catalog loads");
+        let plain = Report { findings: Vec::new(), frozen: 0, rules_run: 1, trail: BTreeMap::new(), overlay: None };
+        assert!(!plain.text(&catalog).contains("overlay"), "{}", plain.text(&catalog));
+    }
+}
+
+#[cfg(test)]
 mod the_attempt_trail {
     use super::*;
 
@@ -294,6 +351,7 @@ mod the_attempt_trail {
             frozen: 0,
             rules_run: 1,
             trail: BTreeMap::new(),
+            overlay: None,
         };
         let mut trail = BTreeMap::new();
         trail.insert(
@@ -311,6 +369,7 @@ mod the_attempt_trail {
             frozen: 0,
             rules_run: 1,
             trail,
+            overlay: None,
         };
         let first = plain.text(&Catalog::builtin().expect("the catalog loads"));
         let second = plain.text(&Catalog::builtin().expect("the catalog loads"));
@@ -342,6 +401,7 @@ mod the_attempt_trail {
             frozen: 0,
             rules_run: 1,
             trail,
+            overlay: None,
         };
         let rendered = report.text(&Catalog::builtin().expect("the catalog loads"));
         assert!(
@@ -366,6 +426,7 @@ mod the_attempt_trail {
             frozen: 0,
             rules_run: 1,
             trail,
+            overlay: None,
         };
         let rendered = report.text(&Catalog::builtin().expect("the catalog loads"));
         assert!(
@@ -389,6 +450,7 @@ mod the_attempt_trail {
             frozen: 0,
             rules_run: 1,
             trail,
+            overlay: None,
         };
         let json = report.json().expect("the report serialises");
         assert!(json.contains("\"trail\""), "{json}");
@@ -399,6 +461,7 @@ mod the_attempt_trail {
             frozen: 0,
             rules_run: 1,
             trail: BTreeMap::new(),
+            overlay: None,
         };
         assert!(
             !plain.json().expect("the report serialises").contains("\"trail\""),

@@ -335,6 +335,7 @@ mod inert_l3 {
             base: None,
             today: crate::clock::today(),
             allow_commands: false,
+            overlay: None,
         };
         let rule = catalog.get("L5.NO_INERT_RULE").expect("ships in the catalog").clone();
         let findings = super::inert_rules(&rule, &ctx).expect("inert_rules runs");
@@ -399,6 +400,7 @@ mod inert_forwarder {
             base: None,
             today: crate::clock::today(),
             allow_commands: false,
+            overlay: None,
         };
         let rule = catalog.get("L5.NO_INERT_RULE").expect("ships in the catalog").clone();
         let findings = super::inert_rules(&rule, &ctx).expect("inert_rules runs");
@@ -450,6 +452,7 @@ mod inert_toolchain {
             base: None,
             today: crate::clock::today(),
             allow_commands: false,
+            overlay: None,
         };
         let rule = catalog.get("L5.NO_INERT_RULE").expect("ships in the catalog").clone();
         let findings = super::inert_rules(&rule, &ctx).expect("inert_rules runs");

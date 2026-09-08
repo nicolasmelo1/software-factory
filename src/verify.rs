@@ -86,6 +86,7 @@ fn run_fixture(
         base: None,
         today: clock::today(),
         allow_commands,
+        overlay: None,
     };
     let findings = checks::run_all(&ctx)?;
     let hits: Vec<_> = findings.iter().filter(|f| f.rule == rule_id).collect();

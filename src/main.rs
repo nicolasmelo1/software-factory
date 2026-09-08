@@ -7,9 +7,9 @@
 mod catalog;
 mod checks;
 mod clock;
+mod escapes;
 mod digest;
 mod docs;
-mod escapes;
 mod finding;
 mod fingerprint;
 mod fixtures;
@@ -34,6 +34,15 @@ use ratchet::Ratchet;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::process::Command;
+
+/// Findings plus all report context from either a vendored or overlay policy.
+type CheckResults = (
+    Vec<finding::Finding>,
+    usize,
+    usize,
+    BTreeMap<String, report::Trail>,
+    Option<checks::Overlay>,
+);
 
 #[derive(Parser)]
 #[command(
@@ -104,6 +113,13 @@ enum Cmd {
         /// not read.
         #[arg(long, env = "SF_ALLOW_COMMANDS")]
         allow_commands: bool,
+        /// Govern this run with a policy that lives somewhere else: a
+        /// directory carrying `policy.yaml` and optional `rules/`, read
+        /// read-only over a repository carrying none of its own. Refused
+        /// against a root that carries a policy of its own, and refused
+        /// outright by every subcommand that writes repo-local state.
+        #[arg(long)]
+        policy: Option<PathBuf>,
     },
     /// Print a rule: what it requires, why it exists, how to fix a violation.
     Explain { rule: String },
@@ -205,6 +221,15 @@ fn load(root: PathBuf) -> Result<Loaded> {
     Ok(Loaded { root, policy, catalog, ratchet, files })
 }
 
+/// The overlay provenance a report names: the directory and the digest of its
+/// exact bytes.
+fn overlay_provenance(dir: &Path) -> Result<checks::Overlay> {
+    Ok(checks::Overlay {
+        path: dir.display().to_string(),
+        digest: crate::digest::dir_digest(dir)?,
+    })
+}
+
 fn changed_paths(root: &Path, base: &str) -> Result<Vec<String>> {
     let output = Command::new("git")
         .arg("-C")
@@ -248,8 +273,8 @@ fn dispatch(cli: Cli, root: PathBuf) -> Result<i32> {
     // Split by whether the command writes: it keeps each arm list short, and
     // it is the distinction someone reading this actually wants.
     match cli.command {
-        Cmd::Check { format, changed, rule, allow_commands } => {
-            cmd_check(root, format, changed, rule, allow_commands)
+        Cmd::Check { format, changed, rule, allow_commands, policy } => {
+            cmd_check(root, format, changed, rule, allow_commands, policy)
         }
         Cmd::Verify { rule, allow_commands } => cmd_verify(root, rule, allow_commands),
         Cmd::Explain { rule } => cmd_explain(root, rule),
@@ -260,6 +285,11 @@ fn dispatch(cli: Cli, root: PathBuf) -> Result<i32> {
 }
 
 fn dispatch_writing(command: Cmd, root: PathBuf) -> Result<i32> {
+    // `--policy` exists only on `Check`, and `Check` is dispatched above, so
+    // a writer never sees it: `sf init --policy ...` is refused by clap as an
+    // unexpected argument, which is the outright refusal this subcommand
+    // family owes — nothing writes repo-local state from a policy that is not
+    // in the repository, because no writer can be pointed at one.
     match command {
         Cmd::Init { name, language, layer, force, answers, rules_document } => {
             cmd_init(root, name, language, layer, force, answers, rules_document)
@@ -397,18 +427,88 @@ fn cmd_check(
     changed: Option<String>,
     rule: Option<String>,
     allow_commands: bool,
+    overlay_flag: Option<PathBuf>,
 ) -> Result<i32> {
+    // One reader, one refusal: a root carrying its own policy is governed by
+    // it, and a run governed by something else has whichever answer somebody
+    // preferred. The check happens before anything loads, so the refusal does
+    // not depend on the overlay being readable.
+    let overlay = match &overlay_flag {
+        Some(dir) => {
+            if root.join(policy::POLICY_PATH).exists() {
+                anyhow::bail!(
+                    "{} carries its own policy at {} — `--policy {}` would give this run two answers to what governs it",
+                    root.display(),
+                    policy::POLICY_PATH,
+                    dir.display()
+                );
+            }
+            Some(overlay_provenance(dir)?)
+        }
+        None => None,
+    };
+    // The overlay ratchet is empty by construction, so the frozen count is
+    // zero on that arm and the vendored half applies its own inside
+    // `check_vendored`.
+    let (findings, frozen, rules_run, trail, overlay) = match &overlay_flag {
+        Some(dir) => {
+            check_under_overlay(root.clone(), dir, allow_commands, rule, overlay.clone())?
+        }
+        None => check_vendored(root.clone(), changed, allow_commands, rule)?,
+    };
+    let catalog = match &overlay_flag {
+        Some(dir) => {
+            let mut catalog = Catalog::builtin()?;
+            catalog.extend_from_dir(&dir.join(policy::RULES_DIR))?;
+            catalog
+        }
+        None => local_catalog(&root)?,
+    };
+    emit(&catalog, format, findings, frozen, rules_run, trail, overlay)
+}
+
+/// The overlay half of `check`: the target carries no factory directory, so
+/// the policy, its local rules and the file walk all come out of the flag's
+/// directory, the ratchet is empty, and the report names the overlay.
+fn check_under_overlay(
+    root: PathBuf,
+    dir: &Path,
+    allow_commands: bool,
+    rule: Option<String>,
+    overlay: Option<checks::Overlay>,
+) -> Result<CheckResults> {
+    let policy = policy::Policy::load_from(dir)?;
+    let mut catalog = Catalog::builtin()?;
+    catalog.extend_from_dir(&dir.join(policy::RULES_DIR))?;
+    let files = scan::walk(&root, &policy)?;
+    let empty_ratchet = Ratchet::default();
+    let ctx = Ctx {
+        root: &root,
+        policy: &policy,
+        catalog: &catalog,
+        files: &files,
+        ratchet: &empty_ratchet,
+        changed: None,
+        base: None,
+        today: clock::today(),
+        allow_commands,
+        overlay,
+    };
+    let (findings, rules_run) = run_selection(&ctx, rule.as_deref(), &catalog)?;
+    Ok((findings, 0, rules_run, BTreeMap::new(), ctx.overlay))
+}
+fn check_vendored(
+    root: PathBuf,
+    changed: Option<String>,
+    allow_commands: bool,
+    rule: Option<String>,
+) -> Result<CheckResults> {
     let loaded = load(root.clone())?;
     let base = changed.clone();
     let changed = match &base {
         Some(reference) => Some(changed_paths(&root, reference)?),
         None => None,
     };
-    // The escape log runs on the working tree only: the trail belongs to an
-    // in-progress attempt, so a run against a historical ref records
-    // nothing. The log itself is derived state — a stale or corrupt entry
-    // degrades the report, never the findings.
-    let loggable = rule.is_none() && !escapes_logged(&root);
     let ctx = Ctx {
         root: &loaded.root,
         policy: &loaded.policy,
@@ -419,22 +519,34 @@ fn cmd_check(
         base: base.clone(),
         today: clock::today(),
         allow_commands,
+        overlay: None,
     };
-    let (raw, rules_run) = run_selection(&loaded, &ctx, rule.as_deref())?;
+    let (raw, rules_run) = run_selection(&ctx, rule.as_deref(), &loaded.catalog)?;
     let (findings, frozen) = loaded.ratchet.apply(raw);
-
-    // ---- the escape log's write path: entirely derived, never from prose ----
-    let tree_diff = working_tree_diff(&loaded.root)?;
     let mut trail = BTreeMap::new();
-    if loggable {
+    if rule.is_none() && !escapes_logged(&loaded.root) {
+        let tree_diff = working_tree_diff(&loaded.root)?;
         trail = escape_bookkeeping(&loaded.root, &loaded.catalog, &findings, &tree_diff)?;
     }
+    Ok((findings, frozen, rules_run, trail, None))
+}
 
-    let report = report::Report { findings, frozen, rules_run, trail };
+/// Print the report the caller's format asks for. An overlay run's findings
+/// carry the provenance they were produced under, and every format renders it.
+fn emit(
+    catalog: &Catalog,
+    format: Format,
+    findings: Vec<finding::Finding>,
+    frozen: usize,
+    rules_run: usize,
+    trail: BTreeMap<String, report::Trail>,
+    overlay: Option<checks::Overlay>,
+) -> Result<i32> {
+    let report = report::Report { findings, frozen, rules_run, trail, overlay };
     match format {
-        Format::Text => print!("{}", report.text(&loaded.catalog)),
+        Format::Text => print!("{}", report.text(catalog)),
         Format::Json => println!("{}", report.json()?),
-        Format::Markdown => print!("{}", report.markdown(&loaded.catalog)),
+        Format::Markdown => print!("{}", report.markdown(catalog)),
     }
     Ok(report.exit_code())
 }
@@ -603,6 +715,7 @@ fn probe_rule(
         base: None,
         today: clock::today(),
         allow_commands: false,
+        overlay: None,
     };
     Ok(checks::run_one(rule, &ctx)?
         .into_iter()
@@ -650,19 +763,18 @@ fn snapshot_map(files: &[(String, String)]) -> BTreeMap<String, String> {
 
 /// One rule, or every enabled one.
 fn run_selection(
-    loaded: &Loaded,
     ctx: &Ctx,
     rule: Option<&str>,
+    catalog: &Catalog,
 ) -> Result<(Vec<finding::Finding>, usize)> {
     match rule {
         Some(id) => {
-            let rule = loaded
-                .catalog
+            let rule = catalog
                 .get(policy::base_rule_id(id))
                 .ok_or_else(|| anyhow::anyhow!("no rule {id} in the catalog"))?;
             Ok((checks::run_one(&checks::as_instance(rule, id), ctx)?, 1))
         }
-        None => Ok((checks::run_all(ctx)?, loaded.policy.instances().len())),
+        None => Ok((checks::run_all(ctx)?, ctx.policy.instances().len())),
     }
 }
 
@@ -767,6 +879,7 @@ fn cmd_seal(root: PathBuf, gate: String) -> Result<i32> {
         base: None,
         today: clock::today(),
         allow_commands: false,
+        overlay: None,
     };
     let manifest = checks::evidence::seal(&loaded.root, &gate, definition, &ctx)?;
     println!(
