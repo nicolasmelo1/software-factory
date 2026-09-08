@@ -102,7 +102,7 @@ impl Report {
     }
 }
 
-fn group_findings<'a>(findings: &'a [Finding]) -> BTreeMap<&'a str, Vec<&'a Finding>> {
+fn group_findings(findings: &[Finding]) -> BTreeMap<&str, Vec<&Finding>> {
     let mut grouped: BTreeMap<&str, Vec<&Finding>> = BTreeMap::new();
     for finding in findings {
         grouped.entry(finding.rule.as_str()).or_default().push(finding);
@@ -115,11 +115,11 @@ fn group_findings<'a>(findings: &'a [Finding]) -> BTreeMap<&'a str, Vec<&'a Find
 /// entry) keeps an instance's `why` and `fix` in the report — the
 /// agent-facing documentation this exists to hand over at the one moment
 /// somebody is trying to comply.
-fn render_rule_group<'a>(
+fn render_rule_group(
     catalog: &Catalog,
     out: &mut String,
     rule_id: &str,
-    findings: &[&'a Finding],
+    findings: &[&Finding],
 ) {
     let rule = catalog
         .get(rule_id)
