@@ -563,7 +563,7 @@ fn capture_transitions(
             };
             let captured = escapes::capture_escape(root, &rule_id, &key, &snapshot, &green, &probe)?;
             if captured {
-                escapes::record_green(root, &rule_id, &[key.clone()])?;
+                escapes::record_green(root, &rule_id, std::slice::from_ref(&key))?;
             }
             // A green key has no in-progress trail even if its diff was too
             // large or unexplainable to turn into a worked escape.

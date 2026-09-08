@@ -2,7 +2,13 @@
 # Enable with: git config core.hooksPath .githooks
 set -eu
 
-# verify first: a check that no longer fires would make the run below
-# meaningless, and it is the cheaper failure to discover.
-sf verify
-sf check
+# Build the checked-out source before every gate so verification cannot execute
+# a stale installed binary. `cargo fmt --check` is intentionally left to CI:
+# this repository's historical baseline is not rustfmt-clean, so it would block
+# unrelated commits without identifying a regression in the staged change.
+cargo test --locked
+cargo clippy --all-targets -- -D warnings -D dead_code
+cargo build --release --locked
+./target/release/sf verify --allow-commands
+./target/release/sf docs --check
+./target/release/sf check --allow-commands

@@ -146,18 +146,6 @@ pub fn attempts(root: &Path, rule_id: &str, key: &str) -> usize {
         .unwrap_or(0)
 }
 
-/// Whether this key is still red with a snapshot a capture could bisect.
-pub fn pending_capture(root: &Path, rule_id: &str, key: &str) -> bool {
-    read(root, rule_id)
-        .ok()
-        .and_then(|store| {
-            store
-                .get(key)
-                .map(|e| !e.attempts.is_empty() && e.snapshot.is_some())
-        })
-        .unwrap_or(false)
-}
-
 /// Every tracked key for this rule that still has a red-time snapshot. The
 /// caller compares it with the current findings to identify red→green
 /// transitions, because a cleared key is absent from the current report.
@@ -653,7 +641,7 @@ mod tests {
     fn a_different_summary_is_a_second_attempt() {
         let scratch = Scratch::new("attempt-two");
         let root = scratch.0.as_path();
-        record_attempt(root, "L1.C", "src/a.py:price", "diff x", Some(&snapshot()));
+        let _ = record_attempt(root, "L1.C", "src/a.py:price", "diff x", Some(&snapshot()));
         let second = record_attempt(root, "L1.C", "src/a.py:price", "diff y", None);
         assert_eq!(second.ok().flatten().as_deref(), Some("attempt 2"));
         assert_eq!(attempts(root, "L1.C", "src/a.py:price"), 2);
@@ -1062,7 +1050,7 @@ mod capture {
             .map(|(_, rest)| rest)
             .unwrap_or("")
             .to_string();
-        let restored = format!("{body}");
+        let restored = body.to_string();
         let returned = keys_of(&root, &restored);
         assert!(
             returned.iter().any(|k| k.contains("src/pricing.py")),
@@ -1130,9 +1118,11 @@ mod capture {
     fn no_snapshot_means_no_escape() {
         let scratch = Scratch::new("no-snapshot");
         let root = scratch.0.as_path();
-        record_attempt(&root, "L1.C", "k", "diff", None).expect("the call succeeds in this fixture");
+        record_attempt(root, "L1.C", "k", "diff", None).expect("the call succeeds in this fixture");
         assert!(
-            !pending_capture(&root, "L1.C", "k"),
+            pending_keys(root, "L1.C")
+                .expect("the call succeeds in this fixture")
+                .is_empty(),
             "no snapshot, no capture"
         );
     }
