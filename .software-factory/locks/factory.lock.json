@@ -2,7 +2,7 @@
   "schema_version": 1,
   "files": {
     ".allowed-root-files": "20889fd9828de3c601e63bae4c430692846319df116688c1322bd230bdfc1995",
-    ".githooks/pre-commit": "72074487050ecb19ece275b8946bd8c4d343c92dd0cd85fc73b00b6fcd7b55e8",
+    ".githooks/pre-commit": "47642e2f720762fecb49bdaecbe28afec61f6ab1611c14c36cf70e240f18b072",
     ".github/workflows/release.yml": "b8beb43a7b8606aa17a79e069426798f4dd16e169493805a2205abc3213bc002",
     ".github/workflows/software-factory.yml": "0350f6ff218f228765453461949d2c9b7ce5158c0705a7968c332a7b629f7eab",
     ".software-factory/policy.yaml": "4699ea46665890d439cfba4dce46a92e776130b7c7211ff53b37af9c90d5cbf0",
