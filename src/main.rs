@@ -9,6 +9,7 @@ mod checks;
 mod clock;
 mod digest;
 mod docs;
+mod escapes;
 mod finding;
 mod fingerprint;
 mod fixtures;
@@ -403,6 +404,11 @@ fn cmd_check(
         Some(reference) => Some(changed_paths(&root, reference)?),
         None => None,
     };
+    // The escape log runs on the working tree only: the trail belongs to an
+    // in-progress attempt, so a run against a historical ref records
+    // nothing. The log itself is derived state — a stale or corrupt entry
+    // degrades the report, never the findings.
+    let loggable = rule.is_none() && !escapes_logged(&root);
     let ctx = Ctx {
         root: &loaded.root,
         policy: &loaded.policy,
@@ -416,13 +422,230 @@ fn cmd_check(
     };
     let (raw, rules_run) = run_selection(&loaded, &ctx, rule.as_deref())?;
     let (findings, frozen) = loaded.ratchet.apply(raw);
-    let report = report::Report { findings, frozen, rules_run };
+
+    // ---- the escape log's write path: entirely derived, never from prose ----
+    let tree_diff = working_tree_diff(&loaded.root)?;
+    let mut trail = BTreeMap::new();
+    if loggable {
+        trail = escape_bookkeeping(&loaded.root, &loaded.catalog, &findings, &tree_diff)?;
+    }
+
+    let report = report::Report { findings, frozen, rules_run, trail };
     match format {
         Format::Text => print!("{}", report.text(&loaded.catalog)),
         Format::Json => println!("{}", report.json()?),
         Format::Markdown => print!("{}", report.markdown(&loaded.catalog)),
     }
     Ok(report.exit_code())
+}
+
+/// The log is suppressed when this run is itself the capture of a red→green
+/// transition: `sf check --changed <base>` against a tree mid-bisect would
+/// record the bisect's own probes as the model's attempts. The marker file
+/// is written by the capture path below.
+fn escapes_logged(root: &Path) -> bool {
+    root.join(escapes::DIR_NAME).join(".capture-in-progress").exists()
+}
+
+/// The digest of the current working-tree diff, or an empty string when git
+/// is unavailable or the tree is clean. A stable summary is what makes "the
+/// same edit twice" read as one attempt rather than two.
+fn working_tree_diff(root: &Path) -> Result<String> {
+    let output = std::process::Command::new("git")
+        .arg("-C")
+        .arg(root)
+        .args(["diff", "HEAD"])
+        .output();
+    let Ok(output) = output else {
+        return Ok(String::new());
+    };
+    if !output.status.success() {
+        return Ok(String::new());
+    }
+    let body = String::from_utf8_lossy(&output.stdout);
+    Ok(if body.is_empty() { String::new() } else { digest::hex(body.as_bytes()) })
+}
+
+/// The red side of the write path. Every still-red key gains one attempt
+/// (the current tree diff), and the capture runs for keys this run turned
+/// green — the bisect that turns a fix into a worked repair.
+fn escape_bookkeeping(
+    root: &Path,
+    catalog: &Catalog,
+    findings: &[finding::Finding],
+    tree_diff: &str,
+) -> Result<BTreeMap<String, report::Trail>> {
+    let mut trail = BTreeMap::new();
+    let mut red_by_rule: BTreeMap<&str, Vec<String>> = BTreeMap::new();
+    for finding in findings {
+        let rule_id = policy::base_rule_id(&finding.rule);
+        red_by_rule.entry(rule_id).or_default().push(finding.key.clone());
+        if tree_diff.is_empty() {
+            continue;
+        }
+        if let Some(label) = escapes::record_attempt(
+            root,
+            rule_id,
+            &finding.key,
+            tree_diff,
+            Some(&snapshot_map(&loaded_snapshot(root)?)),
+        )? {
+            trail.insert(
+                finding.key.clone(),
+                report::Trail {
+                    attempts: vec![format!(
+                        "{label}: the working-tree diff {} was already tried against this finding",
+                        &tree_diff[..tree_diff.len().min(12)]
+                    )],
+                    escape: None,
+                },
+            );
+        }
+    }
+    // A pending key absent from this run just turned green. Capture it against
+    // the current working tree before clearing its in-progress trail. Capture
+    // failure is advisory-state failure, never a reason to fail `sf check`.
+    if let Err(error) = capture_transitions(root, catalog, &red_by_rule) {
+        eprintln!("sf: escape capture skipped: {error:#}");
+    }
+    // Build the report's view: attempts from the log, escapes past the
+    // threshold, never a weakening.
+    for finding in findings {
+        let rule_id = policy::base_rule_id(&finding.rule);
+        let attempts = escapes::attempts(root, rule_id, &finding.key);
+        if attempts == 0 {
+            continue;
+        }
+        let escape = escapes::retrieve(root, rule_id, &finding.key)?;
+        trail.insert(
+            finding.key.clone(),
+            report::Trail {
+                attempts: (1..=attempts)
+                    .map(|n| format!("attempt {n} against this finding left it red"))
+                    .collect(),
+                escape,
+            },
+        );
+    }
+    Ok(trail)
+}
+
+/// The red→green capture. A key recorded red whose probe over the snapshot
+/// tree is red but whose green tree is green has transitioned; the bisect
+/// between the two trees is the escape.
+fn capture_transitions(
+    root: &Path,
+    catalog: &Catalog,
+    red_by_rule: &BTreeMap<&str, Vec<String>>,
+) -> Result<()> {
+    for rule_id in escapes::pending_rules(root)? {
+        let Some(rule) = catalog.get(&rule_id) else { continue };
+        let current = red_by_rule.get(rule_id.as_str());
+        for key in escapes::pending_keys(root, &rule_id)? {
+            if current.is_some_and(|keys| keys.contains(&key)) {
+                continue;
+            }
+            let Some(snapshot) = escapes::snapshot_of(root, &rule_id, &key)? else {
+                continue;
+            };
+            let mut green = BTreeMap::new();
+            for path in snapshot.keys() {
+                let abs = root.join(path);
+                if let Ok(content) = std::fs::read_to_string(&abs) {
+                    green.insert(path.clone(), content);
+                }
+            }
+            let key_owned = key.clone();
+            let rule_for_probe = rule.clone();
+            let root_for_probe = root.to_path_buf();
+            let probe = move |tree: &Path| -> anyhow::Result<Vec<String>> {
+                probe_rule(&root_for_probe, &rule_for_probe, tree, &key_owned)
+            };
+            let captured = escapes::capture_escape(root, &rule_id, &key, &snapshot, &green, &probe)?;
+            if captured {
+                escapes::record_green(root, &rule_id, &[key.clone()])?;
+            }
+            // A green key has no in-progress trail even if its diff was too
+            // large or unexplainable to turn into a worked escape.
+            escapes::clear_trail(root, &rule_id, &key)?;
+        }
+    }
+    Ok(())
+}
+
+/// Run one rule over an arbitrary tree, returning its finding keys. The
+/// bisect's probe: same policy bytes, same catalog, different files. The
+/// scratch tree carries a copy of the real `.software-factory/policy.yaml`,
+/// because a tree without a policy is not a repository this tool can read.
+fn probe_rule(
+    root: &Path,
+    rule: &catalog::Rule,
+    tree: &Path,
+    _key: &str,
+) -> anyhow::Result<Vec<String>> {
+    let factory_dir = tree.join(".software-factory");
+    std::fs::create_dir_all(&factory_dir)?;
+    for name in ["policy.yaml", "ratchet.yaml"] {
+        let source = root.join(".software-factory").join(name);
+        if source.is_file() {
+            std::fs::copy(&source, factory_dir.join(name))?;
+        }
+    }
+    let policy = policy::Policy::load(tree)?;
+    let files = scan::walk(tree, &policy)?;
+    let ctx = Ctx {
+        root: tree,
+        policy: &policy,
+        catalog: &local_catalog(root)?,
+        files: &files,
+        ratchet: &ratchet::Ratchet::default(),
+        changed: None,
+        base: None,
+        today: clock::today(),
+        allow_commands: false,
+    };
+    Ok(checks::run_one(rule, &ctx)?
+        .into_iter()
+        .map(|f| f.key)
+        .collect())
+}
+
+/// The content of every file the working-tree diff touches — the snapshot a
+/// red run leaves behind for a later green run to bisect against.
+fn changed_files_snapshot(root: &Path) -> Result<Vec<String>> {
+    let output = std::process::Command::new("git")
+        .arg("-C")
+        .arg(root)
+        .args(["diff", "--name-only", "HEAD"])
+        .output()?;
+    anyhow::ensure!(
+        output.status.success(),
+        "git diff --name-only failed: {}",
+        String::from_utf8_lossy(&output.stderr).trim()
+    );
+    Ok(String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .map(str::to_string)
+        .filter(|l| !l.is_empty())
+        .collect())
+}
+
+/// The snapshot actually stored: only files this binary can read as text,
+/// capped so an oversized diff records no snapshot rather than a partial one.
+fn loaded_snapshot(root: &Path) -> Result<Vec<(String, String)>> {
+    let mut out = Vec::new();
+    for path in changed_files_snapshot(root)? {
+        let abs = root.join(&path);
+        if let (true, Ok(content)) = (abs.is_file(), std::fs::read_to_string(&abs)) {
+            out.push((path, content));
+        }
+    }
+    Ok(out)
+}
+
+/// A snapshot as the escape log stores it.
+fn snapshot_map(files: &[(String, String)]) -> BTreeMap<String, String> {
+    files.iter().cloned().collect()
 }
 
 /// One rule, or every enabled one.

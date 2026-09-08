@@ -1,10 +1,18 @@
-//! Mutation fixtures: the smallest repository that violates each rule.
+//! Mutation fixtures: the smallest repository that violates each rule, and
+//! the smallest repair that clears it.
 //!
 //! These are the reason to trust anything else in this tool. A rule with a
 //! typo in its query, a glob that matches nothing, or a scope that excludes
 //! the source tree passes silently and looks exactly like a rule that works.
 //! `sf verify` runs every enabled rule against its fixture and fails if the
-//! rule does not fire.
+//! rule does not fire — and, where the fixture carries a `fixed:` variant,
+//! fails again if the repair does not clear it.
+//!
+//! The `fixed:` half is the escape log's cold start. An escape log is empty
+//! until somebody has been stuck, so the log's worked example has to come
+//! from somewhere on the first run; proving a repair in the binary means every
+//! rule ships with a verified before and after from day one, and `sf check`'s
+//! escape ladder has an example to hand over that the tool itself proved.
 
 pub struct Fixture {
     pub rule: &'static str,
@@ -14,6 +22,13 @@ pub struct Fixture {
     /// the meta rules are about other rules, so they need one to be about.
     pub extra_rules: &'static str,
     pub files: &'static [(&'static str, &'static str)],
+    /// The same mini-repo after the repair. Every path here replaces its
+    /// `files` entry with content the rule must stay quiet about; `sf verify`
+    /// asserts the repair actually clears the rule, so a rule ships with a
+    /// proven before *and* after. Absent for a fixture that is about
+    /// configuration rather than code, where the repair is an edit to files
+    /// the fixture cannot carry without duplicating its own mutation.
+    pub fixed: &'static [(&'static str, &'static str)],
 }
 
 pub const FIXTURES: &[Fixture] = &[
@@ -43,6 +58,7 @@ pub const FIXTURES: &[Fixture] = &[
                 "# Defined in a service instead of the domain's errors module.\nclass OrderRejectedError < StandardError\nend\n",
             ),
         ],
+        fixed: &[],
     },
     Fixture {
         rule: "L0.PERSISTENCE_STAYS_IN_REPOSITORIES",
@@ -62,6 +78,7 @@ pub const FIXTURES: &[Fixture] = &[
                 "package controllers\n\nfunc GetOrder(orderID string) (*Order, error) {\n\treturn db.Query(\"select * from orders where id = $1\", orderID)\n}\n",
             ),
         ],
+        fixed: &[],
     },
     Fixture {
         rule: "L0.ONE_ENTRYPOINT_PER_FILE",
@@ -81,6 +98,7 @@ pub const FIXTURES: &[Fixture] = &[
                 "package handlers\n\nfunc Register(r *gin.Engine) {\n\tr.GET(\"/orders\", listOrders)\n\tr.POST(\"/orders\", createOrder)\n}\n",
             ),
         ],
+        fixed: &[],
     },
     Fixture {
         rule: "L0.NO_CROSS_LAYER_IMPORT",
@@ -108,6 +126,7 @@ pub const FIXTURES: &[Fixture] = &[
                 "require_relative \"../billing/_internal/rates\"\n\ndef price(order)\n  compute(order)\nend\n",
             ),
         ],
+        fixed: &[],
     },
     Fixture {
         rule: "L1.COMPLEXITY_CEILING",
@@ -123,6 +142,7 @@ pub const FIXTURES: &[Fixture] = &[
                 "def price(order)\n  total = 0\n  total += 1 if order.a\n  total += 1 if order.b\n  total += 1 if order.c\n  total += 1 if order.d\n  total += 1 if order.e\n  total\nend\n",
             ),
         ],
+        fixed: &[],
     },
     Fixture {
         rule: "L1.COMMENT_STAYS_SUCCINCT",
@@ -141,6 +161,7 @@ pub const FIXTURES: &[Fixture] = &[
                 "# One reason per line, four lines deep, which is one more than\n# this fixture's ceiling allows and therefore the finding this\n# rule exists to produce. The run below stays under it, so a rule\n# that fired unconditionally would be caught here too.\nVALUE = 1\n\n# Kept small on purpose.\nOTHER = 2\n",
             ),
         ],
+        fixed: &[],
     },
     Fixture {
         rule: "L1.INDIRECTION_EARNS_ITS_NAME",
@@ -163,6 +184,7 @@ pub const FIXTURES: &[Fixture] = &[
                 "use crate::db::price as price_row;\n\npub fn price(order: &Order) -> Money {\n    price_row(order)\n}\n",
             ),
         ],
+        fixed: &[],
     },
     Fixture {
         rule: "L1.NO_BLANKET_SUPPRESSION",
@@ -180,6 +202,7 @@ pub const FIXTURES: &[Fixture] = &[
                 "require \"json\" # rubocop:disable all\n\n# Parsed by hand upstream; TICKET-88 removes the branch.\ndef parse(raw) # rubocop:disable Metrics/AbcSize\n  JSON.parse(raw)\nend\n",
             ),
         ],
+        fixed: &[],
     },
     Fixture {
         rule: "L1.SKIPPED_TESTS_STATE_A_REASON",
@@ -211,6 +234,7 @@ pub const FIXTURES: &[Fixture] = &[
                 "RSpec.describe Billing do\n  it \"refunds are idempotent\" do\n    skip\n  end\nend\n",
             ),
         ],
+        fixed: &[],
     },
     Fixture {
         rule: "L1.NO_UNTYPED_ESCAPE_HATCH",
@@ -243,6 +267,7 @@ pub const FIXTURES: &[Fixture] = &[
             ),
             ("sig/payload.rbs", "class Payload\n  def handle: (untyped event) -> untyped\nend\n"),
         ],
+        fixed: &[],
     },
     Fixture {
         rule: "L2.GENERATED_FILES_ARE_LOCKED",
@@ -255,6 +280,7 @@ pub const FIXTURES: &[Fixture] = &[
                 "{\n  \"schema_version\": 1,\n  \"files\": {\n    \"generated/schema.json\": \"0000000000000000000000000000000000000000000000000000000000000000\"\n  }\n}\n",
             ),
         ],
+        fixed: &[],
     },
     Fixture {
         rule: "L2.DEPENDENCIES_CHANGE_DELIBERATELY",
@@ -267,6 +293,7 @@ pub const FIXTURES: &[Fixture] = &[
                 "{\n  \"schema_version\": 1,\n  \"files\": {}\n}\n",
             ),
         ],
+        fixed: &[],
     },
     Fixture {
         rule: "L2.DERIVED_ARTIFACTS_MATCH_THEIR_SOURCE",
@@ -276,6 +303,7 @@ pub const FIXTURES: &[Fixture] = &[
         policy_extra: "        run: \"exit 1\"\n",
         extra_rules: "",
         files: &[("generated/schema.json", "{\"version\": 1}\n")],
+        fixed: &[],
     },
     Fixture {
         rule: "L2.NO_PERMANENT_EXCEPTION",
@@ -285,6 +313,7 @@ pub const FIXTURES: &[Fixture] = &[
             ".software-factory/ratchet.yaml",
             "version: 1\nrules:\n  L1.NO_BLANKET_SUPPRESSION:\n    review_by: '2020-01-01'\n    allow:\n      - src/legacy.py:deadbeefdead\n",
         )],
+        fixed: &[],
     },
     Fixture {
         rule: "L3.GATE_HAS_FRESH_EVIDENCE",
@@ -307,6 +336,7 @@ pub const FIXTURES: &[Fixture] = &[
                 "{\n  \"schema_version\": 1,\n  \"gate\": \"checkout\",\n  \"implementation_sha256\": \"8be5bb73c2645f3f97c371e7e062ece5207b1a43fe6bb346eb23cddb62b812a4\",\n  \"runs\": [\n    {\n      \"scenario\": \"checkout\",\n      \"status\": \"passed\",\n      \"actor\": \"a browser driver\",\n      \"report\": \"evidence/checkout-run.json\",\n      \"report_sha256\": \"4660d3023be85f67be2269b691218c00f6f2ccd4f23593b67539ba25820de825\",\n      \"required_assertions\": []\n    }\n  ]\n}\n",
             ),
         ],
+        fixed: &[],
     },
     Fixture {
         rule: "L4.DOC_LINKS_RESOLVE",
@@ -316,6 +346,7 @@ pub const FIXTURES: &[Fixture] = &[
             "docs/architecture.md",
             "# Architecture\n\nSee [the pricing module](../src/pricing/README.md).\n",
         )],
+        fixed: &[],
     },
     Fixture {
         rule: "L4.ROOT_FILES_ARE_DECLARED",
@@ -326,6 +357,7 @@ pub const FIXTURES: &[Fixture] = &[
             ("NOTES.md", "# Notes\n\nScratch context that should have been a plan or a PR body.\n"),
             ("README.md", "# Fixture\n"),
         ],
+        fixed: &[],
     },
     Fixture {
         rule: "L4.EVERY_RULE_HAS_A_WHY",
@@ -335,6 +367,7 @@ pub const FIXTURES: &[Fixture] = &[
             "docs/rules.md",
             "# Rules\n\nThis repository enforces L9.NOT_A_REAL_RULE, which does not exist.\n",
         )],
+        fixed: &[],
     },
     Fixture {
         rule: "L4.PLAN_DECLARES_EXIT_CONDITION",
@@ -344,6 +377,7 @@ pub const FIXTURES: &[Fixture] = &[
             ("plans/next-steps.md", "# Next steps\n\nNothing ordered yet.\n"),
             ("plans/rewrite-checkout.md", "# Rewrite checkout\n\nWe will rewrite checkout.\n"),
         ],
+        fixed: &[],
     },
     Fixture {
         rule: "L4.PLAN_CRITERION_NAMES_ITS_CHECK",
@@ -356,6 +390,7 @@ pub const FIXTURES: &[Fixture] = &[
              - [ ] A guest can complete a purchase without an account.\n\
              - [ ] Refunds reconcile against the ledger.\n      (proof: test:tests/test_refunds.py)\n",
         )],
+        fixed: &[],
     },
     Fixture {
         rule: "L4.PLAN_PROOF_BUDGET",
@@ -374,12 +409,14 @@ pub const FIXTURES: &[Fixture] = &[
                 "# Within budget\n\nExit condition: this plan stays defined.\n\n## Acceptance criteria\n\n- [ ] Debt. (proof: deferred:not designed)\n- [ ] A proof. (proof: test:tests/proof.rs)\n",
             ),
         ],
+        fixed: &[],
     },
     Fixture {
         rule: "L4.CLAIM_CITES_ITS_EVIDENCE",
         policy_extra: "",
         extra_rules: "",
         files: &[("docs/landing.md", A_PAGE_THAT_PROMISES)],
+        fixed: &[],
     },
     Fixture {
         rule: "L4.RULE_PROSE_NAMES_A_REAL_COMMAND",
@@ -389,6 +426,7 @@ pub const FIXTURES: &[Fixture] = &[
         // never existed. This is the exact drift that produced the rule.
         extra_rules: "  L4.LOCAL_RULE_WITH_A_DEAD_COMMAND:\n    enabled: true\n",
         files: &[(".software-factory/rules/local-rule.yaml", RULE_NAMING_A_DEAD_COMMAND)],
+        fixed: &[],
     },
     Fixture {
         rule: "L3.GATE_COVERS_THE_PLAN",
@@ -401,6 +439,7 @@ pub const FIXTURES: &[Fixture] = &[
              - [ ] A guest can complete a purchase without an account.\n      \
              (proof: deferred:the checkout assertion has not been designed)\n",
         )],
+        fixed: &[],
     },
     Fixture {
         rule: "L3.GATE_PLAN_NOT_IN_THE_QUEUE",
@@ -420,6 +459,7 @@ pub const FIXTURES: &[Fixture] = &[
                 "# Rewrite checkout (design note)\n\nThe criteria document the gate will be repointed at. Present so the\nfixture is a repository whose `plans/` and `docs/design/` both exist.\n",
             ),
         ],
+        fixed: &[],
     },
     Fixture {
         rule: "L5.EVERY_CHECK_HAS_A_MUTATION_TEST",
@@ -427,6 +467,7 @@ pub const FIXTURES: &[Fixture] = &[
         // A second rule with no fixture of its own is what this must notice.
         extra_rules: "  L1.NO_BLANKET_SUPPRESSION:\n    enabled: true\n",
         files: &[("src/app.py", "print('a repo enabling rules with nothing proving they fire')\n")],
+        fixed: &[],
     },
     Fixture {
         rule: "L2.FACTORY_CONFIG_IS_LOCKED",
@@ -436,6 +477,7 @@ pub const FIXTURES: &[Fixture] = &[
             ".software-factory/locks/factory.lock.json",
             "{\n  \"schema_version\": 1,\n  \"files\": {\n    \".software-factory/policy.yaml\": \"0000000000000000000000000000000000000000000000000000000000000000\"\n  }\n}\n",
         )],
+        fixed: &[],
     },
     Fixture {
         rule: "L2.POLICY_ONLY_TIGHTENS",
@@ -445,6 +487,7 @@ pub const FIXTURES: &[Fixture] = &[
             "baseline/.software-factory/policy.yaml",
             "version: 1\nproject:\n  name: baseline\n  languages: [python]\nrules:\n  L2.POLICY_ONLY_TIGHTENS:\n    enabled: true\n  L3.GATE_HAS_FRESH_EVIDENCE:\n    enabled: true\n    options:\n      forbidden_in_goal: [/Users/]\n      forbidden_actors: [scripted]\n",
         )],
+        fixed: &[],
     },
     Fixture {
         rule: "L2.CATALOG_ONLY_TIGHTENS",
@@ -460,48 +503,56 @@ pub const FIXTURES: &[Fixture] = &[
         // broken one hide behind a working one. The other nine are unit-tested
         // in `src/fingerprint.rs`.
         files: &[(".software-factory/catalog.lock.json", "{\n  \"schema_version\": 1,\n  \"sf_version\": \"0.1.0\",\n  \"catalog_digest\": \"0000000000000000000000000000000000000000000000000000000000000000\",\n  \"rules\": {\n    \"L1.COMPLEXITY_CEILING\": {\n      \"severity\": \"medium\",\n      \"max\": 8\n    }\n  }\n}\n")],
+        fixed: &[],
     },
     Fixture {
         rule: "L6.DEPENDENCY_VULNERABILITIES_ARE_SCANNED",
         policy_extra: "",
         extra_rules: "",
         files: &[(".github/workflows/ci.yml", CI_WITHOUT_HAZARD_TOOLS)],
+        fixed: &[],
     },
     Fixture {
         rule: "L6.SECRETS_ARE_SCANNED",
         policy_extra: "",
         extra_rules: "",
         files: &[(".github/workflows/ci.yml", CI_WITHOUT_HAZARD_TOOLS)],
+        fixed: &[],
     },
     Fixture {
         rule: "L6.WORKFLOWS_ARE_SCANNED",
         policy_extra: "",
         extra_rules: "",
         files: &[(".github/workflows/ci.yml", CI_WITHOUT_HAZARD_TOOLS)],
+        fixed: &[],
     },
     Fixture {
         rule: "L6.INSECURE_PATTERNS_ARE_SCANNED",
         policy_extra: "",
         extra_rules: "",
         files: &[(".github/workflows/ci.yml", CI_WITHOUT_HAZARD_TOOLS)],
+        fixed: &[],
     },
     Fixture {
         rule: "L6.DEAD_CODE_IS_DETECTED",
         policy_extra: "",
         extra_rules: "",
         files: &[(".github/workflows/ci.yml", CI_WITHOUT_HAZARD_TOOLS)],
+        fixed: &[],
     },
     Fixture {
         rule: "L6.DATA_RACES_ARE_DETECTED",
         policy_extra: "",
         extra_rules: "",
         files: &[(".github/workflows/ci.yml", CI_WITHOUT_HAZARD_TOOLS)],
+        fixed: &[],
     },
     Fixture {
         rule: "L6.PERFORMANCE_REGRESSION_IS_GUARDED",
         policy_extra: "",
         extra_rules: "",
         files: &[(".github/workflows/ci.yml", CI_WITHOUT_HAZARD_TOOLS)],
+        fixed: &[],
     },
     Fixture {
         rule: "L6.NO_BLOCKING_CALL_WHILE_HOLDING_A_LOCK",
@@ -525,6 +576,7 @@ pub const FIXTURES: &[Fixture] = &[
                 "def refresh(lock, url)\n  lock.synchronize do\n    # Every other thread queues behind this network call.\n    payload = Net::HTTP.get(URI(url))\n    CACHE.update(payload)\n  end\nend\n",
             ),
         ],
+        fixed: &[],
     },
     Fixture {
         rule: "L6.ONE_LOCK_AT_A_TIME",
@@ -548,6 +600,7 @@ pub const FIXTURES: &[Fixture] = &[
                 "def transfer(source_lock, target_lock, amount)\n  source_lock.synchronize do\n    debit(amount)\n    target_lock.synchronize do\n      credit(amount)\n    end\n  end\nend\n",
             ),
         ],
+        fixed: &[],
     },
     Fixture {
         rule: "L5.NO_INERT_RULE",
@@ -577,6 +630,7 @@ pub const FIXTURES: &[Fixture] = &[
                 "{\n  \"name\": \"mutation\",\n  \"dependencies\": {\n    \"tailwindcss\": \"^4.0.2\"\n  }\n}\n",
             ),
         ],
+        fixed: &[],
     },
 ];
 
