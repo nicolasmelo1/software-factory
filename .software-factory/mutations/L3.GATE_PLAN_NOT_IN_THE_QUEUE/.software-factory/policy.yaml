@@ -1,0 +1,17 @@
+# Generated mutation fixture for L3.GATE_PLAN_NOT_IN_THE_QUEUE. It is supposed to fail.
+version: 1
+project:
+  name: mutation-L3.GATE_PLAN_NOT_IN_THE_QUEUE
+  languages: [python, typescript, go, rust, ruby]
+docs:
+  scan: ["docs/**/*.md"]
+  plans_dir: plans
+gates:
+  checkout:
+    activation: ["src/checkout/**"]
+    evidence: "evidence/checkout.json"
+    plan: "plans/rewrite-checkout.md"
+    required_assertions: []
+rules:
+  L3.GATE_PLAN_NOT_IN_THE_QUEUE:
+    enabled: true

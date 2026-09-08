@@ -22,23 +22,7 @@ precondition exists. Park it below rather than deleting it.
 
 | 7 | [A policy can govern a repository it does not live in](policy-governs-a-repo-it-does-not-live-in.md) | `sf check --policy <dir>` reports over a repository carrying no `.software-factory/` what the same policy reports when vendored into it, the flag is refused against a root with its own policy and by every subcommand that writes, and each report format names the policy that produced the run. |
 
-| 8 | [The documentation is read out of the code](docs-are-read-out-of-the-code.md) | `sf docs --check` runs in the gate, writes nothing, and goes red when the code moves and a page does not; every count and table in `README.md` and `docs/` that a machine can read comes from a marker block. |
-
-| 9 | [A gate outlives its plan](a-gate-outlives-its-plan.md) | `gates.adoption.plan` points at a document under `docs/design/`, a gate pointed back into `plans/` turns the new L3 rule red, and `plans/next-steps.md` read top to bottom is a list of things that have not happened. |
-
-
 ## Parked
 
 Nothing is parked. Rule packs waited on version-conditional activation, which
 shipped in `927e8e2`, so they join the order above.
-
-
-## Shipped, kept
-
-Done, and still on disk because something points at it. Nobody is queued to
-work on these.
-
-| Plan | Why it stays |
-| --- | --- |
-| [Adoption is proven end to end](adoption-is-proven-end-to-end.md) | `gates.adoption.plan` names it in `.software-factory/policy.yaml`, and `L3.GATE_COVERS_THE_PLAN` reports a gate whose plan does not exist. |
-| [Rules activate on the version of the dependency they are about](rules-activate-by-dependency-version.md) | Shipped in `927e8e2`. It remains a negative control for the plan proof budget. |

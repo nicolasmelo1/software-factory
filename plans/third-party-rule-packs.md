@@ -41,7 +41,7 @@ refuse a pack whose rules do not trip their own fixtures, which means `sf pack
 add` runs `sf verify` over the pack before writing anything.
 
 **Expiry.** A pack for a version you no longer run has to say so out loud, and
-that is what [rules-activate-by-dependency-version.md](rules-activate-by-dependency-version.md)
+that is what [the design note on `when` conditions](../docs/design/rules-activate-by-dependency-version.md)
 built, shipped in `927e8e2`. Without it, every pack is something to remember
 to remove.
 

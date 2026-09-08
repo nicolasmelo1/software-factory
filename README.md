@@ -123,7 +123,7 @@ repository runs its own rules against its own source, with its own mutation
 fixtures, in its own CI.
 
 <!-- sf:generated rules-summary -->
-**38 rules shipped**, 34 enabled here, 4 switched off, 34 carrying a mutation fixture, 3 violations frozen.
+**39 rules shipped**, 35 enabled here, 4 switched off, 35 carrying a mutation fixture, 3 violations frozen.
 
 Frozen, with a date the build fails on: `L4.PLAN_PROOF_BUDGET` by 2027-03-04, `L6.PERFORMANCE_REGRESSION_IS_GUARDED` by 2027-02-18.
 <!-- sf:end rules-summary -->

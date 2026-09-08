@@ -89,7 +89,9 @@ fn policy_findings(rule: &Rule, ctx: &Ctx, before: &Policy) -> Vec<Finding> {
                 "the rule still present".to_string(),
                 "removed".to_string(),
             )),
-            Some(current) => findings.extend(rule_findings(rule, id, previous, current)),
+            Some(current) => {
+                findings.extend(rule_findings(rule, ctx.catalog, id, previous, current))
+            }
         }
     }
     for (name, previous) in &before.gates {
@@ -119,6 +121,7 @@ fn policy_findings(rule: &Rule, ctx: &Ctx, before: &Policy) -> Vec<Finding> {
 /// One rule, compared with the version being replaced.
 fn rule_findings(
     rule: &Rule,
+    catalog: &crate::catalog::Catalog,
     id: &str,
     previous: &crate::policy::RuleSetting,
     current: &crate::policy::RuleSetting,
@@ -133,7 +136,10 @@ fn rule_findings(
             "enabled: false".to_string(),
         ));
     }
-    let (was, now) = (option_size(&previous.options), option_size(&current.options));
+    let (was, now) = (
+        effective_size(catalog, id, &previous.options),
+        effective_size(catalog, id, &current.options),
+    );
     if now.excludes > was.excludes {
         findings.push(weakened(
             rule,
@@ -245,8 +251,26 @@ struct Size {
     forbidden_actors: usize,
 }
 
-fn option_size(raw: &serde_yaml::Value) -> Size {
-    let options: Options = serde_yaml::from_value(raw.clone()).unwrap_or_default();
+/// The counts that decide direction, computed on the options a rule will
+/// actually run under: the instance's `options:` shallow-merged over the
+/// catalog default, exactly as `checks::options_for` merges them.
+///
+/// The raw key count reported a false weakening whenever a policy re-declared
+/// a default to keep it: widening `L4.PLAN_PROOF_BUDGET`'s scope has to carry
+/// its default exclude along (instance options replace rather than extend),
+/// and the raw count read that as an exclusion gained when the effective set
+/// grew by none.
+fn effective_size(
+    catalog: &crate::catalog::Catalog,
+    id: &str,
+    options: &serde_yaml::Value,
+) -> Size {
+    let defaults = catalog
+        .get(crate::policy::base_rule_id(id))
+        .map(|r| r.defaults.clone())
+        .unwrap_or(serde_yaml::Value::Null);
+    let merged = crate::policy::merge(&defaults, options);
+    let options: Options = serde_yaml::from_value(merged).unwrap_or_default();
     Size {
         excludes: options.exclude.len(),
         scope: options.scope.len(),
@@ -258,9 +282,83 @@ fn option_size(raw: &serde_yaml::Value) -> Size {
 
 #[cfg(test)]
 mod tests {
-    use super::{previously_enabled, rule_findings};
+    use super::{effective_size, previously_enabled, rule_findings};
     use crate::catalog::Catalog;
     use crate::policy::{Policy, RuleSetting};
+
+    #[test]
+    fn redeclaring_a_catalog_default_is_not_a_new_exclusion() {
+        let catalog = Catalog::builtin().expect("the shipped catalog loads");
+        let previous: RuleSetting = serde_yaml::from_str("enabled: true\n").expect("parses");
+        let current: RuleSetting = serde_yaml::from_str(
+            "enabled: true\noptions:\n  scope: [docs/design/*.md]\n  exclude: [plans/next-steps.md]\n",
+        )
+        .expect("parses");
+        assert!(
+            rule_findings(
+                catalog.get("L2.POLICY_ONLY_TIGHTENS").expect("ships"),
+                &catalog,
+                "L4.PLAN_PROOF_BUDGET",
+                &previous,
+                &current,
+            )
+            .is_empty(),
+            "the exclude was already the catalog default; widening scope with it carried is not a weakening"
+        );
+    }
+
+    #[test]
+    fn dropping_a_catalog_default_exclusion_is_not_a_weakening() {
+        let catalog = Catalog::builtin().expect("the shipped catalog loads");
+        let previous: RuleSetting = serde_yaml::from_str(
+            "enabled: true\noptions:\n  exclude: [plans/next-steps.md]\n",
+        )
+        .expect("parses");
+        let current: RuleSetting = serde_yaml::from_str("enabled: true\n").expect("parses");
+        assert!(
+            rule_findings(
+                catalog.get("L2.POLICY_ONLY_TIGHTENS").expect("ships"),
+                &catalog,
+                "L4.PLAN_PROOF_BUDGET",
+                &previous,
+                &current,
+            )
+            .is_empty(),
+            "the dropped exclude is the catalog default, so the effective set is unchanged — the raw key count could not see that"
+        );
+    }
+
+    #[test]
+    fn dropping_an_exclusion_is_a_tightening_and_stays_quiet() {
+        let catalog = Catalog::builtin().expect("the shipped catalog loads");
+        let previous: RuleSetting =
+            serde_yaml::from_str("enabled: true\noptions:\n  exclude: [src/legacy/**]\n")
+                .expect("parses");
+        let current: RuleSetting = serde_yaml::from_str("enabled: true\n").expect("parses");
+        assert!(
+            rule_findings(
+                catalog.get("L2.POLICY_ONLY_TIGHTENS").expect("ships"),
+                &catalog,
+                "L4.PLAN_PROOF_BUDGET",
+                &previous,
+                &current,
+            )
+            .is_empty(),
+            "fewer exclusions means more findings, which is the direction this rule never taxes"
+        );
+    }
+
+    #[test]
+    fn effective_size_merges_over_the_catalog_default() {
+        let catalog = Catalog::builtin().expect("the shipped catalog loads");
+        let size = effective_size(
+            &catalog,
+            "L4.PLAN_PROOF_BUDGET",
+            &serde_yaml::Value::Null,
+        );
+        assert_eq!(size.excludes, 1, "the default exclude survives a null override");
+        assert_eq!(size.max, Some(60), "the default budget survives a null override");
+    }
 
     #[test]
     fn removing_goal_or_actor_denylist_values_is_a_weakening() {
@@ -275,7 +373,13 @@ mod tests {
         )
         .expect("the current setting parses");
 
-        let keys: Vec<_> = rule_findings(rule, "L3.GATE_HAS_FRESH_EVIDENCE", &previous, &current)
+        let keys: Vec<_> = rule_findings(
+            rule,
+            &catalog,
+            "L3.GATE_HAS_FRESH_EVIDENCE",
+            &previous,
+            &current,
+        )
             .into_iter()
             .map(|finding| finding.key)
             .collect();
