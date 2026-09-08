@@ -1,0 +1,33 @@
+id: L3.GATE_PLAN_NOT_IN_THE_QUEUE
+layer: L3
+title: A gate's criteria document stays out of the queue of undone work
+statement: >-
+  A gate may not name its `plan` under the execution-order directory. A document
+  the gate's criteria live in has to be deletable once its work is delivered;
+  a document the plan-cadence rules police has to stay in the queue until
+  somebody does the work. One directory cannot be both, so a policy points the
+  gate at a design note under `docs/design/` and leaves `plans/` to work nobody
+  has done yet.
+severity: high
+why: >-
+  `gate_coverage` joins a gate to whatever path `gates.<name>.plan` names and
+  requires nothing about where that path sits, so a delivered plan is welded to
+  the gate that outlived it: deleting the file takes the gate's criteria with
+  it, and the queue of undone work grows a "shipped" section nobody is reading
+  on purpose. The cost is per plan, and the cheap moment to unweld is the first
+  one. A delivered plan has a different lifecycle from an open one — its
+  criteria are stable records of what was proven, not promises somebody could
+  still fail to keep — so it belongs beside the decisions it records, where
+  nothing asks whether it is done. The rule reads the directory the policy
+  declares as its queue (`docs.plans_dir`) rather than assuming `plans/`,
+  because a repository may spell its execution order wherever it likes.
+fix: >-
+  Move the delivered document to `docs/design/` carrying its acceptance
+  criteria verbatim, point `gates.<name>.plan` at the new path, run `sf lock`
+  to record the new policy hash, and delete the file from `plans/`. A gate
+  whose criteria still name undone work does not move: the gate is protecting
+  work that has not happened yet.
+ratchet: none
+check:
+  kind: cadence
+  mode: gate_plan_placement

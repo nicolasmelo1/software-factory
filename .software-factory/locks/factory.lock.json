@@ -5,7 +5,7 @@
     ".githooks/pre-commit": "72074487050ecb19ece275b8946bd8c4d343c92dd0cd85fc73b00b6fcd7b55e8",
     ".github/workflows/release.yml": "b8beb43a7b8606aa17a79e069426798f4dd16e169493805a2205abc3213bc002",
     ".github/workflows/software-factory.yml": "0350f6ff218f228765453461949d2c9b7ce5158c0705a7968c332a7b629f7eab",
-    ".software-factory/policy.yaml": "b03ffd34b55c755646de2213051a3cbd3337e9472ab2cf778d41325f1c6a97c9",
+    ".software-factory/policy.yaml": "4699ea46665890d439cfba4dce46a92e776130b7c7211ff53b37af9c90d5cbf0",
     ".software-factory/ratchet.yaml": "42611c9974434ff314625fb33bc49b24517ca5bdf3fb629538c271b2f7a03db5"
   }
 }

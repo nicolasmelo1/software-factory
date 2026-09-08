@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "sf_version": "0.4.0",
-  "catalog_digest": "f4c2b4b783a5094e83b77773fefc5e511313f65400d0798f44e042b20c4155c8",
+  "catalog_digest": "2977e80238dbcaabd4088edb7fd530e5ac215e8c15f648dc70194f5fc6e835bf",
   "rules": {
     "L0.EXCEPTIONS_HAVE_ONE_HOME": {
       "severity": "high",
@@ -172,6 +172,17 @@
     },
     "L3.GATE_HAS_FRESH_EVIDENCE": {
       "severity": "critical",
+      "scope": 0,
+      "exclude": 0,
+      "forbidden": 0,
+      "narrowed_patterns": 0,
+      "languages": 0,
+      "tools": 0,
+      "must_live_in": 0,
+      "must_not_live_in": 0
+    },
+    "L3.GATE_PLAN_NOT_IN_THE_QUEUE": {
+      "severity": "high",
       "scope": 0,
       "exclude": 0,
       "forbidden": 0,

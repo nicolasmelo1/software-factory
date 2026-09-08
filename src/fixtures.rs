@@ -403,6 +403,25 @@ pub const FIXTURES: &[Fixture] = &[
         )],
     },
     Fixture {
+        rule: "L3.GATE_PLAN_NOT_IN_THE_QUEUE",
+        policy_extra: "",
+        extra_rules: "",
+        // The gate points its criteria document back into the directory the
+        // plan-cadence rules police. `plans_dir` is declared, so the rule's
+        // predicate is decidable, and the weld is exactly the shape this
+        // repository carried before this rule existed.
+        files: &[
+            (
+                "plans/rewrite-checkout.md",
+                "# Rewrite checkout\n\nExit condition: the new checkout serves live traffic.\n\n## Acceptance criteria\n\n- [ ] A guest can complete a purchase without an account.\n      (proof: deferred:the checkout assertion has not been designed)\n",
+            ),
+            (
+                "docs/design/rewrite-checkout.md",
+                "# Rewrite checkout (design note)\n\nThe criteria document the gate will be repointed at. Present so the\nfixture is a repository whose `plans/` and `docs/design/` both exist.\n",
+            ),
+        ],
+    },
+    Fixture {
         rule: "L5.EVERY_CHECK_HAS_A_MUTATION_TEST",
         policy_extra: "",
         // A second rule with no fixture of its own is what this must notice.
@@ -602,6 +621,15 @@ const CI_WITHOUT_HAZARD_TOOLS: &str = "name: ci\non: [push]\njobs:\n  test:\n   
 /// The mini-policy a fixture runs under: the target rule, plus whatever the
 /// fixture needs to be a coherent repository.
 pub fn fixture_policy(fixture: &Fixture) -> String {
+    // The placement rule's fixture has to declare the queue it welds its gate
+    // back into. The generated template's `docs:` block carries `scan:` for
+    // every fixture, so the queue joins it there — a second `docs:` key in
+    // one YAML document is malformed rather than a merge, which the first
+    // verify run found the honest way.
+    let plans_dir = match fixture.rule {
+        "L3.GATE_PLAN_NOT_IN_THE_QUEUE" => "\n  plans_dir: plans",
+        _ => "",
+    };
     let gates = match fixture.rule {
         "L3.GATE_HAS_FRESH_EVIDENCE" => {
             "gates:\n  checkout:\n    activation: [\"src/checkout/**\"]\n    evidence: \"evidence/checkout.json\"\n"
@@ -621,6 +649,12 @@ pub fn fixture_policy(fixture: &Fixture) -> String {
         "L5.NO_INERT_RULE" => {
             "gates:\n  checkout:\n    activation: []\n    evidence: \"evidence/checkout.json\"\n"
         }
+        // The weld itself: the gate's criteria document sits inside the
+        // queue of undone work. Remove the arm and `sf verify` fails here
+        // first.
+        "L3.GATE_PLAN_NOT_IN_THE_QUEUE" => {
+            "gates:\n  checkout:\n    activation: [\"src/checkout/**\"]\n    evidence: \"evidence/checkout.json\"\n    plan: \"plans/rewrite-checkout.md\"\n    required_assertions: []\n"
+        }
         _ => "gates: {}\n",
     };
     let extra_rule = fixture.extra_rules;
@@ -631,12 +665,13 @@ pub fn fixture_policy(fixture: &Fixture) -> String {
            name: mutation-{rule}\n  \
            languages: [python, typescript, go, rust, ruby]\n\
          docs:\n  \
-           scan: [\"docs/**/*.md\"]\n\
+           scan: [\"docs/**/*.md\"]{plans_dir}\n\
          {gates}\
          rules:\n\
          {extra_rule}\
          \x20 {rule}:\n    enabled: true\n{options}",
         rule = fixture.rule,
+        plans_dir = plans_dir,
         options = if fixture.policy_extra.is_empty() {
             String::new()
         } else {

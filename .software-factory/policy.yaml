@@ -11,6 +11,10 @@ docs:
   scan:
     - "docs/**/*.md"
     - "*.md"
+  # The queue of undone work. `L3.GATE_PLAN_NOT_IN_THE_QUEUE` reads this to
+  # know which directory a gate's criteria document may not live in, and
+  # `plans/next-steps.md` is the execution order inside it.
+  plans_dir: "plans"
 
 # A gate activates from the paths a change touches, never from a label
 # or a sentence in a pull request. See L3.GATE_HAS_FRESH_EVIDENCE.
@@ -29,7 +33,7 @@ gates:
       - "skills/factory-evidence/**"
       - ".software-factory/evidence/adoption-scenario.sh"
     evidence: ".software-factory/evidence/adoption.json"
-    plan: "plans/adoption-is-proven-end-to-end.md"
+    plan: "docs/design/adoption-is-proven-end-to-end.md"
     required_assertions:
       - "cli.init_scaffolds_a_policy"
       - "cli.verify_is_green_after_init"
@@ -174,6 +178,9 @@ rules:
   # L3 — A gate requires every check its plan's criteria name
   L3.GATE_COVERS_THE_PLAN:
     enabled: true
+  # L3 — A gate's criteria document stays out of the queue of undone work
+  L3.GATE_PLAN_NOT_IN_THE_QUEUE:
+    enabled: true
   # L4 — Repo-relative documentation links resolve
   L4.DOC_LINKS_RESOLVE:
     enabled: true
@@ -186,9 +193,26 @@ rules:
   # L4 — Every acceptance criterion names the check that proves it
   L4.PLAN_CRITERION_NAMES_ITS_CHECK:
     enabled: true
+    options:
+      # The plan-cadence rules police `plans/` (see `docs.plans_dir` above),
+      # so the criteria of a delivered gate plan that moved to `docs/design/`
+      # stay under these two rules' eyes. `L4.PLAN_DECLARES_EXIT_CONDITION`
+      # deliberately does not follow: a design note is neither a plan in the
+      # queue nor parked, and extending it to `docs/design/` would put
+      # delivered work back in the queue from the other direction.
+      scope:
+        - "plans/*.md"
+        - "docs/design/*.md"
   # L4 — A plan has a criterion floor and a bounded proof-debt budget
   L4.PLAN_PROOF_BUDGET:
     enabled: true
+    options:
+      scope:
+        - "plans/*.md"
+        - "docs/design/*.md"
+      exclude:
+        - "plans/next-steps.md"
+      max: 60
   # L4 — New top-level files are declared before they appear
   L4.ROOT_FILES_ARE_DECLARED:
     enabled: true

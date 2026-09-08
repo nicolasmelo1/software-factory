@@ -145,6 +145,9 @@ pub enum CadenceMode {
     PlanProofBudget,
     /// Every check a plan's criteria name is one its gate actually requires.
     GateCoverage,
+    /// A gate's criteria document does not sit inside the queue of undone
+    /// work.
+    GatePlanPlacement,
     /// Every enabled rule has a mutation fixture that proves the check fires.
     MutationCoverage,
     /// No enabled rule is configured so it cannot produce a finding.
@@ -267,6 +270,7 @@ pub const BUILTIN: &[(&str, &str)] = &[
     ("L2/no-permanent-exception.yaml", include_str!("../catalog/L2/no-permanent-exception.yaml")),
     ("L3/gate-has-fresh-evidence.yaml", include_str!("../catalog/L3/gate-has-fresh-evidence.yaml")),
     ("L3/gate-covers-the-plan.yaml", include_str!("../catalog/L3/gate-covers-the-plan.yaml")),
+    ("L3/gate-plan-not-in-the-queue.yaml", include_str!("../catalog/L3/gate-plan-not-in-the-queue.yaml")),
     ("L4/doc-links-resolve.yaml", include_str!("../catalog/L4/doc-links-resolve.yaml")),
     ("L4/root-files-are-declared.yaml", include_str!("../catalog/L4/root-files-are-declared.yaml")),
     ("L4/every-rule-has-a-why.yaml", include_str!("../catalog/L4/every-rule-has-a-why.yaml")),

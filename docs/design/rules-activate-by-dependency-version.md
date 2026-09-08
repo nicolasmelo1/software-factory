@@ -35,7 +35,7 @@ rules:
 
 The version comes from the manifest, which is already inside the scope of
 `L2.DEPENDENCIES_CHANGE_DELIBERATELY` (see
-[`.software-factory/policy.yaml`](../.software-factory/policy.yaml)). That is
+[`.software-factory/policy.yaml`](../../.software-factory/policy.yaml)). That is
 what makes the condition trustworthy: the input cannot move without a lock
 update in the same commit, so `when` is gated by a rule that already exists
 rather than being a new thing to trust.
@@ -66,7 +66,7 @@ It does not check that the rule's content is right for the version it claims.
 A regex written for Tailwind 3 stays a regex written for Tailwind 3 whether or
 not the condition matches. Reading the upstream changelog and turning it into
 patterns is a once-per-bump job for a model, not something CI can decide, and
-it is the job [`factory-author`](../skills/factory-author/SKILL.md) exists for.
+it is the job [`factory-author`](../../skills/factory-author/SKILL.md) exists for.
 
 **Exit condition:** a repository pinned to a major version runs that version's
 rules, and changing the pin in the manifest makes `sf check` fail by naming

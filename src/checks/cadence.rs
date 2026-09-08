@@ -15,6 +15,32 @@ use regex::Regex;
 use std::collections::{BTreeMap, BTreeSet};
 
 pub fn run(rule: &Rule, opts: &Options, ctx: &Ctx, mode: CadenceMode) -> Result<Vec<Finding>> {
+    // Split the way `checks::run_bookkeeping` is: the modes that read what the
+    // repository committed about its own writing, and the meta modes about
+    // other rules. One flat dispatch over every mode would be a function a
+    // rule has to be widened for each time a mode lands.
+    match mode {
+        CadenceMode::DocLinks
+        | CadenceMode::RootFiles
+        | CadenceMode::RuleCitations
+        | CadenceMode::PlanCadence
+        | CadenceMode::PlanCriteria
+        | CadenceMode::PlanProofBudget
+        | CadenceMode::GateCoverage
+        | CadenceMode::GatePlanPlacement
+        | CadenceMode::ClaimCitations => document_cadence(rule, opts, ctx, mode),
+        CadenceMode::MutationCoverage | CadenceMode::InertRules | CadenceMode::RuleCommands => {
+            meta_cadence(rule, ctx, mode)
+        }
+    }
+}
+
+fn document_cadence(
+    rule: &Rule,
+    opts: &Options,
+    ctx: &Ctx,
+    mode: CadenceMode,
+) -> Result<Vec<Finding>> {
     match mode {
         CadenceMode::DocLinks => doc_links(rule, opts, ctx),
         CadenceMode::RootFiles => root_files(rule, opts, ctx),
@@ -23,10 +49,20 @@ pub fn run(rule: &Rule, opts: &Options, ctx: &Ctx, mode: CadenceMode) -> Result<
         CadenceMode::PlanCriteria => plan_criteria(rule, opts, ctx),
         CadenceMode::PlanProofBudget => plan_proof_budget(rule, opts, ctx),
         CadenceMode::GateCoverage => gate_coverage(rule, ctx),
+        CadenceMode::GatePlanPlacement => gate_plan_placement(rule, ctx),
+        CadenceMode::ClaimCitations => claim_citations(rule, opts, ctx),
+        // Handled by `run` before it delegates here. Not `unreachable!`: an
+        // added mode should reach its own arm, not abort the run.
+        _ => Ok(Vec::new()),
+    }
+}
+
+fn meta_cadence(rule: &Rule, ctx: &Ctx, mode: CadenceMode) -> Result<Vec<Finding>> {
+    match mode {
         CadenceMode::MutationCoverage => mutation_coverage(rule, ctx),
         CadenceMode::InertRules => inert_rules(rule, ctx),
         CadenceMode::RuleCommands => rule_commands(rule, ctx),
-        CadenceMode::ClaimCitations => claim_citations(rule, opts, ctx),
+        _ => Ok(Vec::new()),
     }
 }
 
@@ -136,7 +172,7 @@ fn inert_reason(candidate: &Rule, ctx: &Ctx) -> Result<Option<String>> {
 ///
 /// The trailing `_ => None` is the known gap, and the compiler cannot ask for
 /// the next one: `expiry`, `policy_tightening` and every `cadence` mode other
-/// than `gate_coverage` still have no inertness test.
+/// than `gate_coverage` and `gate_plan_placement` still have no inertness test.
 fn inert_bookkeeping_reason(check: &CheckKind, options: &Options, ctx: &Ctx) -> Result<Option<String>> {
     Ok(match check {
         CheckKind::Lock if options.scope.is_empty() => {
@@ -148,6 +184,9 @@ fn inert_bookkeeping_reason(check: &CheckKind, options: &Options, ctx: &Ctx) -> 
         CheckKind::Toolchain => inert_toolchain_reason(options, ctx),
         CheckKind::Evidence => inert_evidence_reason(ctx),
         CheckKind::Cadence { mode: CadenceMode::GateCoverage } => inert_gate_coverage_reason(ctx),
+        CheckKind::Cadence { mode: CadenceMode::GatePlanPlacement } => {
+            inert_gate_plan_placement_reason(ctx)
+        }
         CheckKind::Cadence { mode: CadenceMode::PlanProofBudget }
             if scan::select(ctx.files, &options.scope, &options.exclude)?.is_empty() =>
         {
@@ -969,6 +1008,99 @@ fn gate_coverage(rule: &Rule, ctx: &Ctx) -> Result<Vec<Finding>> {
         }
     }
     Ok(findings)
+}
+
+/// `L3.GATE_PLAN_NOT_IN_THE_QUEUE`: a gate's criteria document does not sit
+/// inside the queue of undone work.
+///
+/// `gate_coverage` reads a gate's `plan` from wherever `gates.<name>.plan`
+/// points and requires nothing about where that path lives, so a delivered
+/// plan is welded to the gate that outlived it: deleting the file takes the
+/// gate's criteria with it, and the queue of undone work grows a "shipped"
+/// section nobody is reading on purpose. This is the weld, and the rule
+/// refuses it.
+fn gate_plan_placement(rule: &Rule, ctx: &Ctx) -> Result<Vec<Finding>> {
+    // The queue is what the policy declares it to be, not a convention this
+    // binary guesses at: `docs.plans_dir` undeclared leaves the rule's
+    // predicate unevaluable, which is inertness (`L5.NO_INERT_RULE` says so)
+    // rather than a quiet pass.
+    let Some(queue) = ctx.policy.docs.plans_dir.as_deref() else {
+        return Ok(Vec::new());
+    };
+    let mut findings = Vec::new();
+    for (name, gate) in &ctx.policy.gates {
+        let Some(plan) = &gate.plan else {
+            continue;
+        };
+        if !plan_in_directory(plan, queue) {
+            continue;
+        }
+        findings.push(
+            Finding::new(
+                &rule.id,
+                rule.severity,
+                crate::policy::POLICY_PATH,
+                format!("in-the-queue:{name}:{plan}"),
+                format!(
+                    "gate `{name}`'s criteria live at `{plan}`, inside `{queue}/` — the directory \
+                     the plan-cadence rules police, where a document is listed as undone work and \
+                     a deleted file takes the gate's coverage with it"
+                ),
+            )
+            .expected(format!("a criteria document outside `{queue}/`, where nothing lists it as undone work"))
+            .actual(plan.clone()),
+        );
+    }
+    Ok(findings)
+}
+
+/// Whether a gate's `plan` path names a document inside `directory`. Empty
+/// segments and `.` steps are normalised away, so `./plans/x.md` and
+/// `plans//x.md` are the same path to this comparison, and a policy cannot
+/// dodge the rule by spelling the directory it declared differently from the
+/// directory the plan sits in.
+fn plan_in_directory(plan: &str, directory: &str) -> bool {
+    let directory = directory.trim().trim_end_matches('/');
+    if directory.is_empty() {
+        return false;
+    }
+    let normalised: String = plan
+        .split('/')
+        .filter(|part| !part.is_empty() && *part != ".")
+        .collect::<Vec<_>>()
+        .join("/");
+    normalised == directory || normalised.starts_with(&format!("{directory}/"))
+}
+
+/// Why a `gate_plan_placement` rule can never produce a finding here, if any.
+///
+/// The first two doors are `inert_gate_coverage_reason`'s. The third is this
+/// rule's own: the queue is what the policy declares as `docs.plans_dir`, and
+/// a policy that declares none leaves the predicate unevaluable — reported as
+/// inertness rather than read as coverage.
+fn inert_gate_plan_placement_reason(ctx: &Ctx) -> Option<String> {
+    if ctx.policy.gates.is_empty() {
+        return Some(
+            "no gate declared in `gates:`: there is no gate whose plan placement it could judge — declare one, or disable this rule in policy and say why in docs/rules.md".to_string(),
+        );
+    }
+    if ctx
+        .policy
+        .gates
+        .values()
+        .all(|gate| gate.plan.is_none())
+    {
+        return Some(format!(
+            "no declared gate ({}) names a `plan`: this rule only reads gates that do, so it will report zero findings forever",
+            joined(ctx.policy.gates.keys()),
+        ));
+    }
+    if ctx.policy.docs.plans_dir.is_none() {
+        return Some(
+            "`docs.plans_dir` is undeclared, so the queue of undone work this rule measures against is unknown: point it at the directory your execution order lives in, or disable this rule in policy and say why in docs/rules.md".to_string(),
+        );
+    }
+    None
 }
 
 /// An `sf` invocation quoted in prose, e.g. `sf seal <gate>`. Only spans that

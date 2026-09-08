@@ -66,17 +66,27 @@ benchmark baseline here yet. Wiring `cargo bench` so the check goes green
 without a committed baseline would be a green light measuring nothing, so it
 carries a review date instead. That is what the ratchet is for.
 
-**No L3 gate is defined yet.** `L3.GATE_HAS_FRESH_EVIDENCE` is enabled and
-`gates:` is empty, so it currently reports nothing here. The effect worth
-gating on is `sf verify` passing against a repository in a language it has
-never parsed — see
-[the language adapter plan](../plans/expand-language-adapters.md).
+**The adoption gate's criteria live in a design note, not in `plans/`.**
+`gates.adoption.plan` points at
+[`docs/design/adoption-is-proven-end-to-end.md`](design/adoption-is-proven-end-to-end.md).
+The plan it replaced was delivered, and a delivered document the plan-cadence
+rules police is a document the queue cannot let go of: deleting it takes the
+gate's criteria with it, which is the weld
+[the design note this work left behind](design/a-gate-outlives-its-plan.md)
+exists to break. Its design notes carry the acceptance criteria verbatim, and
+`L4.PLAN_CRITERION_NAMES_ITS_CHECK` and `L4.PLAN_PROOF_BUDGET` follow them
+there through their policy scope, while `L4.PLAN_DECLARES_EXIT_CONDITION`
+deliberately does not — a design note is neither a plan in the queue nor
+parked, and extending that rule would put delivered work back in the queue.
+`L3.GATE_PLAN_NOT_IN_THE_QUEUE` is the rule that keeps it that way: it reads
+`docs.plans_dir` for the queue and refuses a gate whose criteria document sits
+inside it, and it reports as inert, not green, when the queue is undeclared.
 
-**No claim is marked yet either, for the same reason.**
+**No claim is marked yet.**
 `L4.CLAIM_CITES_ITS_EVIDENCE` joins a promise to the gate that proved it, and
-with no gate there is nothing a sentence here could honestly name. It is
-enabled anyway: the first promise somebody marks gets joined at the moment it
-is written, which is the only moment anybody knows what proved it.
+the `adoption` gate is now there to be named. No page has marked one yet; the
+first promise somebody marks gets joined at the moment it is written, which is
+the only moment anybody knows what proved it.
 
 **Four L6 hazard rules now name Ruby tools; three deliberately do not.**
 `L6.DEPENDENCY_VULNERABILITIES_ARE_SCANNED`, `L6.INSECURE_PATTERNS_ARE_SCANNED`,
@@ -287,6 +297,16 @@ When a change touches a gate's activation paths, that gate's evidence manifest m
 **Why.** This is the whole method in one check. Activation comes from touched paths, so nobody can skip the gate by omitting a label or writing "done" in a pull request. The manifest is not trusted, it is re-verified, so a summary cannot claim a pass the raw report never contained. And the implementation digest is what makes evidence expire: change the code the evidence certified and the evidence dies with it, instead of quietly certifying something it never saw. The actor is the property the other four are in service of: the gate is not "the tests pass", it is that something shaped like the customer achieved the effect, so a run filed under `scripted` has recorded a replay of a fixed sequence and a replay proves the sequence rather than the outcome. That last one is a denylist over free text and is worth no more than it claims — a manifest set on getting past it writes "the script" and does. It is exactly as strong as the goal check beside it: it names the value somebody reaches for when they have not thought about the actor, and stops the field being decoration nothing reads. An empty assertion list is the same failure one level down: the per-assertion loops can faithfully compare nothing and still make a run that observed nothing look complete, so the report itself needs a floor.
 
 **Fix.** Re-run the proof against the real thing and regenerate the manifest with `sf seal <gate>`. If the run cannot pass, the finding is the product behaviour, not the gate. If the finding is the actor, the fix is not a better word in the manifest — it is running the scenario as the customer would meet it. Never hand-edit a digest.
+
+### L3.GATE_PLAN_NOT_IN_THE_QUEUE
+
+**A gate's criteria document stays out of the queue of undone work**
+
+A gate may not name its `plan` under the execution-order directory. A document the gate's criteria live in has to be deletable once its work is delivered; a document the plan-cadence rules police has to stay in the queue until somebody does the work. One directory cannot be both, so a policy points the gate at a design note under `docs/design/` and leaves `plans/` to work nobody has done yet.
+
+**Why.** `gate_coverage` joins a gate to whatever path `gates.<name>.plan` names and requires nothing about where that path sits, so a delivered plan is welded to the gate that outlived it: deleting the file takes the gate's criteria with it, and the queue of undone work grows a "shipped" section nobody is reading on purpose. The cost is per plan, and the cheap moment to unweld is the first one. A delivered plan has a different lifecycle from an open one — its criteria are stable records of what was proven, not promises somebody could still fail to keep — so it belongs beside the decisions it records, where nothing asks whether it is done. The rule reads the directory the policy declares as its queue (`docs.plans_dir`) rather than assuming `plans/`, because a repository may spell its execution order wherever it likes.
+
+**Fix.** Move the delivered document to `docs/design/` carrying its acceptance criteria verbatim, point `gates.<name>.plan` at the new path, run `sf lock` to record the new policy hash, and delete the file from `plans/`. A gate whose criteria still name undone work does not move: the gate is protecting work that has not happened yet.
 
 ## L4 — Cadence: docs, plans and rules stay attached
 
