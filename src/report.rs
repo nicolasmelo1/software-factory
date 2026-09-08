@@ -7,6 +7,24 @@ use anyhow::Result;
 use serde::Serialize;
 use std::collections::BTreeMap;
 
+/// What the report can say about one stuck finding, read from the escape log
+/// by the caller (the check loop that owns the root and the rule ids).
+#[derive(Debug, Default, Serialize)]
+pub struct Trail {
+    /// Human-visible counts of failed edits, newest last, as rendered.
+    pub attempts: Vec<String>,
+    /// The worked repair, when the caller decided one is due and a clean one
+    /// exists. `None` renders as the plain finding.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub escape: Option<String>,
+}
+
+impl Trail {
+    pub fn has_content(&self) -> bool {
+        !self.attempts.is_empty() || self.escape.is_some()
+    }
+}
+
 #[derive(Serialize)]
 pub struct Report {
     pub findings: Vec<Finding>,
@@ -18,6 +36,8 @@ pub struct Report {
     /// introduction. A green overlay run must not be quotable later as a
     /// governed one, so every format names this — and that the run carried no
     /// ratchet.
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    pub trail: BTreeMap<String, Trail>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub overlay: Option<crate::checks::Overlay>,
 }
@@ -54,7 +74,7 @@ impl Report {
         let grouped = group_findings(&self.findings);
         let rules = grouped.len();
         for (rule_id, findings) in grouped {
-            render_rule_group(catalog, &mut out, rule_id, &findings);
+            render_rule_group(catalog, &mut out, rule_id, &findings, &self.trail);
         }
         out.push_str(&format!(
             "\n{} findings across {} rules{}\n",
@@ -120,6 +140,7 @@ fn render_rule_group(
     out: &mut String,
     rule_id: &str,
     findings: &[&Finding],
+    trail: &BTreeMap<String, Trail>,
 ) {
     let rule = catalog
         .get(rule_id)
@@ -139,7 +160,30 @@ fn render_rule_group(
         if let Some(actual) = &finding.actual {
             out.push_str(&format!("       actual   {actual}\n"));
         }
+        out.push_str(&trail_lines(trail, &finding.key, "       "));
     }
+}
+
+/// The attempt trail and the worked escape, under one finding. Escaped
+/// entirely when the log has nothing to say about this key, which is what
+/// keeps the ordinary finding's bytes identical to the version without it.
+fn trail_lines(trail: &BTreeMap<String, Trail>, key: &str, indent: &str) -> String {
+    let Some(entry) = trail.get(key) else {
+        return String::new();
+    };
+    if !entry.has_content() {
+        return String::new();
+    }
+    let mut out = String::new();
+    for attempt in &entry.attempts {
+        out.push_str(&format!("{indent}tried   {attempt}\n"));
+    }
+    if let Some(escape) = &entry.escape {
+        for line in escape.lines() {
+            out.push_str(&format!("{indent}escape  {line}\n"));
+        }
+    }
+    out
 }
 
 fn marker(severity: Severity) -> &'static str {
@@ -191,6 +235,7 @@ mod an_instance_keeps_its_prose {
             )],
             frozen: 0,
             rules_run: 1,
+            trail: BTreeMap::new(),
             overlay: None,
         }
     }
@@ -235,6 +280,7 @@ mod an_instance_keeps_its_prose {
 #[cfg(test)]
 mod overlay_provenance {
     use super::Report;
+    use std::collections::BTreeMap;
     use crate::checks::Overlay;
     use crate::catalog::Catalog;
 
@@ -243,6 +289,7 @@ mod overlay_provenance {
             findings: vec![],
             frozen: 0,
             rules_run: 3,
+            trail: BTreeMap::new(),
             overlay: Some(Overlay {
                 path: "../factory-policy/.software-factory".to_string(),
                 digest: "3857f5559a3e".to_string(),
@@ -276,7 +323,149 @@ mod overlay_provenance {
     #[test]
     fn a_vendored_report_carries_no_disclaimer() {
         let catalog = Catalog::builtin().expect("the shipped catalog loads");
-        let plain = Report { findings: Vec::new(), frozen: 0, rules_run: 1, overlay: None };
+        let plain = Report { findings: Vec::new(), frozen: 0, rules_run: 1, trail: BTreeMap::new(), overlay: None };
         assert!(!plain.text(&catalog).contains("overlay"), "{}", plain.text(&catalog));
+    }
+}
+
+#[cfg(test)]
+mod the_attempt_trail {
+    use super::*;
+
+    fn finding_with(key: &str) -> Finding {
+        Finding::new(
+            "L1.COMPLEXITY_CEILING",
+            Severity::Medium,
+            "src/a.rs:1",
+            key,
+            "`price` has 13 independent paths, ceiling is 12",
+        )
+    }
+
+    /// The property the feature exists for: once attempts accumulate, the
+    /// rendered finding changes instead of repeating byte for byte.
+    #[test]
+    fn a_rendered_finding_changes_once_attempts_accumulate() {
+        let plain = Report {
+            findings: vec![finding_with("src/a.rs:price")],
+            frozen: 0,
+            rules_run: 1,
+            trail: BTreeMap::new(),
+            overlay: None,
+        };
+        let mut trail = BTreeMap::new();
+        trail.insert(
+            "src/a.rs:price".to_string(),
+            Trail {
+                attempts: vec![
+                    "attempt 1 — diff f0c1".to_string(),
+                    "attempt 2 — diff b2e4".to_string(),
+                ],
+                escape: None,
+            },
+        );
+        let repeated = Report {
+            findings: vec![finding_with("src/a.rs:price")],
+            frozen: 0,
+            rules_run: 1,
+            trail,
+            overlay: None,
+        };
+        let first = plain.text(&Catalog::builtin().expect("the catalog loads"));
+        let second = plain.text(&Catalog::builtin().expect("the catalog loads"));
+        assert_eq!(
+            first, second,
+            "an empty log must render byte-identical runs"
+        );
+        let with = repeated.text(&Catalog::builtin().expect("the catalog loads"));
+        assert_ne!(first, with, "the trail changes what the finding renders");
+        assert!(with.contains("tried"), "the attempts render: {with}");
+        assert!(with.contains("attempt 1"), "each attempt is named: {with}");
+    }
+
+    /// The ladder: at two attempts the model sees only its own trail; past
+    /// the threshold a worked escape joins. Byte counts differ because the
+    /// content differs, which is the gradient.
+    #[test]
+    fn the_escape_joins_only_past_the_attempt_ceiling() {
+        let mut trail = BTreeMap::new();
+        trail.insert(
+            "src/a.rs:price".to_string(),
+            Trail {
+                attempts: vec!["attempt 1".to_string()],
+                escape: Some("worked repair: extract the loop".to_string()),
+            },
+        );
+        let report = Report {
+            findings: vec![finding_with("src/a.rs:price")],
+            frozen: 0,
+            rules_run: 1,
+            trail,
+            overlay: None,
+        };
+        let rendered = report.text(&Catalog::builtin().expect("the catalog loads"));
+        assert!(
+            rendered.contains("escape"),
+            "the worked repair renders: {rendered}"
+        );
+        assert!(rendered.contains("worked repair"), "{rendered}");
+    }
+
+    #[test]
+    fn a_trail_for_another_key_leaves_the_finding_alone() {
+        let mut trail = BTreeMap::new();
+        trail.insert(
+            "src/other.rs:parse".to_string(),
+            Trail {
+                attempts: vec!["attempt 1".to_string()],
+                escape: Some("worked repair".to_string()),
+            },
+        );
+        let report = Report {
+            findings: vec![finding_with("src/a.rs:price")],
+            frozen: 0,
+            rules_run: 1,
+            trail,
+            overlay: None,
+        };
+        let rendered = report.text(&Catalog::builtin().expect("the catalog loads"));
+        assert!(
+            !rendered.contains("tried"),
+            "no cross-key bleed: {rendered}"
+        );
+    }
+
+    #[test]
+    fn the_json_report_carries_the_trail_as_data() {
+        let mut trail = BTreeMap::new();
+        trail.insert(
+            "src/a.rs:price".to_string(),
+            Trail {
+                attempts: vec!["attempt 1".to_string()],
+                escape: None,
+            },
+        );
+        let report = Report {
+            findings: vec![finding_with("src/a.rs:price")],
+            frozen: 0,
+            rules_run: 1,
+            trail,
+            overlay: None,
+        };
+        let json = report.json().expect("the report serialises");
+        assert!(json.contains("\"trail\""), "{json}");
+        assert!(json.contains("\"attempts\""), "{json}");
+        // And a clean run carries none of it.
+        let plain = Report {
+            findings: vec![],
+            frozen: 0,
+            rules_run: 1,
+            trail: BTreeMap::new(),
+            overlay: None,
+        };
+        assert!(
+            !plain.json().expect("the report serialises").contains("\"trail\""),
+            "absent when empty"
+        );
     }
 }

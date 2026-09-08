@@ -1,10 +1,18 @@
-//! Mutation fixtures: the smallest repository that violates each rule.
+//! Mutation fixtures: the smallest repository that violates each rule, and
+//! the smallest repair that clears it.
 //!
 //! These are the reason to trust anything else in this tool. A rule with a
 //! typo in its query, a glob that matches nothing, or a scope that excludes
 //! the source tree passes silently and looks exactly like a rule that works.
 //! `sf verify` runs every enabled rule against its fixture and fails if the
-//! rule does not fire.
+//! rule does not fire — and, where the fixture carries a `fixed:` variant,
+//! fails again if the repair does not clear it.
+//!
+//! The `fixed:` half is the escape log's cold start. An escape log is empty
+//! until somebody has been stuck, so the log's worked example has to come
+//! from somewhere on the first run; proving a repair in the binary means every
+//! rule ships with a verified before and after from day one, and `sf check`'s
+//! escape ladder has an example to hand over that the tool itself proved.
 
 pub struct Fixture {
     pub rule: &'static str,
