@@ -1,11 +1,14 @@
 {
   "schema_version": 1,
   "files": {
-    ".allowed-root-files": "20889fd9828de3c601e63bae4c430692846319df116688c1322bd230bdfc1995",
+    ".allowed-root-files": "102b1708337d1303a590f8f0201ea147c4c10bc3b41b8e64650b83de9d34aed5",
     ".githooks/pre-commit": "47642e2f720762fecb49bdaecbe28afec61f6ab1611c14c36cf70e240f18b072",
-    ".github/workflows/release.yml": "b8beb43a7b8606aa17a79e069426798f4dd16e169493805a2205abc3213bc002",
+    ".github/workflows/release-plz.yml": "49e4c37eb2dbb3b95b2fdf68b02640d7ee47565a6509cdb16b03cb33d85805f8",
+    ".github/workflows/release.yml": "cfbf7dfa023db1c52ef6c9fc5111f7df5e151bdb39a0dc992adaf60011579ec3",
     ".github/workflows/software-factory.yml": "0350f6ff218f228765453461949d2c9b7ce5158c0705a7968c332a7b629f7eab",
-    ".software-factory/policy.yaml": "4699ea46665890d439cfba4dce46a92e776130b7c7211ff53b37af9c90d5cbf0",
-    ".software-factory/ratchet.yaml": "42611c9974434ff314625fb33bc49b24517ca5bdf3fb629538c271b2f7a03db5"
+    ".software-factory/policy.yaml": "a1bddb926bd1befae06e65f224ad264979b51a01856fce4e71d593353624d09c",
+    ".software-factory/ratchet.yaml": "42611c9974434ff314625fb33bc49b24517ca5bdf3fb629538c271b2f7a03db5",
+    "release-plz.toml": "b307798df7eee1e3a0339c14283aed599c92460e1b2d7d44ed2492fbdc81eced",
+    "scripts/prepare-release-pr.sh": "ddd1904a42f77c5331f9e0abfc39fa0fa092db8ea03bf60a1d1ad65dd8cf0a92"
   }
 }

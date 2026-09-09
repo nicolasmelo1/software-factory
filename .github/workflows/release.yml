@@ -5,8 +5,21 @@
 name: release
 
 on:
-  push:
-    tags: ["v*"]
+  # release-plz calls this workflow after it creates the tag and GitHub release.
+  # Keeping the binary build in a reusable workflow means the release operation
+  # and its assets share one token/run rather than relying on a tag event that
+  # GitHub deliberately does not trigger for the default Actions token.
+  workflow_call:
+    inputs:
+      tag:
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to verify and populate
+        required: true
+        type: string
 
 # Nothing here writes to the repository. The release job needs contents: write
 # to create the release itself, and it is the only job that gets it.
@@ -36,7 +49,7 @@ jobs:
       # people.
       - name: The tag matches the built version
         env:
-          TAG: ${{ github.ref_name }}
+          TAG: ${{ inputs.tag }}
         run: |
           set -eu
           built="v$(./target/release/sf --version | awk '{print $2}')"
@@ -117,7 +130,7 @@ jobs:
       # prose naming a command.
       - name: Compose the notes
         env:
-          TAG: ${{ github.ref_name }}
+          TAG: ${{ inputs.tag }}
         run: |
           set -eu
           # Single-quoted on purpose: the backticks are literal markdown, and
@@ -137,7 +150,7 @@ jobs:
       - name: Publish
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ github.ref_name }}
+          TAG: ${{ inputs.tag }}
         # `gh` is on the runner already. A third-party release action would be
         # one more SHA to pin and one more thing holding a write token.
         #
