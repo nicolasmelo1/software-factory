@@ -3,6 +3,7 @@
 .allowed-root-files
 .gitignore
 AGENTS.md
+CHANGELOG.md
 Cargo.lock
 Cargo.toml
 LICENSE
@@ -14,6 +15,8 @@ catalog
 docs
 interview
 plans
+release-plz.toml
+scripts
 skills
 src
 templates

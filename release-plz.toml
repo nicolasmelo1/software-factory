@@ -1,0 +1,15 @@
+[workspace]
+# This project distributes GitHub releases and platform binaries, not a crate on
+# crates.io. Tags, rather than the cargo registry, are the release source of
+# truth; the reusable release workflow attaches the binaries to that release.
+git_only = true
+git_release_enable = true
+publish = false
+release_always = false
+# `sf` is a binary, so cargo-semver-checks has no public library API to inspect.
+semver_check = false
+pr_labels = ["release"]
+
+[[package]]
+name = "sf"
+changelog_path = "CHANGELOG.md"

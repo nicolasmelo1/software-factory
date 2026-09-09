@@ -1,0 +1,83 @@
+# A release is proposed, reviewed, and merged like every other change. On each
+# push to main, release-plz first releases only a merged release PR, then opens
+# or refreshes the next one from the conventional commits still unreleased.
+name: release-plz
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    name: Release merged release PR
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: read
+    outputs:
+      released: ${{ steps.release-plz.outputs.releases_created }}
+      tag: ${{ fromJSON(steps.release-plz.outputs.releases)[0].tag }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: release-plz
+        uses: release-plz/action@503fe65046e8810d4844f6b3aa12ab599a3549d7 # v0.5.134
+        with:
+          command: release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  attach-binaries:
+    needs: release
+    if: needs.release.outputs.released == 'true'
+    permissions:
+      contents: write
+    uses: ./.github/workflows/release.yml
+    with:
+      tag: ${{ needs.release.outputs.tag }}
+
+  release-pr:
+    name: Prepare next release PR
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    concurrency:
+      group: release-plz-${{ github.ref }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+          # The derived release artifacts are committed to the release PR after
+          # release-plz creates its verified version/changelog commit.
+          persist-credentials: true
+      - id: release-plz
+        uses: release-plz/action@503fe65046e8810d4844f6b3aa12ab599a3549d7 # v0.5.134
+        with:
+          command: release-pr
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Update the release PR's derived artifacts
+        if: steps.release-plz.outputs.prs_created == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ steps.release-plz.outputs.pr }}
+        run: |
+          set -eu
+          pr_number=$(printf '%s' "$PR" | jq -er '.number')
+          gh pr checkout "$pr_number"
+          ./scripts/prepare-release-pr.sh
+          if git diff --quiet; then
+            echo "release-plz left every derived artifact current"
+            exit 0
+          fi
+          git add README.md Cargo.lock .software-factory/catalog.lock.json .software-factory/ratchet.yaml docs
+          git commit -m "chore: refresh release derivatives"
+          git push

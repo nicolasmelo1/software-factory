@@ -110,6 +110,9 @@ rules:
         - ".allowed-root-files"
         - ".github/workflows/software-factory.yml"
         - ".github/workflows/release.yml"
+        - ".github/workflows/release-plz.yml"
+        - "release-plz.toml"
+        - "scripts/prepare-release-pr.sh"
         - ".githooks/pre-commit"
   # L2 — Generated artifacts are hash-locked and not hand-edited
   L2.GENERATED_FILES_ARE_LOCKED:
