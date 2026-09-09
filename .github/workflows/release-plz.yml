@@ -25,6 +25,11 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+      # This job keeps the Actions token on purpose. It opens no pull request,
+      # so the refusal below does not reach it, and nothing waits on the tag it
+      # pushes: `attach-binaries` is a workflow call in this same run, which is
+      # what the comment in `release.yml` is about. A credential nobody needs
+      # is a credential worth not issuing.
       - id: release-plz
         uses: release-plz/action@503fe65046e8810d4844f6b3aa12ab599a3549d7 # v0.5.134
         with:
@@ -45,34 +50,77 @@ jobs:
     name: Prepare next release PR
     needs: release
     runs-on: ubuntu-latest
+    # Nothing in this job holds the Actions token any more, so it asks for no
+    # write of its own. The app token below is the only credential here, and it
+    # is scoped by the app's installation rather than by this block.
     permissions:
-      contents: write
-      pull-requests: write
+      contents: read
     concurrency:
       group: release-plz-${{ github.ref }}
       cancel-in-progress: false
     steps:
+      # Why an app instead of `secrets.GITHUB_TOKEN`. Two reasons, and the
+      # second is the one that matters here.
+      #
+      # First, GitHub refuses the call outright: `release-plz release-pr` got
+      # `403 GitHub Actions is not permitted to create or approve pull
+      # requests`. The switch that allows it is repository-wide, so buying one
+      # workflow a release PR would let every workflow open pull requests.
+      #
+      # Second, and worse: a pull request opened with the Actions token
+      # triggers no workflow. The release PR would arrive with no `factory` run
+      # against it, and it is the pull request that edits `Cargo.lock`,
+      # `.software-factory/catalog.lock.json` and the ratchet, each of them
+      # named by `L2.FACTORY_CONFIG_IS_LOCKED`. A release merging without the
+      # gate having run is the hole this repository exists to close.
+      #
+      # An installation token is a different actor, so both problems go away
+      # and the release PR is reviewed like every other change.
+      - id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.RELEASE_PLZ_APP_ID }}
+          private-key: ${{ secrets.RELEASE_PLZ_APP_PRIVATE_KEY }}
+          # Narrowed on purpose. Without these the token carries every
+          # permission the installation was granted, which is the same
+          # over-issue as a classic PAT wearing a different name, and zizmor
+          # reports it. These two are what opening the release PR and pushing
+          # its derived artifacts actually need.
+          permission-contents: write
+          permission-pull-requests: write
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
           # The derived release artifacts are committed to the release PR after
-          # release-plz creates its verified version/changelog commit.
+          # release-plz creates its verified version/changelog commit, so the
+          # credential has to survive into .git/config. It is the app's and not
+          # the Actions token's for the same reason as above: a push carrying
+          # the Actions token re-runs nothing.
+          token: ${{ steps.app-token.outputs.token }}
           persist-credentials: true
       - id: release-plz
         uses: release-plz/action@503fe65046e8810d4844f6b3aa12ab599a3549d7 # v0.5.134
         with:
           command: release-pr
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
       - name: Update the release PR's derived artifacts
         if: steps.release-plz.outputs.prs_created == 'true'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
           PR: ${{ steps.release-plz.outputs.pr }}
+          APP_SLUG: ${{ steps.app-token.outputs.app-slug }}
         run: |
           set -eu
           pr_number=$(printf '%s' "$PR" | jq -er '.number')
           gh pr checkout "$pr_number"
+          # `actions/checkout` sets no committer, and `git commit` refuses to
+          # guess one. The app's bot account is the honest author: it is what
+          # pushed. The numeric id is what links the commit to that account
+          # rather than leaving it unattributed.
+          bot_id=$(gh api "/users/$APP_SLUG%5Bbot%5D" --jq .id)
+          git config user.name "${APP_SLUG}[bot]"
+          git config user.email "${bot_id}+${APP_SLUG}[bot]@users.noreply.github.com"
           ./scripts/prepare-release-pr.sh
           if git diff --quiet; then
             echo "release-plz left every derived artifact current"
