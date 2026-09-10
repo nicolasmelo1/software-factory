@@ -388,4 +388,46 @@ mod completeness {
              TEMPLATES entries with no file on disk: {missing:?}"
         );
     }
+
+    /// Every template, filled in through the real interview path, must produce
+    /// a runnable rule. `instantiate` compiles each query, so a template whose
+    /// pattern is impossible in some language fails here rather than aborting
+    /// a user's `sf init` half-written. The test above never caught this: it
+    /// checks the registry, not the filled-in query.
+    #[test]
+    fn every_template_instantiates_when_activated() {
+        use super::{Answers, Interview, instantiate, plan};
+        use std::collections::BTreeMap;
+
+        // Two answer sets, because `kind` is exclusive: one backend, one
+        // client. Between them they switch on every template.
+        let sets = [
+            BTreeMap::from([
+                ("kind".to_string(), "backend-service".to_string()),
+                ("validation".to_string(), "pydantic".to_string()),
+                ("validation_placement".to_string(), "with-the-handler".to_string()),
+            ]),
+            BTreeMap::from([
+                ("kind".to_string(), "web-client".to_string()),
+                ("client_data".to_string(), "react-query".to_string()),
+                ("client_state".to_string(), "single-directory".to_string()),
+                ("client_root".to_string(), "apps/web".to_string()),
+                ("data_layer_packages".to_string(), "@acme/db, prisma".to_string()),
+            ]),
+        ];
+
+        let interview = Interview::load().expect("built-in interview loads");
+        let mut activated = BTreeSet::new();
+        for answers in sets {
+            let plan = plan(&interview, &Answers { version: 1, answers }).expect("answers plan");
+            for template in &plan.templates {
+                instantiate(template, &plan.vars)
+                    .unwrap_or_else(|e| panic!("template {template} is not runnable: {e:#}"));
+                activated.insert(template.clone());
+            }
+        }
+
+        let all: BTreeSet<String> = TEMPLATES.iter().map(|(name, _)| name.to_string()).collect();
+        assert_eq!(activated, all, "some template is never reached by these answers");
+    }
 }

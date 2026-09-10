@@ -23,9 +23,9 @@ check:
     python:
       query: |
         (class_definition
+          name: (identifier) @name
           superclasses: (argument_list (identifier) @base
-            (#match? @base "^(BaseModel|Schema)$"))
-          name: (identifier) @name) @target
+            (#match? @base "^(BaseModel|Schema)$"))) @target
     typescript:
       query: |
         (variable_declarator

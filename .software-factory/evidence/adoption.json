@@ -1,14 +1,14 @@
 {
   "schema_version": 1,
   "gate": "adoption",
-  "implementation_sha256": "101b94696f6c6ff74609468a079930eb82d64be0f414081972074bf344d2e7a9",
+  "implementation_sha256": "502b914ea11a7c6384d15fb64a66c9d53a50c3b5d4ee7f51599191eb6afbe999",
   "runs": [
     {
       "scenario": "adoption",
       "status": "passed",
-      "actor": "Claude (agent), running .software-factory/evidence/adoption-scenario.sh against a scratch checkout of palmares, for Nicolas Melo",
+      "actor": "Claude (agent), running .software-factory/evidence/adoption-scenario.sh against a scratch checkout of palmares at cd135c71e1debc55c20e08059749fe37ee943e21, for Ary Rabelo",
       "report": ".software-factory/evidence/adoption-run.json",
-      "report_sha256": "5290453a5083fd41174ac16fa18a9c3f608ce30dfab7729961ae458ad0659533",
+      "report_sha256": "e7ff1b0068855d588bd76073c8a185301c7fd7123ccb3cdeb28194cef082cd1c",
       "required_assertions": []
     }
   ]
