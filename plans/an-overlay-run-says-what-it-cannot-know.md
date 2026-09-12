@@ -70,28 +70,28 @@ today.
 
 ## Acceptance criteria
 
-- [ ] Every rule whose state lives beside the policy reports inapplicable
+- [x] Every rule whose state lives beside the policy reports inapplicable
       under an overlay with its reason, and the set is derived from the check
       kind and the paths it reads rather than from a list of ids
       (proof: test:src/checks/mod.rs)
-- [ ] An overlay run over a repository carrying no factory directory reports
+- [x] An overlay run over a repository carrying no factory directory reports
       what the same policy reports vendored into it over the same code,
       differing only in the ratchet
       (proof: test:src/checks/mod.rs)
-- [ ] `L5.NO_INERT_RULE` skips a rule that is inapplicable under the overlay
+- [x] `L5.NO_INERT_RULE` skips a rule that is inapplicable under the overlay
       rather than reporting it inert
       (proof: test:src/checks/mod.rs)
-- [ ] `L4.ROOT_FILES_ARE_DECLARED` is inapplicable under an overlay, on the
+- [x] `L4.ROOT_FILES_ARE_DECLARED` is inapplicable under an overlay, on the
       reasoning decided above
       (proof: test:src/checks/mod.rs)
-- [ ] `--policy` against a root that carries its own policy is refused by a
+- [x] `--policy` against a root that carries its own policy is refused by a
       test, not only by a message
       (proof: test:src/policy.rs)
-- [ ] `sf init`, `sf ratchet`, `sf lock`, `sf fixtures` and `sf seal` are
+- [x] `sf init`, `sf ratchet`, `sf lock`, `sf fixtures` and `sf seal` are
       proven to refuse the flag, read out of the clap definition rather than
       asserted in a comment
       (proof: test:src/main.rs)
-- [ ] `sf verify` proves the overlay's own rules fire in the repository the
+- [x] `sf verify` proves the overlay's own rules fire in the repository the
       overlay lives in, so governing from outside cannot ship rules nothing
       trips
       (proof: test:src/verify.rs)

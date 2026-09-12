@@ -225,3 +225,116 @@ mod conditional_fixtures {
         );
     }
 }
+
+/// Governing from outside cannot ship rules nothing trips: `sf verify`
+/// run in the repository the overlay lives in proves the overlay's own
+/// rules fire there. The synthetic governed repository below carries a
+/// local rule — the half of an overlay the catalog does not ship — and a
+/// mutation fixture for it, the way `sf init` scaffolds one.
+#[cfg(test)]
+mod the_overlay_s_own_repository {
+    use super::{Outcome, run};
+    use crate::catalog::Catalog;
+    use crate::policy::{FIXTURES_DIR, Policy, RULES_DIR};
+
+    /// A local rule an overlay can carry and the catalog does not ship.
+    /// Written as a raw string so the YAML reads exactly as it lands on
+    /// disk: a fixture's shape is easier to audit as the bytes it is.
+    const LOCAL_RULE: &str = r#"id: L1.ODD_NUMBERS_ONLY
+layer: L1
+title: Odd numbers only
+severity: medium
+statement: >-
+  Every line with `even` is a finding.
+why: >-
+  The synthetic rule needs one, and the catalog refuses to load a rule
+  without it.
+fix: >-
+  Say `odd` instead.
+check:
+  kind: text_pattern
+defaults:
+  forbidden:
+    - regex: "even"
+      message: Say odd.
+"#;
+
+    fn governed_repo() -> std::path::PathBuf {
+        let root = std::env::temp_dir()
+            .join(format!("sf-overlay-home-{}", std::process::id()))
+            .join("governing-repo");
+        std::fs::create_dir_all(root.join(RULES_DIR)).expect("the local rules directory is created");
+        std::fs::create_dir_all(root.join(".software-factory"))
+            .expect("the factory directory is created");
+        std::fs::write(root.join(RULES_DIR).join("odd.yaml"), LOCAL_RULE)
+            .expect("the local rule is written");
+        std::fs::write(
+            root.join(".software-factory").join("policy.yaml"),
+            "version: 1\nproject:\n  name: governing\n  languages: [python]\nrules:\n  L1.ODD_NUMBERS_ONLY:\n    enabled: true\n",
+        )
+        .expect("the policy is written");
+        // The mutation fixture `sf init` would scaffold for the local rule,
+        // carrying the rule's own definition under its `rules/` the way a
+        // fixture for a local rule must: `run_fixture` reads the catalog
+        // out of the fixture's own tree, not the repository's.
+        let fixture = root.join(FIXTURES_DIR).join("L1.ODD_NUMBERS_ONLY");
+        std::fs::create_dir_all(fixture.join(RULES_DIR))
+            .expect("the fixture's rules directory is created");
+        std::fs::create_dir_all(fixture.join("src")).expect("the fixture's source is created");
+        std::fs::write(fixture.join(".software-factory").join("policy.yaml"),
+            "version: 1\nproject:\n  name: mutation\n  languages: [python]\nrules:\n  L1.ODD_NUMBERS_ONLY:\n    enabled: true\n")
+            .expect("the fixture policy is written");
+        std::fs::write(fixture.join(RULES_DIR).join("odd.yaml"), LOCAL_RULE)
+            .expect("the fixture carries the local rule it mutates against");
+        std::fs::write(fixture.join("src").join("app.py"), "count = 2  # even\n")
+            .expect("the fixture source is written");
+        root
+    }
+
+    #[test]
+    fn the_overlay_s_own_rules_fire_where_the_overlay_lives() {
+        let root = governed_repo();
+        let policy = Policy::load(&root).expect("the governed policy loads");
+        let mut catalog = Catalog::builtin().expect("the built-in catalog loads");
+        catalog
+            .extend_from_dir(&root.join(RULES_DIR))
+            .expect("the local rule loads");
+
+        let outcomes = run(&root, &policy, &catalog, None, false)
+            .expect("verify runs in the overlay's home");
+        let local = outcomes
+            .iter()
+            .find(|o| o.rule == "L1.ODD_NUMBERS_ONLY")
+            .expect("the local rule is enabled, so verify owes it an outcome");
+        assert!(
+            local.fired,
+            "the local rule fires on its mutation fixture: {}",
+            local.detail
+        );
+
+        // The negative half: delete the fixture and the same rule is
+        // reported unproven, naming the path that is missing — never a
+        // silent skip. Governing from outside cannot ship rules nothing
+        // trips, and a rule nothing trips is named, not passed.
+        let missing = root.join(FIXTURES_DIR).join("L1.ODD_NUMBERS_ONLY");
+        std::fs::remove_dir_all(&missing).expect("the fixture is removed");
+        let outcomes = run(&root, &policy, &catalog, None, false)
+            .expect("verify runs again");
+        let unproven = outcomes
+            .iter()
+            .find(|o| o.rule == "L1.ODD_NUMBERS_ONLY")
+            .expect("the rule still owes an outcome");
+        assert!(!unproven.fired, "with no fixture, nothing proved the rule");
+        assert!(
+            unproven.detail.contains("no fixture"),
+            "names what is missing: {}",
+            unproven.detail
+        );
+        let Outcome { rule, .. } = unproven;
+        assert_eq!(rule, "L1.ODD_NUMBERS_ONLY");
+
+        let _ = std::fs::remove_dir_all(
+            root.parent().expect("the scratch base holds the repo"),
+        );
+    }
+}

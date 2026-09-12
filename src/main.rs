@@ -432,17 +432,11 @@ fn cmd_check(
     // One reader, one refusal: a root carrying its own policy is governed by
     // it, and a run governed by something else has whichever answer somebody
     // preferred. The check happens before anything loads, so the refusal does
-    // not depend on the overlay being readable.
+    // not depend on the overlay being readable. `policy.rs` owns the boundary
+    // and its test, so a new call site cannot forget to draw it.
     let overlay = match &overlay_flag {
         Some(dir) => {
-            if root.join(policy::POLICY_PATH).exists() {
-                anyhow::bail!(
-                    "{} carries its own policy at {} — `--policy {}` would give this run two answers to what governs it",
-                    root.display(),
-                    policy::POLICY_PATH,
-                    dir.display()
-                );
-            }
+            policy::refuse_second_policy(&root, dir)?;
             Some(overlay_provenance(dir)?)
         }
         None => None,
@@ -906,4 +900,67 @@ fn cmd_verify(root: PathBuf, rule: Option<String>, allow_commands: bool) -> Resu
     }
     println!("\n{}/{} enabled rules proven to fire", outcomes.len() - broken, outcomes.len());
     Ok(if broken == 0 { EXIT_OK } else { finding::EXIT_FINDINGS })
+}
+
+/// The writers refuse `--policy`, read out of the clap definition rather
+/// than asserted in a comment. `--policy` exists only on `check`, and
+/// `check` is dispatched before the writers, so nothing writes
+/// repo-local state from the outside. The first half reads the definition
+/// so a flag added to a writer tomorrow fails here; the second parses real
+/// argv, so a dispatch refactor routing a writer past the refusal fails.
+#[cfg(test)]
+mod policy_stays_off_the_writers {
+    use super::{Cli, accepted_commands};
+    use clap::{CommandFactory, Parser};
+
+    /// The five subcommands the plan names, plus every other writer this
+    /// binary carries: `docs` and `skills` write too, so the sweep covers
+    /// all of them rather than the list somebody remembered.
+    const WRITERS: &[&str] = &["init", "ratchet", "lock", "fixtures", "seal", "docs", "skills"];
+
+    #[test]
+    fn only_check_takes_the_policy_flag() {
+        let accepted = accepted_commands();
+        let readers: Vec<_> = accepted
+            .keys()
+            .filter(|name| !WRITERS.contains(&name.as_str()))
+            .collect();
+        for name in readers {
+            let has = accepted[name].contains("--policy");
+            let is_check = *name == "check";
+            assert_eq!(
+                has, is_check,
+                "`--policy` belongs to `check` alone; {name} {} it",
+                if has { "must not take" } else { "may take" }
+            );
+        }
+    }
+
+    #[test]
+    fn every_writer_refuses_the_flag_in_a_real_parse() {
+        // The full definition, not a hand-written fragment: this is the same
+        // surface `L4.RULE_PROSE_NAMES_A_REAL_COMMAND` holds prose to.
+        Cli::command().debug_assert();
+        for writer in WRITERS {
+            let argv = vec!["sf", writer, "--policy", "../factory-policy/.software-factory"];
+            match Cli::try_parse_from(argv) {
+                Err(error) => {
+                    let rendered = format!("{error}");
+                    assert!(
+                        rendered.contains("--policy"),
+                        "the refusal names the flag it is refusing: {rendered}"
+                    );
+                }
+                Ok(_) => panic!("`sf {writer} --policy ...` must be refused by the command definition"),
+            }
+        }
+        // And the one reader that takes it parses.
+        let check = Cli::try_parse_from(vec![
+            "sf", "check", "--policy", "../factory-policy/.software-factory",
+        ]);
+        assert!(
+            check.is_ok(),
+            "`sf check --policy ...` is the one command that takes it"
+        );
+    }
 }

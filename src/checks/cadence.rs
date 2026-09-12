@@ -100,7 +100,22 @@ fn inert_rules(rule: &Rule, ctx: &Ctx) -> Result<Vec<Finding>> {
         let activation = ctx.policy.activation_of(ctx.root, id)?;
         let (reason, expected) = match activation.stale_reason() {
             Some(reason) => (Some(reason.to_string()), REPOINT_OR_REMOVE),
-            None => (inert_reason(candidate, ctx)?, CONFIGURE_OR_DISABLE),
+            None => {
+                // A rule already reporting inapplicable is silent for a
+                // stated reason, and this rule's silence about it is the
+                // set difference the plan calls for: inertness is about a
+                // rule that *runs* and can never fire, not one that said
+                // what it cannot know. A stale instance is still inert
+                // wherever its policy lives.
+                if ctx
+                    .overlay
+                    .as_ref()
+                    .is_some_and(|_| super::inapplicable_under_overlay(&candidate.check).is_some())
+                {
+                    continue;
+                }
+                (inert_reason(candidate, ctx)?, CONFIGURE_OR_DISABLE)
+            }
         };
         let Some(reason) = reason else { continue };
         findings.push(

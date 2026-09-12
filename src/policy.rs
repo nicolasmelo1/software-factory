@@ -594,9 +594,29 @@ mod when_conditions {
     }
 }
 
+/// One reader, one refusal: a root carrying its own policy is governed by
+/// it, and a run governed by something else has whichever answer somebody
+/// preferred. Called before anything loads, so the refusal does not depend
+/// on the overlay being readable.
+///
+/// Lives here rather than in `main.rs` because it is the same boundary the
+/// loader enforces — `load` and `load_from` are the vendored and overlay
+/// forms of one document — and a boundary owned by the loader is one a
+/// new call site cannot forget to draw.
+pub fn refuse_second_policy(root: &Path, overlay: &Path) -> Result<()> {
+    anyhow::ensure!(
+        !root.join(POLICY_PATH).exists(),
+        "{} carries its own policy at {} — `--policy {}` would give this run two answers to what governs it",
+        root.display(),
+        POLICY_PATH,
+        overlay.display()
+    );
+    Ok(())
+}
+
 #[cfg(test)]
 mod overlay_load {
-    use super::Policy;
+    use super::{Policy, POLICY_PATH, refuse_second_policy};
     use std::path::Path;
 
     /// The overlay form of the same document: `load` is the vendored case of
@@ -617,5 +637,58 @@ mod overlay_load {
             format!("{error:#}").contains("--policy"),
             "the error names the flag that reaches here: {error:#}"
         );
+    }
+
+    /// A scratch directory the test can write into, removed when the test is
+    /// done with it. Named per test and per process so parallel runs cannot
+    /// step on one another's trees.
+    fn scratch_dir(tag: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!("sf-{tag}-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("the scratch directory is created");
+        dir
+    }
+
+    /// `--policy` against a root that carries a policy of its own is refused
+    /// by this test, not only by a message: two answers to what governs a
+    /// run is the state the flag exists to refuse, and the refusal has to
+    /// survive a refactor of the command layer that forgets to draw it.
+    #[test]
+    fn a_root_with_its_own_policy_refuses_a_second_one() {
+        let scratch = scratch_dir("second-policy");
+        let governed = scratch.join("governed");
+        let factory = governed.join(Path::new(POLICY_PATH).parent().expect("the policy path names a directory"));
+        std::fs::create_dir_all(&factory).expect("the factory directory is created");
+        std::fs::write(governed.join(POLICY_PATH), "version: 1\n").expect("the policy is written");
+
+        let error = refuse_second_policy(&governed, Path::new("../elsewhere/.software-factory"))
+            .expect_err("a governed root refuses a second policy");
+        let rendered = format!("{error:#}");
+        assert!(
+            rendered.contains("carries its own policy"),
+            "names what the root carries: {rendered}"
+        );
+        assert!(
+            rendered.contains(POLICY_PATH),
+            "names where the root's policy lives: {rendered}"
+        );
+        assert!(
+            rendered.contains("--policy"),
+            "names the flag being refused: {rendered}"
+        );
+        assert!(
+            rendered.contains("../elsewhere/.software-factory"),
+            "names which overlay was offered: {rendered}"
+        );
+
+        // The mirror image: a bare root accepts, and the overlay named in
+        // the refusal does not have to exist for the refusal to fire — the
+        // boundary is about the target, not about the overlay.
+        let bare = scratch.join("bare");
+        std::fs::create_dir_all(&bare).expect("the bare root is created");
+        let nonexistent = scratch.join("no-such-overlay");
+        refuse_second_policy(&bare, &nonexistent)
+            .expect("a root with no policy of its own accepts an overlay");
+
+        let _ = std::fs::remove_dir_all(&scratch);
     }
 }
