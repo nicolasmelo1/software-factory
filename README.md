@@ -23,7 +23,7 @@ cannot reach a green build by turning a rule off.
 ## Install
 
 ```sh
-cargo install --git https://github.com/nicolasmelo1/software-factory --tag v0.4.1 --locked
+cargo install --git https://github.com/nicolasmelo1/software-factory --tag v0.4.2 --locked
 ```
 
 Or download a binary for your platform from the
