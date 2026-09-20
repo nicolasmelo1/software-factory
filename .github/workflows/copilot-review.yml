@@ -1,0 +1,42 @@
+name: copilot review
+
+# Every pull request is read by Copilot before it is read by a person, and the
+# repository is what asks — not the person opening it, who is the one least
+# likely to remember and the one whose work it is.
+#
+# This is a workflow rather than the repository setting that does the same
+# thing, for the reason everything else here is in a file: a setting lives in
+# a web page nobody diffs, and the day it is switched off the pull requests
+# that stopped being reviewed look exactly like the ones that were.
+
+on:
+  pull_request:
+    types: [opened, reopened, ready_for_review]
+
+# The whole file needs one permission, and requesting a review is all it can
+# do with it. `contents` is not here on purpose: nothing is checked out.
+permissions:
+  pull-requests: write
+
+jobs:
+  request:
+    runs-on: ubuntu-latest
+    # A fork's pull request is handed a read-only token, so the request would
+    # fail rather than quietly do nothing — and a draft is asked for later, by
+    # the `ready_for_review` event, which is the moment somebody wanted eyes
+    # on it.
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository
+      && github.event.pull_request.draft == false
+    steps:
+      # `@copilot` is what the CLI takes; the API underneath it wants
+      # `copilot-pull-request-reviewer[bot]`. Every value it reads arrives as
+      # an environment variable rather than as `${{ }}` inside the script,
+      # because an expression expanded into a shell is the injection this
+      # repository's workflow scanner exists to refuse.
+      - name: Ask Copilot for a review
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PULL_REQUEST: ${{ github.event.pull_request.number }}
+          REPOSITORY: ${{ github.repository }}
+        run: gh pr edit "$PULL_REQUEST" --repo "$REPOSITORY" --add-reviewer @copilot
