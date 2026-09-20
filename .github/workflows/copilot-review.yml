@@ -11,7 +11,22 @@ name: copilot review
 
 on:
   pull_request:
-    types: [opened, reopened, ready_for_review]
+    # `synchronize` is every push to an open pull request, which is the point:
+    # a review of the first commit says nothing about the fourth, and the
+    # commit somebody adds after a review is the one nobody looks at twice.
+    # Re-requesting a reviewer who has already answered asks for a fresh
+    # review, so each push is read.
+    types: [opened, reopened, ready_for_review, synchronize]
+    # Against main only. A stacked pull request aimed at another branch is
+    # read when it is rebased onto this one.
+    branches: [main]
+
+# One request per pull request at a time. Three commits pushed in a row are
+# three events, and without this they are three reviews of a tree that only
+# ever mattered as it stands after the last of them.
+concurrency:
+  group: copilot-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 
 # The whole file needs one permission, and requesting a review is all it can
 # do with it. `contents` is not here on purpose: nothing is checked out.
