@@ -1,13 +1,24 @@
 name: copilot review
 
-# Every pull request is read by Copilot before it is read by a person, and the
-# repository is what asks — not the person opening it, who is the one least
-# likely to remember and the one whose work it is.
+# Every pull request from a branch of this repository is read by Copilot before
+# it is read by a person, and the repository is what asks — not the person
+# opening it, who is the one least likely to remember and the one whose work it
+# is.
 #
 # This is a workflow rather than the repository setting that does the same
 # thing, for the reason everything else here is in a file: a setting lives in
 # a web page nobody diffs, and the day it is switched off the pull requests
 # that stopped being reviewed look exactly like the ones that were.
+#
+# **A fork's pull request is not covered, deliberately.** `pull_request` hands
+# a fork a read-only token, so the request would 403 rather than happen. The
+# mechanism that would cover it is `pull_request_target`, which runs with this
+# repository's write token — and which `zizmor`, in the `hazards` job, reports
+# as high severity for the whole class. Nothing here checks out or executes the
+# pull request's code, so the exception would be defensible and it would still
+# be an exception written into the one file whose job is to refuse them. A fork
+# is reviewed when somebody with write access pushes the branch, which is also
+# the moment it becomes this repository's problem.
 
 on:
   pull_request:
@@ -36,10 +47,10 @@ permissions:
 jobs:
   request:
     runs-on: ubuntu-latest
-    # A fork's pull request is handed a read-only token, so the request would
-    # fail rather than quietly do nothing — and a draft is asked for later, by
-    # the `ready_for_review` event, which is the moment somebody wanted eyes
-    # on it.
+    # Skipped rather than failed: a fork's token cannot request a review, and
+    # a red job on every outside contribution would teach everybody to ignore
+    # a red job. The header says what that costs. A draft is skipped too, and
+    # asked for by `ready_for_review` — the moment somebody wanted eyes on it.
     if: >-
       github.event.pull_request.head.repo.full_name == github.repository
       && github.event.pull_request.draft == false
