@@ -19,4 +19,7 @@ release-plz.toml
 scripts
 skills
 src
+# The checks this repository makes about itself, which do not ship in the
+# binary. `cargo test` is what runs them.
+tests
 templates

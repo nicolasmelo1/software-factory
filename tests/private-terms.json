@@ -1,0 +1,13 @@
+{
+  "_why": "Digests of names that belong to private work and must never appear in this public repository. Never written out: a plaintext list of what a company is hiding is the leak this check exists to prevent, and a check naming its own terms reports itself on every run. Enforced by tests/private_references.rs. To add a term: `printf '%s' <term> | shasum -a 256` and record it with its length.",
+  "denied": [
+    {
+      "length": 4,
+      "sha256": "1be5de159e9ce1e57fdb4b05948ce022f2da81ae820c7e963c83460a284f55ac"
+    },
+    {
+      "length": 7,
+      "sha256": "b7dd07c8913ad307243930ad8876d261a9f1bc729269f81a8e8605684e65ff65"
+    }
+  ]
+}
