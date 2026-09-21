@@ -31,7 +31,10 @@ pub struct Ratchet {
 
 impl Default for Ratchet {
     fn default() -> Self {
-        Ratchet { version: 1, rules: BTreeMap::new() }
+        Ratchet {
+            version: 1,
+            rules: BTreeMap::new(),
+        }
     }
 }
 
@@ -139,7 +142,12 @@ mod tests {
     fn a_new_violation_does_not_reset_the_clock_on_the_old_debt() {
         let previous = seeded("2027-02-18", None, &["rust"]);
         let mut ratchet = Ratchet::default();
-        ratchet.seed("L6.PERF", frozen(&["rust", "python"]), "2027-08-25", Some(&previous));
+        ratchet.seed(
+            "L6.PERF",
+            frozen(&["rust", "python"]),
+            "2027-08-25",
+            Some(&previous),
+        );
         assert_eq!(ratchet.rules["L6.PERF"].review_by, "2027-02-18");
     }
 

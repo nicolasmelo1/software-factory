@@ -9,10 +9,22 @@ use anyhow::{Context, Result};
 use std::path::{Path, PathBuf};
 
 pub const SKILLS: &[(&str, &str)] = &[
-    ("factory-init", include_str!("../skills/factory-init/SKILL.md")),
-    ("factory-author", include_str!("../skills/factory-author/SKILL.md")),
-    ("factory-evidence", include_str!("../skills/factory-evidence/SKILL.md")),
-    ("factory-triage", include_str!("../skills/factory-triage/SKILL.md")),
+    (
+        "factory-init",
+        include_str!("../skills/factory-init/SKILL.md"),
+    ),
+    (
+        "factory-author",
+        include_str!("../skills/factory-author/SKILL.md"),
+    ),
+    (
+        "factory-evidence",
+        include_str!("../skills/factory-evidence/SKILL.md"),
+    ),
+    (
+        "factory-triage",
+        include_str!("../skills/factory-triage/SKILL.md"),
+    ),
 ];
 
 /// A skill removed from a shipped set must not remain discoverable after an
@@ -50,8 +62,14 @@ pub fn choose_dir(root: &Path) -> Result<PathBuf> {
     }
     let user = user_dir()?;
     println!("Where should the skills go?\n");
-    println!("  1  {}/.claude/skills   (this repository only)", root.display());
-    println!("  2  {}          (every project on this machine)", user.display());
+    println!(
+        "  1  {}/.claude/skills   (this repository only)",
+        root.display()
+    );
+    println!(
+        "  2  {}          (every project on this machine)",
+        user.display()
+    );
     print!("\n[1] ");
     stdout().flush()?;
     let mut answer = String::new();
@@ -114,7 +132,8 @@ mod completeness {
     /// offenders named.
     #[test]
     fn skills_matches_skills_dir() {
-        let registered: BTreeSet<String> = SKILLS.iter().map(|(name, _)| name.to_string()).collect();
+        let registered: BTreeSet<String> =
+            SKILLS.iter().map(|(name, _)| name.to_string()).collect();
         let disk = on_disk();
 
         let unregistered: Vec<_> = disk.difference(&registered).collect();
@@ -130,10 +149,7 @@ mod completeness {
 
     #[test]
     fn an_upgrade_removes_a_retired_managed_skill_but_keeps_user_files() {
-        let root = std::env::temp_dir().join(format!(
-            "sf-skills-upgrade-{}",
-            std::process::id()
-        ));
+        let root = std::env::temp_dir().join(format!("sf-skills-upgrade-{}", std::process::id()));
         let retired = root.join("factory-harness");
         std::fs::create_dir_all(&retired).expect("retired skill directory");
         std::fs::write(retired.join("SKILL.md"), "old skill").expect("old skill");
@@ -141,9 +157,18 @@ mod completeness {
 
         let installed = install(&root).expect("skills install");
 
-        assert_eq!(installed.removed, vec![retired.join("SKILL.md").display().to_string()]);
-        assert!(!retired.join("SKILL.md").exists(), "the stale entrypoint is gone");
-        assert!(retired.join("notes.md").is_file(), "user files survive the upgrade");
+        assert_eq!(
+            installed.removed,
+            vec![retired.join("SKILL.md").display().to_string()]
+        );
+        assert!(
+            !retired.join("SKILL.md").exists(),
+            "the stale entrypoint is gone"
+        );
+        assert!(
+            retired.join("notes.md").is_file(),
+            "user files survive the upgrade"
+        );
         std::fs::remove_dir_all(root).expect("scratch cleanup");
     }
 }

@@ -1,0 +1,50 @@
+id: L6.HOME_VARIABLES_ARE_PLATFORM_DERIVED
+layer: L6
+title: A test that moves the home variable names the platform's own
+severity: medium
+statement: >-
+  A test that assigns the process's home environment variable — `HOME` or
+  `USERPROFILE` — derives the variable's name from the platform it is
+  running on and restores it in a `finally`, so the assignment moves the
+  test's own scratch and nothing of the developer's.
+why: >-
+  The home variable is the one environment entry a test must move to prove
+  expansion, and the name of it is the platform's: `HOME` on Unix,
+  `USERPROFILE` on Windows. A test written on one platform names one
+  variable, passes everywhere its author runs, and on the other platform
+  moves nothing at all — the expansion under test reads the real home, and
+  the fixture quietly seeds and reads the developer's own directory. The
+  failure is invisible in CI matrices that share the author's platform and
+  silent in the direction that matters, because reading succeeds too. A
+  `finally` is not decoration either: an assertion failure before the
+  restore leaves the variable pointed at a directory the test's teardown
+  is about to delete, and the next test inherits a home that is gone. This
+  was found in a review loop where the repair for the platform of the
+  author was green and the other platform was never exercised.
+fix: >-
+  Name the variable through the platform: `process.platform === "win32" ? "USERPROFILE" : "HOME"` in JavaScript, `runtime.GOOS == "windows"` in Go. Set it in a `try` and restore the original in `finally`, and point it at the test's own scratch directory — never at a path under the developer's real home.
+ratchet: allowlist
+check:
+  kind: text_pattern
+defaults:
+  scope:
+    - "**/*.test.js"
+    - "**/*.test.mjs"
+    - "**/*.test.cjs"
+    - "**/*.test.ts"
+    - "**/*.spec.ts"
+    - "**/*_test.go"
+    - "**/tests/**"
+  forbidden:
+    # An assignment of the home variable whose line names the variable
+    # literally rather than through the platform.
+    - regex: 'process\.env\.(HOME|USERPROFILE)\s*=[^=]'
+      unless: 'platform|GOOS|win32'
+      message: "Assigning process.env.HOME by its literal name moves nothing on Windows, where the home variable is USERPROFILE. Name the variable through the platform and restore it in a finally."
+    - regex: 'os\.Setenv\("(HOME|USERPROFILE)"'
+      unless: 'GOOS|windows'
+      message: "Setting HOME by its literal name is a no-op on Windows, where the home variable is USERPROFILE. Derive the name from runtime.GOOS and restore with t.Setenv."
+    # The restore half: a home assignment with no finally on the file at all.
+    - regex: 'process\.env\.HOME\s*=[^=]'
+      unless: 'finally|afterEach'
+      message: "A test that moves the home variable restores it in a finally — an assertion failure before a bare assignment leaves the next test running against a deleted home."

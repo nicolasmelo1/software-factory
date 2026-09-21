@@ -652,7 +652,8 @@ mod tests {
         let scratch = Scratch::new("attempt-cap");
         let root = scratch.0.as_path();
         for i in 0..10 {
-            record_attempt(root, "L1.C", "k", &format!("diff {i}"), None).expect("the call succeeds in this fixture");
+            record_attempt(root, "L1.C", "k", &format!("diff {i}"), None)
+                .expect("the call succeeds in this fixture");
         }
         assert_eq!(attempts(root, "L1.C", "k"), MAX_ATTEMPTS);
     }
@@ -661,7 +662,8 @@ mod tests {
     fn a_new_key_starts_a_fresh_trail() {
         let scratch = Scratch::new("attempt-new-key");
         let root = scratch.0.as_path();
-        record_attempt(root, "L1.C", "src/a.py:price", "diff x", None).expect("the call succeeds in this fixture");
+        record_attempt(root, "L1.C", "src/a.py:price", "diff x", None)
+            .expect("the call succeeds in this fixture");
         assert_eq!(attempts(root, "L1.C", "src/a.py:parse"), 0);
     }
 
@@ -700,7 +702,8 @@ mod tests {
         let root = scratch.0.as_path();
         let huge: BTreeMap<String, String> =
             BTreeMap::from([("src/big.py".to_string(), "x".repeat(MAX_SNAPSHOT_CHARS + 1))]);
-        record_attempt(root, "L1.C", "k", "diff", Some(&huge)).expect("the call succeeds in this fixture");
+        record_attempt(root, "L1.C", "k", "diff", Some(&huge))
+            .expect("the call succeeds in this fixture");
         let store = read(root, "L1.C").expect("the call succeeds in this fixture");
         assert!(
             store["k"].snapshot.is_none(),
@@ -730,8 +733,13 @@ mod retrieval_and_decay {
     fn nothing_is_offered_before_the_trail_is_long() {
         let scratch = Scratch::new("ladder");
         let root = scratch.0.as_path();
-        record_attempt(root, "L1.C", "src/a.py:price", "diff", None).expect("the call succeeds in this fixture");
-        assert!(retrieve(root, "L1.C", "src/a.py:price").expect("the call succeeds in this fixture").is_none());
+        record_attempt(root, "L1.C", "src/a.py:price", "diff", None)
+            .expect("the call succeeds in this fixture");
+        assert!(
+            retrieve(root, "L1.C", "src/a.py:price")
+                .expect("the call succeeds in this fixture")
+                .is_none()
+        );
     }
 
     #[test]
@@ -756,7 +764,9 @@ mod retrieval_and_decay {
         write(root, "L1.C", &store).expect("the store writes");
 
         assert!(
-            retrieve(root, "L1.C", "src/a.py:price").expect("the call succeeds in this fixture").is_none(),
+            retrieve(root, "L1.C", "src/a.py:price")
+                .expect("the call succeeds in this fixture")
+                .is_none(),
             "a weakening must never be offered as advice"
         );
     }
@@ -809,7 +819,8 @@ mod retrieval_and_decay {
         // Greens on other keys, never on the escape's own: it keeps being
         // surfaced and keeps not helping.
         for _ in 0..=MAX_STORED_ESCAPES {
-            record_green(root, "L1.C", &["src/a.py:price".to_string()]).expect("the call succeeds in this fixture");
+            record_green(root, "L1.C", &["src/a.py:price".to_string()])
+                .expect("the call succeeds in this fixture");
         }
         let store = read(root, "L1.C").expect("the call succeeds in this fixture");
         assert!(
@@ -833,7 +844,8 @@ mod retrieval_and_decay {
         stuck.attempts.push("diff".to_string());
         store.insert("src/a.py:price".to_string(), stuck);
         write(root, "L1.C", &store).expect("the store writes");
-        record_green(root, "L1.C", &["src/a.py:price".to_string()]).expect("the call succeeds in this fixture");
+        record_green(root, "L1.C", &["src/a.py:price".to_string()])
+            .expect("the call succeeds in this fixture");
         assert!(
             read(root, "L1.C").expect("the store reads").is_empty(),
             "the key's trail and escapes leave with it"
@@ -1009,7 +1021,8 @@ mod capture {
         )
         .expect("the capture runs");
         assert!(captured, "a transition with a fix hunk is captured");
-        let store = read(&root, "L1.COMPLEXITY_CEILING").expect("the call succeeds in this fixture");
+        let store =
+            read(&root, "L1.COMPLEXITY_CEILING").expect("the call succeeds in this fixture");
         let escape = &store["src/pricing.py:price"].escapes[0];
         assert!(!escape.weakening, "a source-file repair is not a weakening");
         let rendered = render(escape);
@@ -1038,7 +1051,8 @@ mod capture {
             &probe_factory(),
         )
         .expect("the capture runs");
-        let store = read(&root, "L1.COMPLEXITY_CEILING").expect("the call succeeds in this fixture");
+        let store =
+            read(&root, "L1.COMPLEXITY_CEILING").expect("the call succeeds in this fixture");
         let escape = &store["src/pricing.py:price"].escapes[0];
         // The before side of the stored repair, applied to the green tree,
         // must bring the finding back. This is the property that makes the
@@ -1084,7 +1098,8 @@ mod capture {
         )
         .expect("the capture runs");
         assert!(captured, "the fallback still records a worked example");
-        let store = read(&root, "L1.COMPLEXITY_CEILING").expect("the call succeeds in this fixture");
+        let store =
+            read(&root, "L1.COMPLEXITY_CEILING").expect("the call succeeds in this fixture");
         let escape = &store["src/pricing.py:price"].escapes[0];
         assert!(
             escape.hunks[0].0.starts_with("src/pricing.py"),

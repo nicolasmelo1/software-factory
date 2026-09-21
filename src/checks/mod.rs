@@ -2,8 +2,8 @@
 
 pub mod cadence;
 pub mod catalog_tightening;
-pub mod comment_block;
 pub mod command;
+pub mod comment_block;
 pub mod complexity;
 pub mod evidence;
 pub mod forwarder;
@@ -14,7 +14,7 @@ pub mod text_pattern;
 pub mod tightening;
 pub mod toolchain;
 
-use crate::catalog::{Catalog, CadenceMode, CheckKind, Rule};
+use crate::catalog::{CadenceMode, Catalog, CheckKind, Rule};
 use crate::finding::Finding;
 use crate::policy::{Options, Policy, merge};
 use crate::ratchet::Ratchet;
@@ -88,7 +88,12 @@ pub fn run_all(ctx: &Ctx) -> Result<Vec<Finding>> {
         // findings on code that is now right. It is not silently dropped:
         // `L5.NO_INERT_RULE` names it and the range it expected. See
         // `policy::activation`.
-        if ctx.policy.activation_of(ctx.root, &instance)?.stale_reason().is_some() {
+        if ctx
+            .policy
+            .activation_of(ctx.root, &instance)?
+            .stale_reason()
+            .is_some()
+        {
             continue;
         }
         // An overlay cannot supply repo-local state: the gates read
@@ -97,10 +102,9 @@ pub fn run_all(ctx: &Ctx) -> Result<Vec<Finding>> {
         // coverage, so each one says inapplicable instead — and which
         // rules those are is derived from the check kind, so a rule added
         // tomorrow answers for itself.
-        if let (Some(overlay), Some(reason)) = (
-            &ctx.overlay,
-            inapplicable_under_overlay(&rule.check),
-        ) {
+        if let (Some(overlay), Some(reason)) =
+            (&ctx.overlay, inapplicable_under_overlay(&rule.check))
+        {
             findings.push(inapplicable_finding(rule, &instance, overlay, reason));
             continue;
         }
@@ -129,9 +133,7 @@ fn inapplicable_under_overlay(check: &CheckKind) -> Option<&'static str> {
         // repository being checked, sealed by `sf seal` against runs of its
         // own code. An overlay run is expressly not evidence, and it cannot
         // conjure a manifest the target never sealed.
-        CheckKind::Evidence => {
-            "gate evidence is sealed inside the repository being checked"
-        }
+        CheckKind::Evidence => "gate evidence is sealed inside the repository being checked",
         // Locks, the ratchet that freezes against them and the dated
         // exceptions it carries: all written by this tool into the target's
         // factory directory, which an overlay run may not write to and the
@@ -248,9 +250,7 @@ pub fn run_one(rule: &Rule, ctx: &Ctx) -> Result<Vec<Finding>> {
     // Repo-local rules say inapplicable under an overlay rather than run to
     // a misleading missing-manifest finding. `--rule` goes through here too,
     // so an operator asking for one of these by name gets the same answer.
-    if let (Some(overlay), Some(reason)) =
-        (&ctx.overlay, inapplicable_under_overlay(&rule.check))
-    {
+    if let (Some(overlay), Some(reason)) = (&ctx.overlay, inapplicable_under_overlay(&rule.check)) {
         return Ok(vec![inapplicable_finding(rule, &rule.id, overlay, reason)]);
     }
     let opts = options_for(rule, ctx.policy)?;
@@ -363,8 +363,9 @@ mod overlay {
         // findings is silence from a rule that ran, not a rule that could
         // not.
         assert!(
-            !findings.iter().any(|f| f.rule == "L1.NO_BLANKET_SUPPRESSION"
-                && f.key.starts_with("inapplicable:")),
+            !findings.iter().any(
+                |f| f.rule == "L1.NO_BLANKET_SUPPRESSION" && f.key.starts_with("inapplicable:")
+            ),
             "a source rule is unaffected by an overlay: {findings:?}"
         );
     }
@@ -395,16 +396,24 @@ mod overlay {
                 | "L3.GATE_COVERS_THE_PLAN"
             );
             assert_eq!(
-                why, needs,
+                why,
+                needs,
                 "{id} (a {:?} check) {}",
                 rule.check,
-                if needs { "reads repo-local state" } else { "reads the code and the policy alone" }
+                if needs {
+                    "reads repo-local state"
+                } else {
+                    "reads the code and the policy alone"
+                }
             );
             // Every reason the set can produce is a sentence, not a bare id:
             // the finding is the report, and a finding naming only the rule
             // it cannot run is indistinguishable from one that failed.
             if let Some(reason) = inapplicable_under_overlay(&rule.check) {
-                assert!(!reason.is_empty(), "{id} needs a reason a reader can act on");
+                assert!(
+                    !reason.is_empty(),
+                    "{id} needs a reason a reader can act on"
+                );
             }
         }
     }
@@ -455,15 +464,22 @@ mod overlay {
             let overlay_dir = base.join("governing-repo").join(".software-factory");
             std::fs::create_dir_all(root.join("src")).expect("the target's source is created");
             std::fs::create_dir_all(&overlay_dir).expect("the overlay directory is created");
-            std::fs::write(root.join("src").join("app.py"), format!("import os  {}\n", BARE_NOQA))
-                .expect("the target's source is written");
+            std::fs::write(
+                root.join("src").join("app.py"),
+                format!("import os  {}\n", BARE_NOQA),
+            )
+            .expect("the target's source is written");
             std::fs::write(
                 overlay_dir.join("policy.yaml"),
                 serde_yaml::to_string(policy).expect("the policy serialises"),
             )
             .expect("the overlay's policy is written");
             let files = scan::walk(&root, policy).expect("the target scans");
-            Self { root, overlay_dir, files }
+            Self {
+                root,
+                overlay_dir,
+                files,
+            }
         }
 
         /// The overlay form: `run_all` with `overlay` set, ratchet empty.
@@ -560,10 +576,9 @@ mod overlay {
         let overlay_findings = super::run_all(&target.overlay_ctx(&catalog, &policy))
             .expect("the overlay run completes");
         target.vendor_policy(&policy);
-        let vendored_findings = super::run_all(
-            &target.vendored_ctx(&catalog, &policy, &RATCHET_PLACEHOLDER),
-        )
-        .expect("the vendored run completes");
+        let vendored_findings =
+            super::run_all(&target.vendored_ctx(&catalog, &policy, &RATCHET_PLACEHOLDER))
+                .expect("the vendored run completes");
 
         // Partition A: findings the code earned. Identical in the four
         // fields a reader or a report can see — same rule, same location,
@@ -572,7 +587,14 @@ mod overlay {
             findings
                 .iter()
                 .filter(|f| f.rule == "L1.NO_BLANKET_SUPPRESSION")
-                .map(|f| (f.rule.clone(), f.location.clone(), f.key.clone(), f.message.clone()))
+                .map(|f| {
+                    (
+                        f.rule.clone(),
+                        f.location.clone(),
+                        f.key.clone(),
+                        f.message.clone(),
+                    )
+                })
                 .collect::<Vec<_>>()
         };
         let overlay_earned = earned(&overlay_findings);
@@ -607,7 +629,8 @@ mod overlay {
             assert!(
                 inapplicable_under_overlay(&rule.check).is_some(),
                 "{} reported inapplicable but its check ({:?}) runs unchanged under an overlay",
-                finding.rule, rule.check
+                finding.rule,
+                rule.check
             );
             assert!(
                 finding.message.contains("repo-local state"),
@@ -635,8 +658,10 @@ mod overlay {
                 // an inertness finding about this very rule: silence plus
                 // a silent meta rule would be a rule lying about running.
                 assert!(
-                    vendored_findings.iter().any(|f| f.rule == "L5.NO_INERT_RULE"
-                        && f.message.contains(finding.rule.as_str())),
+                    vendored_findings
+                        .iter()
+                        .any(|f| f.rule == "L5.NO_INERT_RULE"
+                            && f.message.contains(finding.rule.as_str())),
                     "vendored and silent, {} must be reported inert by the meta rule",
                     finding.rule
                 );
@@ -647,8 +672,11 @@ mod overlay {
         // ones: nothing else may differ between the two runs.
         let extras: Vec<_> = overlay_findings
             .iter()
-            .filter(|f| !vendored_findings.iter().any(|v|
-                v.rule == f.rule && v.key == f.key && v.location == f.location))
+            .filter(|f| {
+                !vendored_findings
+                    .iter()
+                    .any(|v| v.rule == f.rule && v.key == f.key && v.location == f.location)
+            })
             .collect();
         assert!(
             extras.iter().all(|f| f.key.starts_with("inapplicable:")),
@@ -662,13 +690,20 @@ mod overlay {
         // findings about one silence would be one too many.
         let vendored_inert = vendored_findings
             .iter()
-            .find(|f| f.rule == "L5.NO_INERT_RULE"
-                && f.message.contains("L2.CATALOG_ONLY_TIGHTENS"))
+            .find(|f| {
+                f.rule == "L5.NO_INERT_RULE" && f.message.contains("L2.CATALOG_ONLY_TIGHTENS")
+            })
             .expect("vendored, the fingerprint-less catalog rule is inert");
-        assert!(vendored_inert.message.contains("fingerprint"), "{}", vendored_inert.message);
         assert!(
-            !overlay_findings.iter().any(|f| f.rule == "L5.NO_INERT_RULE"
-                && f.message.contains("L2.CATALOG_ONLY_TIGHTENS")),
+            vendored_inert.message.contains("fingerprint"),
+            "{}",
+            vendored_inert.message
+        );
+        assert!(
+            !overlay_findings
+                .iter()
+                .any(|f| f.rule == "L5.NO_INERT_RULE"
+                    && f.message.contains("L2.CATALOG_ONLY_TIGHTENS")),
             "under the overlay, the meta rule skips the rule that already said what it cannot know"
         );
         let _ = std::fs::remove_dir_all(&target.root);
@@ -689,8 +724,7 @@ mod overlay {
             .expect("the overlay run completes");
         let live = overlay_findings
             .iter()
-            .find(|f| f.rule == "L1.NO_BLANKET_SUPPRESSION"
-                && !f.key.starts_with("inapplicable:"))
+            .find(|f| f.rule == "L1.NO_BLANKET_SUPPRESSION" && !f.key.starts_with("inapplicable:"))
             .expect("the target's code earns the suppression finding in both runs");
 
         // The vendored run with a ratchet freezing exactly that key: the
@@ -699,12 +733,7 @@ mod overlay {
         let mut ratchet = Ratchet::default();
         let mut frozen_keys = std::collections::BTreeSet::new();
         frozen_keys.insert(live.key.clone());
-        ratchet.seed(
-            "L1.NO_BLANKET_SUPPRESSION",
-            frozen_keys,
-            "2027-01-01",
-            None,
-        );
+        ratchet.seed("L1.NO_BLANKET_SUPPRESSION", frozen_keys, "2027-01-01", None);
         let raw = super::run_all(&target.vendored_ctx(&catalog, &policy, &ratchet))
             .expect("the vendored run completes");
         let (frozen_live, frozen_count) = ratchet.apply(raw);
@@ -752,14 +781,14 @@ mod overlay {
         // has nothing to compare against — and that is inertness, reported
         // as inertness, not as inapplicability.
         target.vendor_policy(&policy);
-        let vendored_findings = super::run_all(
-            &target.vendored_ctx(&catalog, &policy, &RATCHET_PLACEHOLDER),
-        )
-        .expect("the vendored run completes");
+        let vendored_findings =
+            super::run_all(&target.vendored_ctx(&catalog, &policy, &RATCHET_PLACEHOLDER))
+                .expect("the vendored run completes");
         let inert = vendored_findings
             .iter()
-            .find(|f| f.rule == "L5.NO_INERT_RULE"
-                && f.message.contains("L2.CATALOG_ONLY_TIGHTENS"))
+            .find(|f| {
+                f.rule == "L5.NO_INERT_RULE" && f.message.contains("L2.CATALOG_ONLY_TIGHTENS")
+            })
             .expect("the same rule, vendored and with no fingerprint, is reported inert");
         assert!(
             inert.message.contains("fingerprint"),
@@ -791,8 +820,7 @@ mod overlay {
             .expect("the overlay run completes");
         let inapplicable = overlay_findings
             .iter()
-            .find(|f| f.rule == "L4.ROOT_FILES_ARE_DECLARED"
-                && f.key.starts_with("inapplicable:"))
+            .find(|f| f.rule == "L4.ROOT_FILES_ARE_DECLARED" && f.key.starts_with("inapplicable:"))
             .expect("the root-files rule says inapplicable under the overlay");
         assert!(
             inapplicable.message.contains("root allowlist"),
@@ -803,13 +831,13 @@ mod overlay {
         // Vendored, the same target earns a missing-allowlist finding, not
         // an inapplicable one: the repository owns the fix.
         target.vendor_policy(&policy);
-        let vendored_findings = super::run_all(
-            &target.vendored_ctx(&catalog, &policy, &RATCHET_PLACEHOLDER),
-        )
-        .expect("the vendored run completes");
+        let vendored_findings =
+            super::run_all(&target.vendored_ctx(&catalog, &policy, &RATCHET_PLACEHOLDER))
+                .expect("the vendored run completes");
         assert!(
-            vendored_findings.iter().any(|f| f.rule == "L4.ROOT_FILES_ARE_DECLARED"
-                && f.key == "missing-allowlist"),
+            vendored_findings
+                .iter()
+                .any(|f| f.rule == "L4.ROOT_FILES_ARE_DECLARED" && f.key == "missing-allowlist"),
             "vendored, the missing allowlist is a real finding: {vendored_findings:?}"
         );
         let _ = std::fs::remove_dir_all(&target.root);

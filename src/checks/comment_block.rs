@@ -52,9 +52,7 @@ fn is_prose_comment(line: &str, marker: &str) -> bool {
         return false;
     }
     match body_of(line, marker) {
-        Some(body) => {
-            !body.is_empty() && body.chars().any(char::is_alphanumeric)
-        }
+        Some(body) => !body.is_empty() && body.chars().any(char::is_alphanumeric),
         None => false,
     }
 }
@@ -79,9 +77,7 @@ pub fn run(rule: &Rule, opts: &Options, ctx: &Ctx) -> Result<Vec<Finding>> {
                         rule.severity,
                         format!("{}:{}", file.rel, start),
                         format!("{}:{}", file.rel, start),
-                        format!(
-                            "comment block runs {len} lines, ceiling is {max}"
-                        ),
+                        format!("comment block runs {len} lines, ceiling is {max}"),
                     )
                     .expected(format!("at most {max} lines"))
                     .actual(format!("{len} lines")),

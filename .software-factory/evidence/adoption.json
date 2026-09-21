@@ -1,14 +1,14 @@
 {
   "schema_version": 1,
   "gate": "adoption",
-  "implementation_sha256": "502b914ea11a7c6384d15fb64a66c9d53a50c3b5d4ee7f51599191eb6afbe999",
+  "implementation_sha256": "03f7ff4066b92a6375fd11d27ad1865b525aa463aeadbd5326c0594c58c27cac",
   "runs": [
     {
       "scenario": "adoption",
       "status": "passed",
-      "actor": "Claude (agent), running .software-factory/evidence/adoption-scenario.sh against a scratch checkout of palmares at cd135c71e1debc55c20e08059749fe37ee943e21, for Ary Rabelo",
+      "actor": "Hermes (agent), running .software-factory/evidence/adoption-scenario.sh against a scratch checkout of revvadas-frontend at 77e4f8a2a4913e72bf40a8672a76529115b855fe, for Nicolas Melo",
       "report": ".software-factory/evidence/adoption-run.json",
-      "report_sha256": "e7ff1b0068855d588bd76073c8a185301c7fd7123ccb3cdeb28194cef082cd1c",
+      "report_sha256": "3a8653b14c910ccb52cdd16de90cc7c738e4de2f4a4df7782cf49033a0c96bb8",
       "required_assertions": []
     }
   ]

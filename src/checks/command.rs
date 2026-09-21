@@ -47,7 +47,11 @@ pub fn run(rule: &Rule, opts: &Options, ctx: &Ctx) -> Result<Vec<Finding>> {
         ]);
     }
 
-    let output = Command::new("sh").arg("-c").arg(command).current_dir(ctx.root).output()?;
+    let output = Command::new("sh")
+        .arg("-c")
+        .arg(command)
+        .current_dir(ctx.root)
+        .output()?;
     if output.status.success() {
         return Ok(Vec::new());
     }
@@ -63,7 +67,11 @@ pub fn run(rule: &Rule, opts: &Options, ctx: &Ctx) -> Result<Vec<Finding>> {
             format!("{}:failed", rule.id),
             format!(
                 "`{command}` exited {}",
-                output.status.code().map(|c| c.to_string()).unwrap_or_else(|| "on a signal".into())
+                output
+                    .status
+                    .code()
+                    .map(|c| c.to_string())
+                    .unwrap_or_else(|| "on a signal".into())
             ),
         )
         .expected("exit 0")

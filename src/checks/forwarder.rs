@@ -34,7 +34,13 @@ pub fn run(
         let Some(lang) = Lang::from_path(&file.abs) else {
             continue;
         };
-        if !ctx.policy.project.languages.iter().any(|l| l == lang.name()) {
+        if !ctx
+            .policy
+            .project
+            .languages
+            .iter()
+            .any(|l| l == lang.name())
+        {
             continue;
         }
         let Some(spec) = languages.get(lang.name()) else {
@@ -158,9 +164,10 @@ mod tests {
 
     fn spec(language: &str) -> ForwarderQuery {
         match rule().check {
-            CheckKind::Forwarder { languages } => {
-                languages.get(language).expect("the language has a query").clone()
-            }
+            CheckKind::Forwarder { languages } => languages
+                .get(language)
+                .expect("the language has a query")
+                .clone(),
             _ => panic!("the rule is a forwarder rule"),
         }
     }

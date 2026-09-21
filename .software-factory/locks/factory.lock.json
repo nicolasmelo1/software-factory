@@ -6,7 +6,7 @@
     ".github/workflows/release-plz.yml": "57bab94b235309c9570defdfe5524a888c65bc83c74d10496ce3963fc693b6a0",
     ".github/workflows/release.yml": "cfbf7dfa023db1c52ef6c9fc5111f7df5e151bdb39a0dc992adaf60011579ec3",
     ".github/workflows/software-factory.yml": "0350f6ff218f228765453461949d2c9b7ce5158c0705a7968c332a7b629f7eab",
-    ".software-factory/policy.yaml": "a1bddb926bd1befae06e65f224ad264979b51a01856fce4e71d593353624d09c",
+    ".software-factory/policy.yaml": "5b5026dc500d39cb098eec9f91245c20e5f7edcf6eca260bba69957006081e87",
     ".software-factory/ratchet.yaml": "42611c9974434ff314625fb33bc49b24517ca5bdf3fb629538c271b2f7a03db5",
     "release-plz.toml": "b307798df7eee1e3a0339c14283aed599c92460e1b2d7d44ed2492fbdc81eced",
     "scripts/prepare-release-pr.sh": "ddd1904a42f77c5331f9e0abfc39fa0fa092db8ea03bf60a1d1ad65dd8cf0a92"

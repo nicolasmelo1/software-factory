@@ -212,15 +212,18 @@ fn validate_patterns(options: &crate::policy::Options) -> Result<()> {
         regex::Regex::new(&pattern.regex)
             .with_context(|| format!("invalid regex {:?}", pattern.regex))?;
         if let Some(unless) = &pattern.unless {
-            regex::Regex::new(unless).with_context(|| format!("invalid `unless` regex {unless:?}"))?;
+            regex::Regex::new(unless)
+                .with_context(|| format!("invalid `unless` regex {unless:?}"))?;
         }
         if !pattern.scope.is_empty() {
-            crate::scan::globs(&pattern.scope)
-                .with_context(|| format!("pattern {:?} has an invalid scope glob", pattern.regex))?;
+            crate::scan::globs(&pattern.scope).with_context(|| {
+                format!("pattern {:?} has an invalid scope glob", pattern.regex)
+            })?;
         }
         if !pattern.exclude.is_empty() {
-            crate::scan::globs(&pattern.exclude)
-                .with_context(|| format!("pattern {:?} has an invalid exclude glob", pattern.regex))?;
+            crate::scan::globs(&pattern.exclude).with_context(|| {
+                format!("pattern {:?} has an invalid exclude glob", pattern.regex)
+            })?;
         }
     }
     if let Some(marker) = &options.marker {
@@ -255,45 +258,170 @@ pub struct Catalog {
 /// The built-in catalog is compiled into the binary so `sf` works in a repo
 /// that has never seen this tool. A repo may add its own rules on top.
 pub const BUILTIN: &[(&str, &str)] = &[
-    ("L0/exceptions-have-one-home.yaml", include_str!("../catalog/L0/exceptions-have-one-home.yaml")),
-    ("L0/persistence-stays-in-repositories.yaml", include_str!("../catalog/L0/persistence-stays-in-repositories.yaml")),
-    ("L0/one-entrypoint-per-file.yaml", include_str!("../catalog/L0/one-entrypoint-per-file.yaml")),
-    ("L0/no-cross-layer-import.yaml", include_str!("../catalog/L0/no-cross-layer-import.yaml")),
-    ("L1/complexity-ceiling.yaml", include_str!("../catalog/L1/complexity-ceiling.yaml")),
-    ("L1/comment-stays-succinct.yaml", include_str!("../catalog/L1/comment-stays-succinct.yaml")),
-    ("L1/indirection-earns-its-name.yaml", include_str!("../catalog/L1/indirection-earns-its-name.yaml")),
-    ("L1/no-blanket-suppression.yaml", include_str!("../catalog/L1/no-blanket-suppression.yaml")),
-    ("L1/skipped-tests-state-a-reason.yaml", include_str!("../catalog/L1/skipped-tests-state-a-reason.yaml")),
-    ("L1/no-untyped-escape-hatch.yaml", include_str!("../catalog/L1/no-untyped-escape-hatch.yaml")),
-    ("L2/generated-files-are-locked.yaml", include_str!("../catalog/L2/generated-files-are-locked.yaml")),
-    ("L2/dependencies-change-deliberately.yaml", include_str!("../catalog/L2/dependencies-change-deliberately.yaml")),
-    ("L2/no-permanent-exception.yaml", include_str!("../catalog/L2/no-permanent-exception.yaml")),
-    ("L3/gate-has-fresh-evidence.yaml", include_str!("../catalog/L3/gate-has-fresh-evidence.yaml")),
-    ("L3/gate-covers-the-plan.yaml", include_str!("../catalog/L3/gate-covers-the-plan.yaml")),
-    ("L3/gate-plan-not-in-the-queue.yaml", include_str!("../catalog/L3/gate-plan-not-in-the-queue.yaml")),
-    ("L4/doc-links-resolve.yaml", include_str!("../catalog/L4/doc-links-resolve.yaml")),
-    ("L4/root-files-are-declared.yaml", include_str!("../catalog/L4/root-files-are-declared.yaml")),
-    ("L4/every-rule-has-a-why.yaml", include_str!("../catalog/L4/every-rule-has-a-why.yaml")),
-    ("L4/plan-declares-exit-condition.yaml", include_str!("../catalog/L4/plan-declares-exit-condition.yaml")),
-    ("L4/plan-criterion-names-its-check.yaml", include_str!("../catalog/L4/plan-criterion-names-its-check.yaml")),
-    ("L4/plan-proof-budget.yaml", include_str!("../catalog/L4/plan-proof-budget.yaml")),
-    ("L4/claim-cites-its-evidence.yaml", include_str!("../catalog/L4/claim-cites-its-evidence.yaml")),
-    ("L4/rule-prose-names-a-real-command.yaml", include_str!("../catalog/L4/rule-prose-names-a-real-command.yaml")),
-    ("L5/every-check-has-a-mutation-test.yaml", include_str!("../catalog/L5/every-check-has-a-mutation-test.yaml")),
-    ("L5/no-inert-rule.yaml", include_str!("../catalog/L5/no-inert-rule.yaml")),
-    ("L2/factory-config-is-locked.yaml", include_str!("../catalog/L2/factory-config-is-locked.yaml")),
-    ("L2/policy-only-tightens.yaml", include_str!("../catalog/L2/policy-only-tightens.yaml")),
-    ("L2/catalog-only-tightens.yaml", include_str!("../catalog/L2/catalog-only-tightens.yaml")),
-    ("L2/derived-artifacts-match-their-source.yaml", include_str!("../catalog/L2/derived-artifacts-match-their-source.yaml")),
-    ("L6/dependency-vulnerabilities-are-scanned.yaml", include_str!("../catalog/L6/dependency-vulnerabilities-are-scanned.yaml")),
-    ("L6/secrets-are-scanned.yaml", include_str!("../catalog/L6/secrets-are-scanned.yaml")),
-    ("L6/insecure-patterns-are-scanned.yaml", include_str!("../catalog/L6/insecure-patterns-are-scanned.yaml")),
-    ("L6/dead-code-is-detected.yaml", include_str!("../catalog/L6/dead-code-is-detected.yaml")),
-    ("L6/data-races-are-detected.yaml", include_str!("../catalog/L6/data-races-are-detected.yaml")),
-    ("L6/performance-regression-is-guarded.yaml", include_str!("../catalog/L6/performance-regression-is-guarded.yaml")),
-    ("L6/no-blocking-call-while-holding-a-lock.yaml", include_str!("../catalog/L6/no-blocking-call-while-holding-a-lock.yaml")),
-    ("L6/one-lock-at-a-time.yaml", include_str!("../catalog/L6/one-lock-at-a-time.yaml")),
-    ("L6/workflows-are-scanned.yaml", include_str!("../catalog/L6/workflows-are-scanned.yaml")),
+    (
+        "L0/exceptions-have-one-home.yaml",
+        include_str!("../catalog/L0/exceptions-have-one-home.yaml"),
+    ),
+    (
+        "L0/persistence-stays-in-repositories.yaml",
+        include_str!("../catalog/L0/persistence-stays-in-repositories.yaml"),
+    ),
+    (
+        "L0/one-entrypoint-per-file.yaml",
+        include_str!("../catalog/L0/one-entrypoint-per-file.yaml"),
+    ),
+    (
+        "L0/no-cross-layer-import.yaml",
+        include_str!("../catalog/L0/no-cross-layer-import.yaml"),
+    ),
+    (
+        "L1/complexity-ceiling.yaml",
+        include_str!("../catalog/L1/complexity-ceiling.yaml"),
+    ),
+    (
+        "L1/comment-stays-succinct.yaml",
+        include_str!("../catalog/L1/comment-stays-succinct.yaml"),
+    ),
+    (
+        "L1/indirection-earns-its-name.yaml",
+        include_str!("../catalog/L1/indirection-earns-its-name.yaml"),
+    ),
+    (
+        "L1/no-blanket-suppression.yaml",
+        include_str!("../catalog/L1/no-blanket-suppression.yaml"),
+    ),
+    (
+        "L1/skipped-tests-state-a-reason.yaml",
+        include_str!("../catalog/L1/skipped-tests-state-a-reason.yaml"),
+    ),
+    (
+        "L1/no-untyped-escape-hatch.yaml",
+        include_str!("../catalog/L1/no-untyped-escape-hatch.yaml"),
+    ),
+    (
+        "L2/generated-files-are-locked.yaml",
+        include_str!("../catalog/L2/generated-files-are-locked.yaml"),
+    ),
+    (
+        "L2/dependencies-change-deliberately.yaml",
+        include_str!("../catalog/L2/dependencies-change-deliberately.yaml"),
+    ),
+    (
+        "L2/no-permanent-exception.yaml",
+        include_str!("../catalog/L2/no-permanent-exception.yaml"),
+    ),
+    (
+        "L3/gate-has-fresh-evidence.yaml",
+        include_str!("../catalog/L3/gate-has-fresh-evidence.yaml"),
+    ),
+    (
+        "L3/gate-covers-the-plan.yaml",
+        include_str!("../catalog/L3/gate-covers-the-plan.yaml"),
+    ),
+    (
+        "L3/gate-plan-not-in-the-queue.yaml",
+        include_str!("../catalog/L3/gate-plan-not-in-the-queue.yaml"),
+    ),
+    (
+        "L4/doc-links-resolve.yaml",
+        include_str!("../catalog/L4/doc-links-resolve.yaml"),
+    ),
+    (
+        "L4/root-files-are-declared.yaml",
+        include_str!("../catalog/L4/root-files-are-declared.yaml"),
+    ),
+    (
+        "L4/every-rule-has-a-why.yaml",
+        include_str!("../catalog/L4/every-rule-has-a-why.yaml"),
+    ),
+    (
+        "L4/plan-declares-exit-condition.yaml",
+        include_str!("../catalog/L4/plan-declares-exit-condition.yaml"),
+    ),
+    (
+        "L4/plan-criterion-names-its-check.yaml",
+        include_str!("../catalog/L4/plan-criterion-names-its-check.yaml"),
+    ),
+    (
+        "L4/plan-proof-budget.yaml",
+        include_str!("../catalog/L4/plan-proof-budget.yaml"),
+    ),
+    (
+        "L4/claim-cites-its-evidence.yaml",
+        include_str!("../catalog/L4/claim-cites-its-evidence.yaml"),
+    ),
+    (
+        "L4/rule-prose-names-a-real-command.yaml",
+        include_str!("../catalog/L4/rule-prose-names-a-real-command.yaml"),
+    ),
+    (
+        "L5/every-check-has-a-mutation-test.yaml",
+        include_str!("../catalog/L5/every-check-has-a-mutation-test.yaml"),
+    ),
+    (
+        "L5/no-inert-rule.yaml",
+        include_str!("../catalog/L5/no-inert-rule.yaml"),
+    ),
+    (
+        "L2/factory-config-is-locked.yaml",
+        include_str!("../catalog/L2/factory-config-is-locked.yaml"),
+    ),
+    (
+        "L2/policy-only-tightens.yaml",
+        include_str!("../catalog/L2/policy-only-tightens.yaml"),
+    ),
+    (
+        "L2/catalog-only-tightens.yaml",
+        include_str!("../catalog/L2/catalog-only-tightens.yaml"),
+    ),
+    (
+        "L2/derived-artifacts-match-their-source.yaml",
+        include_str!("../catalog/L2/derived-artifacts-match-their-source.yaml"),
+    ),
+    (
+        "L6/dependency-vulnerabilities-are-scanned.yaml",
+        include_str!("../catalog/L6/dependency-vulnerabilities-are-scanned.yaml"),
+    ),
+    (
+        "L6/secrets-are-scanned.yaml",
+        include_str!("../catalog/L6/secrets-are-scanned.yaml"),
+    ),
+    (
+        "L6/insecure-patterns-are-scanned.yaml",
+        include_str!("../catalog/L6/insecure-patterns-are-scanned.yaml"),
+    ),
+    (
+        "L6/dead-code-is-detected.yaml",
+        include_str!("../catalog/L6/dead-code-is-detected.yaml"),
+    ),
+    (
+        "L6/data-races-are-detected.yaml",
+        include_str!("../catalog/L6/data-races-are-detected.yaml"),
+    ),
+    (
+        "L6/performance-regression-is-guarded.yaml",
+        include_str!("../catalog/L6/performance-regression-is-guarded.yaml"),
+    ),
+    (
+        "L6/no-blocking-call-while-holding-a-lock.yaml",
+        include_str!("../catalog/L6/no-blocking-call-while-holding-a-lock.yaml"),
+    ),
+    (
+        "L6/one-lock-at-a-time.yaml",
+        include_str!("../catalog/L6/one-lock-at-a-time.yaml"),
+    ),
+    (
+        "L6/urls-are-decoded-by-the-platform.yaml",
+        include_str!("../catalog/L6/urls-are-decoded-by-the-platform.yaml"),
+    ),
+    (
+        "L6/home-variables-are-platform-derived.yaml",
+        include_str!("../catalog/L6/home-variables-are-platform-derived.yaml"),
+    ),
+    (
+        "L6/workflows-are-scanned.yaml",
+        include_str!("../catalog/L6/workflows-are-scanned.yaml"),
+    ),
 ];
 
 impl Catalog {
@@ -317,7 +445,10 @@ impl Catalog {
             .filter_map(|e| e.ok())
             .filter(|e| {
                 e.file_type().is_file()
-                    && matches!(e.path().extension().and_then(|s| s.to_str()), Some("yaml" | "yml"))
+                    && matches!(
+                        e.path().extension().and_then(|s| s.to_str()),
+                        Some("yaml" | "yml")
+                    )
             })
             .map(|e| e.into_path())
             .collect();
@@ -333,11 +464,18 @@ impl Catalog {
 
     fn insert(&mut self, rule: Rule, origin: &str) -> Result<()> {
         if rule.why.trim().is_empty() || rule.fix.trim().is_empty() {
-            bail!("rule {} ({origin}) must carry both `why` and `fix`", rule.id);
+            bail!(
+                "rule {} ({origin}) must carry both `why` and `fix`",
+                rule.id
+            );
         }
-        rule.validate().with_context(|| format!("rule {} ({origin}) is not runnable", rule.id))?;
+        rule.validate()
+            .with_context(|| format!("rule {} ({origin}) is not runnable", rule.id))?;
         if let Some(previous) = self.rules.insert(rule.id.clone(), rule) {
-            bail!("duplicate rule id {} (second definition at {origin})", previous.id);
+            bail!(
+                "duplicate rule id {} (second definition at {origin})",
+                previous.id
+            );
         }
         Ok(())
     }
@@ -380,7 +518,8 @@ mod completeness {
     /// file already failed to compile. Both directions, offenders named.
     #[test]
     fn builtin_matches_catalog_dir() {
-        let registered: BTreeSet<String> = BUILTIN.iter().map(|(path, _)| path.to_string()).collect();
+        let registered: BTreeSet<String> =
+            BUILTIN.iter().map(|(path, _)| path.to_string()).collect();
         let disk = on_disk();
 
         let unregistered: Vec<_> = disk.difference(&registered).collect();

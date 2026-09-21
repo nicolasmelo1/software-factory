@@ -18,7 +18,6 @@ pub fn globs(patterns: &[String]) -> Result<GlobSet> {
     Ok(builder.build()?)
 }
 
-
 #[derive(Debug, Clone)]
 pub struct SourceFile {
     pub rel: String,
@@ -34,7 +33,14 @@ pub fn walk(root: &Path, policy: &Policy) -> Result<Vec<SourceFile>> {
     let mut seen = std::collections::BTreeSet::new();
     collect(root, root, false, &excludes, &mut files, &mut seen)?;
     for extra in &policy.project.roots {
-        collect(root, &root.join(extra), true, &excludes, &mut files, &mut seen)?;
+        collect(
+            root,
+            &root.join(extra),
+            true,
+            &excludes,
+            &mut files,
+            &mut seen,
+        )?;
     }
     files.sort_by(|a, b| a.rel.cmp(&b.rel));
     Ok(files)
@@ -92,7 +98,10 @@ fn collect(
         if excludes.is_match(&rel) || !seen.insert(rel.clone()) {
             continue;
         }
-        files.push(SourceFile { rel, abs: entry.path().to_path_buf() });
+        files.push(SourceFile {
+            rel,
+            abs: entry.path().to_path_buf(),
+        });
     }
     Ok(())
 }
@@ -103,8 +112,16 @@ pub fn select<'a>(
     scope: &[String],
     exclude: &[String],
 ) -> Result<Vec<&'a SourceFile>> {
-    let scoped = if scope.is_empty() { None } else { Some(globs(scope)?) };
-    let excluded = if exclude.is_empty() { None } else { Some(globs(exclude)?) };
+    let scoped = if scope.is_empty() {
+        None
+    } else {
+        Some(globs(scope)?)
+    };
+    let excluded = if exclude.is_empty() {
+        None
+    } else {
+        Some(globs(exclude)?)
+    };
     Ok(files
         .iter()
         .filter(|f| scoped.as_ref().is_none_or(|g| g.is_match(&f.rel)))

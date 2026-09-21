@@ -104,7 +104,12 @@ pub fn run(rule: &Rule, opts: &Options, ctx: &Ctx) -> Result<Vec<Finding>> {
     Ok(findings)
 }
 
-fn fail(rule: &Rule, location: impl Into<String>, key: String, message: impl Into<String>) -> Finding {
+fn fail(
+    rule: &Rule,
+    location: impl Into<String>,
+    key: String,
+    message: impl Into<String>,
+) -> Finding {
     Finding::new(&rule.id, Severity::Critical, location, key, message)
 }
 
@@ -165,7 +170,10 @@ fn check_manifest_identity(
                 "evidence identity does not match the active gate",
             )
             .expected(format!("schema_version 1, gate {name}"))
-            .actual(format!("schema_version {}, gate {}", manifest.schema_version, manifest.gate)),
+            .actual(format!(
+                "schema_version {}, gate {}",
+                manifest.schema_version, manifest.gate
+            )),
         );
     }
     // The check that stops evidence from certifying code it never saw.
@@ -221,7 +229,10 @@ fn resolve_report(
             rule,
             run.report.clone(),
             format!("{key}:report-escapes"),
-            format!("the report for `{}` resolves outside the repository", run.scenario),
+            format!(
+                "the report for `{}` resolves outside the repository",
+                run.scenario
+            ),
         )));
     }
     let actual_digest = digest::file(&canonical)?;
@@ -230,7 +241,10 @@ fn resolve_report(
             rule,
             run.report.clone(),
             format!("{key}:report-digest"),
-            format!("the report for `{}` does not match its recorded digest", run.scenario),
+            format!(
+                "the report for `{}` does not match its recorded digest",
+                run.scenario
+            ),
         )
         .expected(actual_digest)
         .actual(run.report_sha256.clone())));
@@ -241,7 +255,10 @@ fn resolve_report(
             rule,
             run.report.clone(),
             format!("{key}:report-invalid"),
-            format!("the report for `{}` is not a valid report: {e}", run.scenario),
+            format!(
+                "the report for `{}` is not a valid report: {e}",
+                run.scenario
+            ),
         ))),
     }
 }
@@ -291,7 +308,10 @@ fn check_run(
                 ),
             )
             .expected(format!("scenario {} status passed", run.scenario))
-            .actual(format!("scenario {} status {}", report.scenario, report.status)),
+            .actual(format!(
+                "scenario {} status {}",
+                report.scenario, report.status
+            )),
         );
         return Ok(findings);
     }
@@ -419,12 +439,19 @@ fn check_assertions(
     }
     // An assertion the harness could not evaluate is not a pass. Counting one
     // as a pass is the most common way a green gate proves nothing.
-    for result in report.assertions.iter().filter(|a| a.status == "unsupported") {
+    for result in report
+        .assertions
+        .iter()
+        .filter(|a| a.status == "unsupported")
+    {
         findings.push(fail(
             rule,
             run.report.clone(),
             format!("{key}:unsupported:{}", result.kind),
-            format!("assertion `{}` was unsupported, which is not a pass", result.kind),
+            format!(
+                "assertion `{}` was unsupported, which is not a pass",
+                result.kind
+            ),
         ));
     }
     findings
@@ -446,7 +473,10 @@ fn check_goal_fidelity(
                 rule,
                 run.report.clone(),
                 format!("{key}:goal:{forbidden}"),
-                format!("the goal for `{}` hands the actor `{forbidden}`", run.scenario),
+                format!(
+                    "the goal for `{}` hands the actor `{forbidden}`",
+                    run.scenario
+                ),
             )
             .expected("a goal phrased the way a customer would phrase it")
             .actual(forbidden.clone())
@@ -466,7 +496,10 @@ pub fn seal(root: &Path, gate_name: &str, gate: &Gate, ctx: &Ctx) -> Result<Mani
         anyhow::ensure!(report.exists(), "report {} does not exist", run.report);
         run.report_sha256 = digest::file(&report)?;
     }
-    std::fs::write(&path, format!("{}\n", serde_json::to_string_pretty(&manifest)?))?;
+    std::fs::write(
+        &path,
+        format!("{}\n", serde_json::to_string_pretty(&manifest)?),
+    )?;
     Ok(manifest)
 }
 
@@ -481,7 +514,10 @@ mod actor {
     /// an empty `forbidden_actors:` in the YAML pass them all.
     fn shipped() -> (Rule, Options) {
         let catalog = Catalog::builtin().expect("the built-in catalog loads");
-        let rule = catalog.get("L3.GATE_HAS_FRESH_EVIDENCE").expect("ships in the catalog").clone();
+        let rule = catalog
+            .get("L3.GATE_HAS_FRESH_EVIDENCE")
+            .expect("ships in the catalog")
+            .clone();
         let policy: Policy =
             serde_yaml::from_str("version: 1\nproject:\n  name: t\n  languages: [rust]\n")
                 .expect("a minimal policy parses");
@@ -513,17 +549,26 @@ mod actor {
     /// read the field. Reverting `check_actor` makes this test fail.
     #[test]
     fn scripted_is_not_a_proof() {
-        assert_eq!(findings_for("scripted"), vec!["checkout:checkout:actor:scripted".to_string()]);
+        assert_eq!(
+            findings_for("scripted"),
+            vec!["checkout:checkout:actor:scripted".to_string()]
+        );
     }
 
     #[test]
     fn an_empty_actor_is_a_finding_of_its_own() {
-        assert_eq!(findings_for("   "), vec!["checkout:checkout:actor-missing".to_string()]);
+        assert_eq!(
+            findings_for("   "),
+            vec!["checkout:checkout:actor-missing".to_string()]
+        );
     }
 
     #[test]
     fn the_denylist_is_case_insensitive() {
-        assert_eq!(findings_for("Scripted"), vec!["checkout:checkout:actor:scripted".to_string()]);
+        assert_eq!(
+            findings_for("Scripted"),
+            vec!["checkout:checkout:actor:scripted".to_string()]
+        );
     }
 
     /// `docs/method.md`: "Whether the actor is an agent, a browser driver or a
@@ -552,7 +597,8 @@ mod actor {
             goal: "Buy an item as a guest".to_string(),
             assertions: Vec::new(),
         };
-        let findings = check_assertions(&rule, "checkout:checkout", &Gate::default(), &run, &report);
+        let findings =
+            check_assertions(&rule, "checkout:checkout", &Gate::default(), &run, &report);
         assert_eq!(findings.len(), 1, "the empty report is its own failure");
         assert_eq!(findings[0].key, "checkout:checkout:no-assertions");
 
@@ -564,7 +610,14 @@ mod actor {
             ..report
         };
         assert!(
-            check_assertions(&rule, "checkout:checkout", &Gate::default(), &run, &observed).is_empty(),
+            check_assertions(
+                &rule,
+                "checkout:checkout",
+                &Gate::default(),
+                &run,
+                &observed
+            )
+            .is_empty(),
             "a report that observed an assertion must not trip the floor"
         );
     }

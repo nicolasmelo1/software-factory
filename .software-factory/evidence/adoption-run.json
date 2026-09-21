@@ -3,17 +3,17 @@
   "status": "passed",
   "goal": "I maintain a TypeScript framework with a few years of history in it. Install the software factory, set it up the way the README says to, and tell me whether it will stop the next bad change I write without drowning me in the mess that is already there.",
   "corpus": {
-    "repository": "palmares",
-    "commit": "cd135c71e1debc55c20e08059749fe37ee943e21",
-    "tracked_files": 1232
+    "repository": "revvadas-frontend",
+    "commit": "77e4f8a2a4913e72bf40a8672a76529115b855fe",
+    "tracked_files": 2246
   },
-  "sf": "sf 0.4.0 (catalog 2977e80238db, 39 rules)",
+  "sf": "sf 0.4.1 (catalog caf07cac2faf, 41 rules)",
   "observed": {
     "rules_enabled_by_init": 15,
-    "violations_frozen_at_init": 1745,
+    "violations_frozen_at_init": 228,
     "verify": "15/15 enabled rules proven to fire",
-    "check_on_baseline": "✓ 15 rules, no findings (2841 frozen by the ratchet)",
-    "check_after_one_new_violation": "2 findings across 2 rules (2841 frozen by the ratchet)"
+    "check_on_baseline": "✓ 15 rules, no findings (265 frozen by the ratchet)",
+    "check_after_one_new_violation": "2 findings across 2 rules (265 frozen by the ratchet)"
   },
   "assertions": [
     { "type": "cli.init_scaffolds_a_policy", "status": "passed" },

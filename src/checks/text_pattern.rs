@@ -8,20 +8,22 @@
 
 use super::Ctx;
 use crate::catalog::Rule;
+use crate::digest;
 use crate::finding::Finding;
 use crate::policy::Options;
 use crate::scan;
 use anyhow::{Context, Result};
-use regex::Regex;
-use crate::digest;
 use globset::GlobSet;
+use regex::Regex;
 
 /// A line that is nothing but a comment. Deliberately prefix-based rather
 /// than parsed: this engine runs on files no grammar covers, and a trailing
 /// comment after real code is worth flagging anyway.
 fn is_comment(line: &str) -> bool {
     let trimmed = line.trim_start();
-    ["//", "#", "*", "/*", "--", "\"\"\"", "'''"].iter().any(|marker| trimmed.starts_with(marker))
+    ["//", "#", "*", "/*", "--", "\"\"\"", "'''"]
+        .iter()
+        .any(|marker| trimmed.starts_with(marker))
 }
 
 pub fn run(rule: &Rule, opts: &Options, ctx: &Ctx) -> Result<Vec<Finding>> {
@@ -43,9 +45,23 @@ pub fn run(rule: &Rule, opts: &Options, ctx: &Ctx) -> Result<Vec<Finding>> {
             let forbidden = Regex::new(&p.regex)
                 .with_context(|| format!("rule {} has an invalid regex", rule.id))?;
             let unless = p.unless.as_deref().map(Regex::new).transpose()?;
-            let scope = if p.scope.is_empty() { None } else { Some(scan::globs(&p.scope)?) };
-            let exclude = if p.exclude.is_empty() { None } else { Some(scan::globs(&p.exclude)?) };
-            Ok(Compiled { forbidden, unless, message: p.message.as_str(), scope, exclude })
+            let scope = if p.scope.is_empty() {
+                None
+            } else {
+                Some(scan::globs(&p.scope)?)
+            };
+            let exclude = if p.exclude.is_empty() {
+                None
+            } else {
+                Some(scan::globs(&p.exclude)?)
+            };
+            Ok(Compiled {
+                forbidden,
+                unless,
+                message: p.message.as_str(),
+                scope,
+                exclude,
+            })
         })
         .collect::<Result<_>>()?;
 
@@ -119,7 +135,8 @@ mod ruby_does_not_read_typescripts_pattern {
                 .duration_since(std::time::UNIX_EPOCH)
                 .expect("clock is before the epoch")
                 .as_nanos();
-            let path = std::env::temp_dir().join(format!("sf-{tag}-{}-{nanos}", std::process::id()));
+            let path =
+                std::env::temp_dir().join(format!("sf-{tag}-{}-{nanos}", std::process::id()));
             std::fs::create_dir_all(&path).expect("scratch directory");
             Scratch(path)
         }
@@ -144,8 +161,9 @@ mod ruby_does_not_read_typescripts_pattern {
         let policy = Policy::load(root).expect("policy loads");
         let files = scan::walk(root, &policy).expect("walk");
         let ratchet = Ratchet::default();
-        let rule =
-            catalog.get("L1.NO_UNTYPED_ESCAPE_HATCH").expect("the rule ships in the catalog");
+        let rule = catalog
+            .get("L1.NO_UNTYPED_ESCAPE_HATCH")
+            .expect("the rule ships in the catalog");
         let ctx = Ctx {
             root,
             policy: &policy,
@@ -172,7 +190,10 @@ mod ruby_does_not_read_typescripts_pattern {
         assert!(
             findings.is_empty(),
             "the TypeScript `any` pattern fired on a Ruby `:any?` symbol: {:?}",
-            findings.iter().map(|f| f.actual.clone()).collect::<Vec<_>>()
+            findings
+                .iter()
+                .map(|f| f.actual.clone())
+                .collect::<Vec<_>>()
         );
     }
 

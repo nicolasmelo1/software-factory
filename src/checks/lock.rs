@@ -48,7 +48,10 @@ pub fn current(opts: &Options, ctx: &Ctx) -> Result<Lock> {
     for file in scan::select(ctx.files, &opts.scope, &opts.exclude)? {
         files.insert(file.rel.clone(), digest::file(&file.abs)?);
     }
-    Ok(Lock { schema_version: 1, files })
+    Ok(Lock {
+        schema_version: 1,
+        files,
+    })
 }
 
 pub fn run(rule: &Rule, opts: &Options, ctx: &Ctx) -> Result<Vec<Finding>> {
@@ -62,15 +65,17 @@ pub fn run(rule: &Rule, opts: &Options, ctx: &Ctx) -> Result<Vec<Finding>> {
     );
     let observed = current(opts, ctx)?;
     let Some(locked) = Lock::load(&lock_path)? else {
-        return Ok(vec![Finding::new(
-            &rule.id,
-            rule.severity,
-            lock_path.display().to_string(),
-            "missing-lock".to_string(),
-            "this rule is enabled but its lock has never been written",
-        )
-        .expected("a lock file")
-        .actual("missing — run `sf lock --update`")]);
+        return Ok(vec![
+            Finding::new(
+                &rule.id,
+                rule.severity,
+                lock_path.display().to_string(),
+                "missing-lock".to_string(),
+                "this rule is enabled but its lock has never been written",
+            )
+            .expected("a lock file")
+            .actual("missing — run `sf lock --update`"),
+        ]);
     };
 
     let mut findings = Vec::new();
@@ -134,7 +139,10 @@ pub fn expiry(rule: &Rule, ctx: &Ctx) -> Result<Vec<Finding>> {
                     Severity::High,
                     location,
                     rule_id.clone(),
-                    format!("{rule_id} freezes {} violations with no review date", entry.allow.len()),
+                    format!(
+                        "{rule_id} freezes {} violations with no review date",
+                        entry.allow.len()
+                    ),
                 )
                 .expected("review_by: YYYY-MM-DD"),
             );

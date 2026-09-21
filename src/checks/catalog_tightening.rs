@@ -14,8 +14,8 @@
 
 use super::Ctx;
 use crate::catalog::Rule;
-use crate::fingerprint::{CATALOG_LOCK_PATH, CatalogLock, Reach};
 use crate::finding::Finding;
+use crate::fingerprint::{CATALOG_LOCK_PATH, CatalogLock, Reach};
 use anyhow::Result;
 
 pub fn run(rule: &Rule, ctx: &Ctx) -> Result<Vec<Finding>> {
@@ -40,7 +40,10 @@ pub fn run(rule: &Rule, ctx: &Ctx) -> Result<Vec<Finding>> {
                     ),
                 )
                 .expected(format!("{id} still in the catalog"))
-                .actual(format!("absent from catalog {}", short(&catalog_digest_now()))),
+                .actual(format!(
+                    "absent from catalog {}",
+                    short(&catalog_digest_now())
+                )),
             );
             continue;
         };

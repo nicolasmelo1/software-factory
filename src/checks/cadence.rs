@@ -98,25 +98,24 @@ fn inert_rules(rule: &Rule, ctx: &Ctx) -> Result<Vec<Finding>> {
         // is the one inertness a repository can walk into by changing a
         // dependency rather than by editing the policy.
         let activation = ctx.policy.activation_of(ctx.root, id)?;
-        let (reason, expected) = match activation.stale_reason() {
-            Some(reason) => (Some(reason.to_string()), REPOINT_OR_REMOVE),
-            None => {
-                // A rule already reporting inapplicable is silent for a
-                // stated reason, and this rule's silence about it is the
-                // set difference the plan calls for: inertness is about a
-                // rule that *runs* and can never fire, not one that said
-                // what it cannot know. A stale instance is still inert
-                // wherever its policy lives.
-                if ctx
-                    .overlay
-                    .as_ref()
-                    .is_some_and(|_| super::inapplicable_under_overlay(&candidate.check).is_some())
-                {
-                    continue;
+        let (reason, expected) =
+            match activation.stale_reason() {
+                Some(reason) => (Some(reason.to_string()), REPOINT_OR_REMOVE),
+                None => {
+                    // A rule already reporting inapplicable is silent for a
+                    // stated reason, and this rule's silence about it is the
+                    // set difference the plan calls for: inertness is about a
+                    // rule that *runs* and can never fire, not one that said
+                    // what it cannot know. A stale instance is still inert
+                    // wherever its policy lives.
+                    if ctx.overlay.as_ref().is_some_and(|_| {
+                        super::inapplicable_under_overlay(&candidate.check).is_some()
+                    }) {
+                        continue;
+                    }
+                    (inert_reason(candidate, ctx)?, CONFIGURE_OR_DISABLE)
                 }
-                (inert_reason(candidate, ctx)?, CONFIGURE_OR_DISABLE)
-            }
-        };
+            };
         let Some(reason) = reason else { continue };
         findings.push(
             Finding::new(
@@ -147,14 +146,10 @@ fn inert_reason(candidate: &Rule, ctx: &Ctx) -> Result<Option<String>> {
         // different query types, so the bindings cannot be merged into a
         // single or-pattern even though the question and the answer are
         // identical.
-        CheckKind::Shape { languages }
-            if !covers_a_declared_language(languages.keys(), ctx) =>
-        {
+        CheckKind::Shape { languages } if !covers_a_declared_language(languages.keys(), ctx) => {
             Some("no query for any language this repository declares".to_string())
         }
-        CheckKind::Nested { languages }
-            if !covers_a_declared_language(languages.keys(), ctx) =>
-        {
+        CheckKind::Nested { languages } if !covers_a_declared_language(languages.keys(), ctx) => {
             Some("no query for any language this repository declares".to_string())
         }
         CheckKind::Forwarder { languages }
@@ -164,7 +159,10 @@ fn inert_reason(candidate: &Rule, ctx: &Ctx) -> Result<Option<String>> {
         }
         CheckKind::TextPattern => {
             if scan::select(ctx.files, &options.scope, &options.exclude)?.is_empty() {
-                Some("scope matches no file in this repository: it can never see a line to check".to_string())
+                Some(
+                    "scope matches no file in this repository: it can never see a line to check"
+                        .to_string(),
+                )
             } else {
                 None
             }
@@ -188,7 +186,11 @@ fn inert_reason(candidate: &Rule, ctx: &Ctx) -> Result<Option<String>> {
 /// The trailing `_ => None` is the known gap, and the compiler cannot ask for
 /// the next one: `expiry`, `policy_tightening` and every `cadence` mode other
 /// than `gate_coverage` and `gate_plan_placement` still have no inertness test.
-fn inert_bookkeeping_reason(check: &CheckKind, options: &Options, ctx: &Ctx) -> Result<Option<String>> {
+fn inert_bookkeeping_reason(
+    check: &CheckKind,
+    options: &Options,
+    ctx: &Ctx,
+) -> Result<Option<String>> {
     Ok(match check {
         CheckKind::Lock if options.scope.is_empty() => {
             Some("no scope: it locks nothing".to_string())
@@ -198,22 +200,27 @@ fn inert_bookkeeping_reason(check: &CheckKind, options: &Options, ctx: &Ctx) -> 
         }
         CheckKind::Toolchain => inert_toolchain_reason(options, ctx),
         CheckKind::Evidence => inert_evidence_reason(ctx),
-        CheckKind::Cadence { mode: CadenceMode::GateCoverage } => inert_gate_coverage_reason(ctx),
-        CheckKind::Cadence { mode: CadenceMode::GatePlanPlacement } => {
-            inert_gate_plan_placement_reason(ctx)
-        }
-        CheckKind::Cadence { mode: CadenceMode::PlanProofBudget }
-            if scan::select(ctx.files, &options.scope, &options.exclude)?.is_empty() =>
-        {
-            Some("scope matches no plan file: it can never measure a plan's proof budget".to_string())
-        }
+        CheckKind::Cadence {
+            mode: CadenceMode::GateCoverage,
+        } => inert_gate_coverage_reason(ctx),
+        CheckKind::Cadence {
+            mode: CadenceMode::GatePlanPlacement,
+        } => inert_gate_plan_placement_reason(ctx),
+        CheckKind::Cadence {
+            mode: CadenceMode::PlanProofBudget,
+        } if scan::select(ctx.files, &options.scope, &options.exclude)?.is_empty() => Some(
+            "scope matches no plan file: it can never measure a plan's proof budget".to_string(),
+        ),
         // Nothing committed to compare the running catalog against, so
         // the rule passes every run while agreeing to nothing. `sf lock`
         // writes the fingerprint whenever this rule is enabled, so the
         // only way to reach this state is to delete the file or to enable
         // the rule without locking.
         CheckKind::CatalogTightening
-            if !ctx.root.join(crate::fingerprint::CATALOG_LOCK_PATH).exists() =>
+            if !ctx
+                .root
+                .join(crate::fingerprint::CATALOG_LOCK_PATH)
+                .exists() =>
         {
             Some(format!(
                 "no catalog fingerprint at {}: it has nothing to compare this binary's catalog against — run `sf lock`",
@@ -335,9 +342,14 @@ mod inert_l3 {
             .join(FIXTURES_DIR)
             .join("L5.NO_INERT_RULE");
         let policy = Policy::load(&root).expect("the fixture policy loads");
-        assert!(!policy.gates.is_empty(), "the fixture must declare a gate, not omit one");
+        assert!(
+            !policy.gates.is_empty(),
+            "the fixture must declare a gate, not omit one"
+        );
         let mut catalog = Catalog::builtin().expect("the built-in catalog loads");
-        catalog.extend_from_dir(&root.join(RULES_DIR)).expect("the fixture declares no local rules");
+        catalog
+            .extend_from_dir(&root.join(RULES_DIR))
+            .expect("the fixture declares no local rules");
         let files = scan::walk(&root, &policy).expect("the fixture repo scans");
         let ratchet = Ratchet::default();
         let ctx = Ctx {
@@ -352,7 +364,10 @@ mod inert_l3 {
             allow_commands: false,
             overlay: None,
         };
-        let rule = catalog.get("L5.NO_INERT_RULE").expect("ships in the catalog").clone();
+        let rule = catalog
+            .get("L5.NO_INERT_RULE")
+            .expect("ships in the catalog")
+            .clone();
         let findings = super::inert_rules(&rule, &ctx).expect("inert_rules runs");
         let message = |key: &str| {
             findings
@@ -364,19 +379,31 @@ mod inert_l3 {
         };
 
         let evidence = message("inert:L3.GATE_HAS_FRESH_EVIDENCE");
-        assert!(evidence.contains("checkout"), "names the dead gate: {evidence}");
+        assert!(
+            evidence.contains("checkout"),
+            "names the dead gate: {evidence}"
+        );
         assert!(
             evidence.contains("forever"),
             "says the rule can never fire here, not that no evidence is due: {evidence}"
         );
 
         let coverage = message("inert:L3.GATE_COVERS_THE_PLAN");
-        assert!(coverage.contains("plan"), "names what the gate is missing: {coverage}");
-        assert!(coverage.contains("forever"), "says the rule can never fire here: {coverage}");
+        assert!(
+            coverage.contains("plan"),
+            "names what the gate is missing: {coverage}"
+        );
+        assert!(
+            coverage.contains("forever"),
+            "says the rule can never fire here: {coverage}"
+        );
 
         let budget = message("inert:L4.PLAN_PROOF_BUDGET@inert");
         assert!(budget.contains("scope"), "names the empty scope: {budget}");
-        assert!(budget.contains("proof budget"), "names the rule's subject: {budget}");
+        assert!(
+            budget.contains("proof budget"),
+            "names the rule's subject: {budget}"
+        );
     }
 }
 
@@ -417,14 +444,19 @@ mod inert_forwarder {
             allow_commands: false,
             overlay: None,
         };
-        let rule = catalog.get("L5.NO_INERT_RULE").expect("ships in the catalog").clone();
+        let rule = catalog
+            .get("L5.NO_INERT_RULE")
+            .expect("ships in the catalog")
+            .clone();
         let findings = super::inert_rules(&rule, &ctx).expect("inert_rules runs");
         let reported = findings
             .iter()
             .find(|f| f.key == "inert:L1.INDIRECTION_EARNS_ITS_NAME")
             .unwrap_or_else(|| panic!("the forwarder rule must be reported inert: {findings:?}"));
         assert!(
-            reported.message.contains("no query for any language this repository declares"),
+            reported
+                .message
+                .contains("no query for any language this repository declares"),
             "says why it can never fire: {}",
             reported.message
         );
@@ -469,7 +501,10 @@ mod inert_toolchain {
             allow_commands: false,
             overlay: None,
         };
-        let rule = catalog.get("L5.NO_INERT_RULE").expect("ships in the catalog").clone();
+        let rule = catalog
+            .get("L5.NO_INERT_RULE")
+            .expect("ships in the catalog")
+            .clone();
         let findings = super::inert_rules(&rule, &ctx).expect("inert_rules runs");
         let hit = findings
             .iter()
@@ -477,7 +512,11 @@ mod inert_toolchain {
             .expect(
                 "a toolchain rule whose tools map names only a language nobody declares must be flagged inert",
             );
-        assert!(hit.message.contains("java"), "names the tools the map does have: {}", hit.message);
+        assert!(
+            hit.message.contains("java"),
+            "names the tools the map does have: {}",
+            hit.message
+        );
         assert!(
             hit.message.contains("python"),
             "names the declared language it cannot cover: {}",
@@ -500,7 +539,11 @@ fn any_parseable_declared_file(ctx: &Ctx, options: &Options) -> Result<bool> {
     let selected = scan::select(ctx.files, &options.scope, &options.exclude)?;
     Ok(selected.iter().any(|f| {
         Lang::from_path(&f.abs).is_some_and(|lang| {
-            ctx.policy.project.languages.iter().any(|declared| declared == lang.name())
+            ctx.policy
+                .project
+                .languages
+                .iter()
+                .any(|declared| declared == lang.name())
         })
     }))
 }
@@ -561,17 +604,24 @@ fn doc_links(rule: &Rule, opts: &Options, ctx: &Ctx) -> Result<Vec<Finding>> {
 }
 
 fn root_files(rule: &Rule, opts: &Options, ctx: &Ctx) -> Result<Vec<Finding>> {
-    let allowlist_name = opts.allowlist_file.as_deref().unwrap_or(".allowed-root-files");
+    let allowlist_name = opts
+        .allowlist_file
+        .as_deref()
+        .unwrap_or(".allowed-root-files");
     let allowlist_path = ctx.root.join(allowlist_name);
     let Ok(body) = std::fs::read_to_string(&allowlist_path) else {
-        return Ok(vec![Finding::new(
-            &rule.id,
-            rule.severity,
-            allowlist_name.to_string(),
-            "missing-allowlist".to_string(),
-            "this rule is enabled but the root allowlist does not exist",
-        )
-        .expected(format!("a {allowlist_name} listing every intended root file"))]);
+        return Ok(vec![
+            Finding::new(
+                &rule.id,
+                rule.severity,
+                allowlist_name.to_string(),
+                "missing-allowlist".to_string(),
+                "this rule is enabled but the root allowlist does not exist",
+            )
+            .expected(format!(
+                "a {allowlist_name} listing every intended root file"
+            )),
+        ]);
     };
     let mut allowed: BTreeSet<&str> = body
         .lines()
@@ -605,7 +655,9 @@ fn root_files(rule: &Rule, opts: &Options, ctx: &Ctx) -> Result<Vec<Finding>> {
                 name.clone(),
                 format!("`{name}` is at the repository root but not declared"),
             )
-            .expected(format!("an entry in {allowlist_name}, or somewhere with a lifecycle")),
+            .expected(format!(
+                "an entry in {allowlist_name}, or somewhere with a lifecycle"
+            )),
         );
     }
     Ok(findings)
@@ -626,7 +678,12 @@ fn rule_citations(rule: &Rule, opts: &Options, ctx: &Ctx) -> Result<Vec<Finding>
     }
 
     let mut findings = Vec::new();
-    for id in ctx.catalog.rules.keys().filter(|id| ctx.policy.any_instance_enabled(id)) {
+    for id in ctx
+        .catalog
+        .rules
+        .keys()
+        .filter(|id| ctx.policy.any_instance_enabled(id))
+    {
         if !cited.contains(id) {
             findings.push(
                 Finding::new(
@@ -714,7 +771,12 @@ fn plan_cadence(rule: &Rule, opts: &Options, ctx: &Ctx) -> Result<Vec<Finding>> 
 /// is what proves it actually trips the rule.
 fn mutation_coverage(rule: &Rule, ctx: &Ctx) -> Result<Vec<Finding>> {
     let mut findings = Vec::new();
-    for id in ctx.catalog.rules.keys().filter(|id| ctx.policy.any_instance_enabled(id)) {
+    for id in ctx
+        .catalog
+        .rules
+        .keys()
+        .filter(|id| ctx.policy.any_instance_enabled(id))
+    {
         let fixture = ctx.root.join(FIXTURES_DIR).join(id);
         if !fixture.is_dir() {
             findings.push(
@@ -793,7 +855,12 @@ fn parse_criteria(body: &str) -> Result<Vec<Criterion>> {
             parts.push(lines[index].trim().to_string());
             index += 1;
         }
-        let joined = parts.iter().filter(|p| !p.is_empty()).cloned().collect::<Vec<_>>().join(" ");
+        let joined = parts
+            .iter()
+            .filter(|p| !p.is_empty())
+            .cloned()
+            .collect::<Vec<_>>()
+            .join(" ");
         match marker.captures(&joined) {
             Some(found) => {
                 let whole = found.get(0).map(|m| m.start()).unwrap_or(joined.len());
@@ -804,7 +871,12 @@ fn parse_criteria(body: &str) -> Result<Vec<Criterion>> {
                     value: found[2].trim().to_string(),
                 });
             }
-            None => criteria.push(Criterion { line, text: joined, kind: None, value: String::new() }),
+            None => criteria.push(Criterion {
+                line,
+                text: joined,
+                kind: None,
+                value: String::new(),
+            }),
         }
     }
     Ok(criteria)
@@ -855,7 +927,9 @@ fn plan_criteria(rule: &Rule, opts: &Options, ctx: &Ctx) -> Result<Vec<Finding>>
 /// `L4.PLAN_PROOF_BUDGET`: a plan cannot erase its promises to evade a debt
 /// ceiling, and it cannot carry more undeclared proof debt than its budget.
 fn plan_proof_budget(rule: &Rule, opts: &Options, ctx: &Ctx) -> Result<Vec<Finding>> {
-    let max = opts.max.ok_or_else(|| anyhow::anyhow!("{} needs a `max` percentage", rule.id))?;
+    let max = opts
+        .max
+        .ok_or_else(|| anyhow::anyhow!("{} needs a `max` percentage", rule.id))?;
     let mut findings = Vec::new();
     for file in scan::select(ctx.files, &opts.scope, &opts.exclude)? {
         let Ok(body) = std::fs::read_to_string(&file.abs) else {
@@ -947,7 +1021,10 @@ mod proof_budget {
             60,
         )
         .expect("the control plan parses");
-        assert!(within_budget.is_empty(), "a plan under the budget must stay quiet");
+        assert!(
+            within_budget.is_empty(),
+            "a plan under the budget must stay quiet"
+        );
     }
 }
 
@@ -1016,7 +1093,10 @@ fn gate_coverage(rule: &Rule, ctx: &Ctx) -> Result<Vec<Finding>> {
                         criterion.value
                     ),
                 )
-                .expected(format!("`{}` in gates.{name}.required_assertions", criterion.value))
+                .expected(format!(
+                    "`{}` in gates.{name}.required_assertions",
+                    criterion.value
+                ))
                 .actual(if gate.required_assertions.is_empty() {
                     "the gate requires no assertions at all".to_string()
                 } else {
@@ -1065,7 +1145,9 @@ fn gate_plan_placement(rule: &Rule, ctx: &Ctx) -> Result<Vec<Finding>> {
                      a deleted file takes the gate's coverage with it"
                 ),
             )
-            .expected(format!("a criteria document outside `{queue}/`, where nothing lists it as undone work"))
+            .expected(format!(
+                "a criteria document outside `{queue}/`, where nothing lists it as undone work"
+            ))
             .actual(plan.clone()),
         );
     }
@@ -1102,12 +1184,7 @@ fn inert_gate_plan_placement_reason(ctx: &Ctx) -> Option<String> {
             "no gate declared in `gates:`: there is no gate whose plan placement it could judge — declare one, or disable this rule in policy and say why in docs/rules.md".to_string(),
         );
     }
-    if ctx
-        .policy
-        .gates
-        .values()
-        .all(|gate| gate.plan.is_none())
-    {
+    if ctx.policy.gates.values().all(|gate| gate.plan.is_none()) {
         return Some(format!(
             "no declared gate ({}) names a `plan`: this rule only reads gates that do, so it will report zero findings forever",
             joined(ctx.policy.gates.keys()),
@@ -1235,7 +1312,10 @@ mod cited_commands {
                 }
             }
         }
-        assert!(dead.is_empty(), "catalog prose names commands sf does not accept:\n{dead:#?}");
+        assert!(
+            dead.is_empty(),
+            "catalog prose names commands sf does not accept:\n{dead:#?}"
+        );
     }
 
     #[test]
@@ -1263,7 +1343,10 @@ mod cited_commands {
         let (problem, expected) =
             unaccepted("evidence record", &accepted).expect("`sf evidence` is not a command");
         assert!(problem.contains("evidence"), "{problem}");
-        assert!(expected.contains("seal"), "the expectation lists the real commands: {expected}");
+        assert!(
+            expected.contains("seal"),
+            "the expectation lists the real commands: {expected}"
+        );
     }
 
     /// The narrower half, and the one that was live in this catalog: a real
@@ -1317,7 +1400,10 @@ fn claim_citations(rule: &Rule, opts: &Options, ctx: &Ctx) -> Result<Vec<Finding
             let Some((problem, expected)) = unproven(&claim, ctx) else {
                 continue;
             };
-            let id = claim.id.clone().unwrap_or_else(|| format!("unnamed-{line}"));
+            let id = claim
+                .id
+                .clone()
+                .unwrap_or_else(|| format!("unnamed-{line}"));
             findings.push(
                 Finding::new(
                     &rule.id,
@@ -1388,7 +1474,10 @@ fn without_fences(body: &str) -> String {
     for line in body.split_inclusive('\n') {
         let fence = line.trim_start().starts_with("```");
         if fence || fenced {
-            out.extend(line.bytes().map(|byte| if byte == b'\n' { '\n' } else { ' ' }));
+            out.extend(
+                line.bytes()
+                    .map(|byte| if byte == b'\n' { '\n' } else { ' ' }),
+            );
         } else {
             out.push_str(line);
         }
@@ -1401,11 +1490,14 @@ fn without_fences(body: &str) -> String {
 
 #[cfg(test)]
 mod claims {
-    use super::{parse_claim, without_fences, PROVEN_BY};
+    use super::{PROVEN_BY, parse_claim, without_fences};
     use regex::Regex;
 
     fn parsed(inside: &str) -> (Option<String>, Option<String>) {
-        let claim = parse_claim(inside, &Regex::new(PROVEN_BY).expect("the pattern compiles"));
+        let claim = parse_claim(
+            inside,
+            &Regex::new(PROVEN_BY).expect("the pattern compiles"),
+        );
         (claim.id, claim.gate)
     }
 
@@ -1437,7 +1529,11 @@ mod claims {
         let body = "# Page\n\n```\n<!-- claim: EXAMPLE proven-by: nothing -->\n```\n\n<!-- claim: REAL proven-by: gate -->\n";
         let scanned = without_fences(body);
         assert_eq!(scanned.len(), body.len(), "byte offsets have to hold");
-        assert_eq!(scanned.matches("<!-- claim:").count(), 1, "only the unfenced one survives");
+        assert_eq!(
+            scanned.matches("<!-- claim:").count(),
+            1,
+            "only the unfenced one survives"
+        );
         assert!(scanned.contains("REAL"), "{scanned}");
     }
 }

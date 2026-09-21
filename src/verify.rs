@@ -7,8 +7,8 @@
 use crate::catalog::{Catalog, CheckKind};
 use crate::checks::{self, Ctx};
 use crate::clock;
-use crate::policy::{FIXTURES_DIR, Policy};
 use crate::lang::Lang;
+use crate::policy::{FIXTURES_DIR, Policy};
 use crate::ratchet::Ratchet;
 use crate::scan;
 use anyhow::Result;
@@ -105,9 +105,7 @@ fn run_fixture(
         return Ok(Outcome {
             rule: rule_id.to_string(),
             fired: false,
-            detail: format!(
-                "fires in some languages but the fixture never trips it in: {missing}"
-            ),
+            detail: format!("fires in some languages but the fixture never trips it in: {missing}"),
         });
     }
     Ok(Outcome {
@@ -167,8 +165,10 @@ fn untested_languages(
             Lang::from_path(Path::new(path)).map(|l| l.name())
         })
         .collect();
-    let missing: Vec<String> =
-        declared.into_iter().filter(|name| !fired.contains(&name.as_str())).collect();
+    let missing: Vec<String> = declared
+        .into_iter()
+        .filter(|name| !fired.contains(&name.as_str()))
+        .collect();
     if missing.is_empty() {
         return None;
     }
@@ -181,7 +181,9 @@ mod conditional_fixtures {
     use crate::policy::FIXTURES_DIR;
 
     fn fixture_root() -> std::path::PathBuf {
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(FIXTURES_DIR).join("L5.NO_INERT_RULE")
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join(FIXTURES_DIR)
+            .join("L5.NO_INERT_RULE")
     }
 
     /// The `L5.NO_INERT_RULE` fixture is the one carrying `when` conditions,
@@ -209,8 +211,14 @@ mod conditional_fixtures {
         let detail = gated_off(&policy, &fixture_root(), "L1.NO_BLANKET_SUPPRESSION")
             .expect("the condition is decidable")
             .expect("every instance is gated off");
-        assert!(detail.contains("^3"), "names the range the fixture was written for: {detail}");
-        assert!(detail.contains("^4.0.2"), "names what the fixture actually pins: {detail}");
+        assert!(
+            detail.contains("^3"),
+            "names the range the fixture was written for: {detail}"
+        );
+        assert!(
+            detail.contains("^4.0.2"),
+            "names what the fixture actually pins: {detail}"
+        );
 
         // A rule with no condition at all is not explained by this: the
         // fixture is simply not tripping it.
@@ -263,7 +271,8 @@ defaults:
         let root = std::env::temp_dir()
             .join(format!("sf-overlay-home-{}", std::process::id()))
             .join("governing-repo");
-        std::fs::create_dir_all(root.join(RULES_DIR)).expect("the local rules directory is created");
+        std::fs::create_dir_all(root.join(RULES_DIR))
+            .expect("the local rules directory is created");
         std::fs::create_dir_all(root.join(".software-factory"))
             .expect("the factory directory is created");
         std::fs::write(root.join(RULES_DIR).join("odd.yaml"), LOCAL_RULE)
@@ -300,8 +309,8 @@ defaults:
             .extend_from_dir(&root.join(RULES_DIR))
             .expect("the local rule loads");
 
-        let outcomes = run(&root, &policy, &catalog, None, false)
-            .expect("verify runs in the overlay's home");
+        let outcomes =
+            run(&root, &policy, &catalog, None, false).expect("verify runs in the overlay's home");
         let local = outcomes
             .iter()
             .find(|o| o.rule == "L1.ODD_NUMBERS_ONLY")
@@ -318,8 +327,7 @@ defaults:
         // trips, and a rule nothing trips is named, not passed.
         let missing = root.join(FIXTURES_DIR).join("L1.ODD_NUMBERS_ONLY");
         std::fs::remove_dir_all(&missing).expect("the fixture is removed");
-        let outcomes = run(&root, &policy, &catalog, None, false)
-            .expect("verify runs again");
+        let outcomes = run(&root, &policy, &catalog, None, false).expect("verify runs again");
         let unproven = outcomes
             .iter()
             .find(|o| o.rule == "L1.ODD_NUMBERS_ONLY")
@@ -333,8 +341,6 @@ defaults:
         let Outcome { rule, .. } = unproven;
         assert_eq!(rule, "L1.ODD_NUMBERS_ONLY");
 
-        let _ = std::fs::remove_dir_all(
-            root.parent().expect("the scratch base holds the repo"),
-        );
+        let _ = std::fs::remove_dir_all(root.parent().expect("the scratch base holds the repo"));
     }
 }

@@ -69,10 +69,17 @@ fn from_package_json(body: &str, dependency: &str) -> Declared {
         Ok(value) => value,
         Err(error) => return Declared::Malformed(error.to_string()),
     };
-    let sections =
-        ["dependencies", "devDependencies", "peerDependencies", "optionalDependencies"];
+    let sections = [
+        "dependencies",
+        "devDependencies",
+        "peerDependencies",
+        "optionalDependencies",
+    ];
     for section in sections {
-        let range = value.get(section).and_then(|s| s.get(dependency)).and_then(|r| r.as_str());
+        let range = value
+            .get(section)
+            .and_then(|s| s.get(dependency))
+            .and_then(|r| r.as_str());
         if let Some(range) = range {
             return Declared::Range(range.to_string());
         }
@@ -119,9 +126,9 @@ fn toml_value(raw: &str) -> String {
         return inner.to_string();
     }
     if raw.starts_with('{')
-        && let Some(found) = Regex::new(r#"version\s*=\s*"([^"]*)""#).ok().and_then(|r| {
-            r.captures(raw).map(|c| c[1].to_string())
-        })
+        && let Some(found) = Regex::new(r#"version\s*=\s*"([^"]*)""#)
+            .ok()
+            .and_then(|r| r.captures(raw).map(|c| c[1].to_string()))
     {
         return found;
     }
@@ -188,9 +195,7 @@ fn requirement(text: &str) -> Option<(String, String)> {
 /// PEP 503 name equivalence: `Flask_SQLAlchemy` and `flask-sqlalchemy` are one
 /// package, and a `when` must not turn on how somebody typed it.
 fn same_package(a: &str, b: &str) -> bool {
-    let normalize = |name: &str| {
-        name.to_ascii_lowercase().replace(['_', '.'], "-")
-    };
+    let normalize = |name: &str| name.to_ascii_lowercase().replace(['_', '.'], "-");
     normalize(a) == normalize(b)
 }
 
@@ -211,7 +216,8 @@ fn from_gemfile(body: &str, dependency: &str) -> Result<Declared> {
         .captures_iter(arguments)
         .map(|c| c[1].trim().to_string())
         .filter(|value| {
-            value.starts_with(|c: char| c.is_ascii_digit()) || value.starts_with(['~', '>', '<', '='])
+            value.starts_with(|c: char| c.is_ascii_digit())
+                || value.starts_with(['~', '>', '<', '='])
         })
         .collect();
     Ok(Declared::Range(constraints.join(", ")))
@@ -255,7 +261,9 @@ impl Version {
     pub fn parse(text: &str) -> Option<Version> {
         let start = text.find(|c: char| c.is_ascii_digit())?;
         let rest = &text[start..];
-        let end = rest.find(|c: char| !(c.is_ascii_digit() || c == '.')).unwrap_or(rest.len());
+        let end = rest
+            .find(|c: char| !(c.is_ascii_digit() || c == '.'))
+            .unwrap_or(rest.len());
         let parts: Vec<u64> = rest[..end]
             .split('.')
             .filter(|part| !part.is_empty())
@@ -309,7 +317,12 @@ mod reading {
                 "vitest",
                 "~1.2.0",
             ),
-            ("Cargo.toml", "[dependencies]\nserde = \"1.0.229\"\n", "serde", "1.0.229"),
+            (
+                "Cargo.toml",
+                "[dependencies]\nserde = \"1.0.229\"\n",
+                "serde",
+                "1.0.229",
+            ),
             (
                 "Cargo.toml",
                 "[dependencies]\nclap = { version = \"4.6.6\", features = [\"derive\"] }\n",
@@ -334,8 +347,18 @@ mod reading {
                 "django",
                 "^5.0",
             ),
-            ("requirements.txt", "fastapi>=0.110  # pinned\n", "fastapi", ">=0.110"),
-            ("Gemfile", "gem \"rails\", \"~> 7.1\", require: false\n", "rails", "~> 7.1"),
+            (
+                "requirements.txt",
+                "fastapi>=0.110  # pinned\n",
+                "fastapi",
+                ">=0.110",
+            ),
+            (
+                "Gemfile",
+                "gem \"rails\", \"~> 7.1\", require: false\n",
+                "rails",
+                "~> 7.1",
+            ),
             (
                 "go.mod",
                 "require (\n\tgithub.com/spf13/cobra v1.8.0 // indirect\n)\n",
@@ -355,8 +378,12 @@ mod reading {
 
     #[test]
     fn a_manifest_that_declares_something_else_is_absent_not_a_guess() {
-        let found = read("package.json", r#"{"dependencies": {"react": "^18"}}"#, "tailwindcss")
-            .expect("the manifest reads");
+        let found = read(
+            "package.json",
+            r#"{"dependencies": {"react": "^18"}}"#,
+            "tailwindcss",
+        )
+        .expect("the manifest reads");
         assert_eq!(found, Declared::Absent);
     }
 
@@ -371,8 +398,12 @@ mod reading {
 
     #[test]
     fn a_format_with_no_reader_says_so_rather_than_reporting_absent() {
-        let found = read("build.gradle", "implementation 'com.google:guava:33.0'", "guava")
-            .expect("the dispatch runs");
+        let found = read(
+            "build.gradle",
+            "implementation 'com.google:guava:33.0'",
+            "guava",
+        )
+        .expect("the dispatch runs");
         assert_eq!(found, Declared::UnknownFormat);
     }
 
@@ -385,7 +416,10 @@ mod reading {
     #[test]
     fn versions_parse_out_of_the_ranges_manifests_actually_write() {
         assert_eq!(Version::parse("^3.4.1"), Some(Version(vec![3, 4, 1])));
-        assert_eq!(Version::parse(">=0.110,<0.111"), Some(Version(vec![0, 110])));
+        assert_eq!(
+            Version::parse(">=0.110,<0.111"),
+            Some(Version(vec![0, 110]))
+        );
         assert_eq!(Version::parse("~> 7.1"), Some(Version(vec![7, 1])));
         assert_eq!(Version::parse("v1.8.0"), Some(Version(vec![1, 8, 0])));
         assert_eq!(Version::parse("*"), None);

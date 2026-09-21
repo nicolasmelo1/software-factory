@@ -13,7 +13,7 @@ about. Which order to adopt them in is a different question, answered in
 | **L3** | Effect | a real actor achieved the outcome | 3 | 3 |
 | **L4** | Cadence | docs, plans and rules stay attached | 8 | 8 |
 | **L5** | Meta | the guardrail is proven to fire | 2 | 2 |
-| **L6** | Hazard | the defect classes this repository hunts | 9 | 8 |
+| **L6** | Hazard | the defect classes this repository hunts | 11 | 8 |
 
 <!-- sf:end layer-index -->
 

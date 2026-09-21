@@ -249,7 +249,10 @@ pub const FIXTURES: &[Fixture] = &[
                 "src/payload.rb",
                 "# typed: strict\n\nsig { params(event: T.untyped).returns(T.untyped) }\ndef handle(event)\n  event\nend\n",
             ),
-            ("sig/payload.rbs", "class Payload\n  def handle: (untyped event) -> untyped\nend\n"),
+            (
+                "sig/payload.rbs",
+                "class Payload\n  def handle: (untyped event) -> untyped\nend\n",
+            ),
         ],
     },
     Fixture {
@@ -269,7 +272,10 @@ pub const FIXTURES: &[Fixture] = &[
         policy_extra: "        scope: [\"package.json\"]\n        lock_file: \".software-factory/locks/dependencies.lock.json\"\n",
         extra_rules: "",
         files: &[
-            ("package.json", "{\n  \"dependencies\": {\n    \"left-pad\": \"^1.3.0\"\n  }\n}\n"),
+            (
+                "package.json",
+                "{\n  \"dependencies\": {\n    \"left-pad\": \"^1.3.0\"\n  }\n}\n",
+            ),
             (
                 ".software-factory/locks/dependencies.lock.json",
                 "{\n  \"schema_version\": 1,\n  \"files\": {}\n}\n",
@@ -331,7 +337,10 @@ pub const FIXTURES: &[Fixture] = &[
         extra_rules: "",
         files: &[
             (".allowed-root-files", "README.md\n"),
-            ("NOTES.md", "# Notes\n\nScratch context that should have been a plan or a PR body.\n"),
+            (
+                "NOTES.md",
+                "# Notes\n\nScratch context that should have been a plan or a PR body.\n",
+            ),
             ("README.md", "# Fixture\n"),
         ],
     },
@@ -349,8 +358,14 @@ pub const FIXTURES: &[Fixture] = &[
         policy_extra: "",
         extra_rules: "",
         files: &[
-            ("plans/next-steps.md", "# Next steps\n\nNothing ordered yet.\n"),
-            ("plans/rewrite-checkout.md", "# Rewrite checkout\n\nWe will rewrite checkout.\n"),
+            (
+                "plans/next-steps.md",
+                "# Next steps\n\nNothing ordered yet.\n",
+            ),
+            (
+                "plans/rewrite-checkout.md",
+                "# Rewrite checkout\n\nWe will rewrite checkout.\n",
+            ),
         ],
     },
     Fixture {
@@ -372,7 +387,10 @@ pub const FIXTURES: &[Fixture] = &[
         // Three independent shapes: no criterion at all, debt over 60%, and
         // a control at 50% that must stay quiet.
         files: &[
-            ("plans/floor.md", "# Floor\n\nExit condition: this plan has a criterion.\n"),
+            (
+                "plans/floor.md",
+                "# Floor\n\nExit condition: this plan has a criterion.\n",
+            ),
             (
                 "plans/ceiling.md",
                 "# Ceiling\n\nExit condition: this plan is split.\n\n## Acceptance criteria\n\n- [ ] First debt. (proof: deferred:not designed)\n- [ ] Second debt. (proof: unspecified:not designed)\n- [ ] A proof. (proof: test:tests/proof.rs)\n",
@@ -396,7 +414,10 @@ pub const FIXTURES: &[Fixture] = &[
         // about: a local rule whose `fix` sends the reader to a subcommand that
         // never existed. This is the exact drift that produced the rule.
         extra_rules: "  L4.LOCAL_RULE_WITH_A_DEAD_COMMAND:\n    enabled: true\n",
-        files: &[(".software-factory/rules/local-rule.yaml", RULE_NAMING_A_DEAD_COMMAND)],
+        files: &[(
+            ".software-factory/rules/local-rule.yaml",
+            RULE_NAMING_A_DEAD_COMMAND,
+        )],
     },
     Fixture {
         rule: "L3.GATE_COVERS_THE_PLAN",
@@ -434,7 +455,10 @@ pub const FIXTURES: &[Fixture] = &[
         policy_extra: "",
         // A second rule with no fixture of its own is what this must notice.
         extra_rules: "  L1.NO_BLANKET_SUPPRESSION:\n    enabled: true\n",
-        files: &[("src/app.py", "print('a repo enabling rules with nothing proving they fire')\n")],
+        files: &[(
+            "src/app.py",
+            "print('a repo enabling rules with nothing proving they fire')\n",
+        )],
     },
     Fixture {
         rule: "L2.FACTORY_CONFIG_IS_LOCKED",
@@ -467,7 +491,10 @@ pub const FIXTURES: &[Fixture] = &[
         // produces some finding, so carrying every dimension would let a
         // broken one hide behind a working one. The other nine are unit-tested
         // in `src/fingerprint.rs`.
-        files: &[(".software-factory/catalog.lock.json", "{\n  \"schema_version\": 1,\n  \"sf_version\": \"0.1.0\",\n  \"catalog_digest\": \"0000000000000000000000000000000000000000000000000000000000000000\",\n  \"rules\": {\n    \"L1.COMPLEXITY_CEILING\": {\n      \"severity\": \"medium\",\n      \"max\": 8\n    }\n  }\n}\n")],
+        files: &[(
+            ".software-factory/catalog.lock.json",
+            "{\n  \"schema_version\": 1,\n  \"sf_version\": \"0.1.0\",\n  \"catalog_digest\": \"0000000000000000000000000000000000000000000000000000000000000000\",\n  \"rules\": {\n    \"L1.COMPLEXITY_CEILING\": {\n      \"severity\": \"medium\",\n      \"max\": 8\n    }\n  }\n}\n",
+        )],
     },
     Fixture {
         rule: "L6.DEPENDENCY_VULNERABILITIES_ARE_SCANNED",
@@ -510,6 +537,58 @@ pub const FIXTURES: &[Fixture] = &[
         policy_extra: "",
         extra_rules: "",
         files: &[(".github/workflows/ci.yml", CI_WITHOUT_HAZARD_TOOLS)],
+    },
+    Fixture {
+        rule: "L6.URLS_ARE_DECODED_BY_THE_PLATFORM",
+        policy_extra: "",
+        extra_rules: "",
+        files: &[
+            (
+                "src/loader.js",
+                "// The three ways a hand decode goes wrong, all on lines the platform's\n\
+                 // decoder never appears on.\n\
+                 const decoded = decodeURIComponent(spec) === \"file:\" ? decodeURIComponent(spec) : spec;\n\
+                 const stripped = spec.replace(\"file://\", \"\");\n\
+                 const sliced = spec.slice(\"file://\".length);\n\
+                 // The accepted form beside them: the platform's own decoder.\n\
+                 import { fileURLToPath } from \"node:url\";\n\
+                 const entry = fileURLToPath(new URL(spec));\n",
+            ),
+            (
+                "src/loader.go",
+                "package loader\n\n\
+                 // Stripping the scheme by hand: the host segment and the escapes\n\
+                 // are both wrong on the machines the author never ran.\n\
+                 func toPath(raw string) string {\n\
+                 \treturn strings.Replace(raw, \"file://\", \"\", 1)\n\
+                 }\n",
+            ),
+        ],
+    },
+    Fixture {
+        rule: "L6.HOME_VARIABLES_ARE_PLATFORM_DERIVED",
+        policy_extra: "",
+        extra_rules: "",
+        files: &[
+            (
+                "tests/expand.spec.ts",
+                "// The violation and the accepted form together: the literal assignment\n\
+                 // moves nothing on Windows; the platform-derived one names its own.\n\
+                 process.env.HOME = scratch;\n\
+                 const home = process.platform === \"win32\" ? \"USERPROFILE\" : \"HOME\";\n\
+                 process.env[home] = scratch;\n",
+            ),
+            (
+                "tests/expand_test.go",
+                "package expand\n\n\
+                 import \"os\"\n\n\
+                 func TestExpansion(t *testing.T) {\n\
+                 \t// HOME by its literal name: a no-op the moment this runs on a\n\
+                 \t// machine whose home variable is USERPROFILE.\n\
+                 \tos.Setenv(\"HOME\", t.TempDir())\n\
+                 }\n",
+            ),
+        ],
     },
     Fixture {
         rule: "L6.NO_BLOCKING_CALL_WHILE_HOLDING_A_LOCK",
@@ -624,7 +703,6 @@ Mark a promise like this:\n\n\
 
 /// A believable CI file that tests and lints and hunts none of the hazards.
 const CI_WITHOUT_HAZARD_TOOLS: &str = "name: ci\non: [push]\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - run: pytest\n      - run: npm test\n      - run: go test ./...\n      - run: cargo test\n";
-
 
 /// The mini-policy a fixture runs under: the target rule, plus whatever the
 /// fixture needs to be a coherent repository.

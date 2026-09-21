@@ -73,9 +73,15 @@ pub fn run(rule: &Rule, opts: &Options, ctx: &Ctx) -> Result<Vec<Finding>> {
 }
 
 fn weakened(rule: &Rule, key: &str, message: String, expected: String, actual: String) -> Finding {
-    Finding::new(&rule.id, rule.severity, POLICY_PATH, key.to_string(), message)
-        .expected(expected)
-        .actual(actual)
+    Finding::new(
+        &rule.id,
+        rule.severity,
+        POLICY_PATH,
+        key.to_string(),
+        message,
+    )
+    .expected(expected)
+    .actual(actual)
 }
 
 fn policy_findings(rule: &Rule, ctx: &Ctx, before: &Policy) -> Vec<Finding> {
@@ -170,8 +176,16 @@ fn rule_findings(
         ));
     }
     for (name, was_count, now_count) in [
-        ("forbidden_in_goal", was.forbidden_in_goal, now.forbidden_in_goal),
-        ("forbidden_actors", was.forbidden_actors, now.forbidden_actors),
+        (
+            "forbidden_in_goal",
+            was.forbidden_in_goal,
+            now.forbidden_in_goal,
+        ),
+        (
+            "forbidden_actors",
+            was.forbidden_actors,
+            now.forbidden_actors,
+        ),
     ] {
         if now_count < was_count {
             findings.push(weakened(
@@ -186,7 +200,12 @@ fn rule_findings(
     findings
 }
 
-fn ratchet_findings(rule: &Rule, ctx: &Ctx, before_policy: &Policy, before: &Ratchet) -> Vec<Finding> {
+fn ratchet_findings(
+    rule: &Rule,
+    ctx: &Ctx,
+    before_policy: &Policy,
+    before: &Ratchet,
+) -> Vec<Finding> {
     let mut findings = Vec::new();
     for (id, current) in &ctx.ratchet.rules {
         // A new rule is a strengthening, but it may expose debt already in
@@ -213,7 +232,12 @@ fn ratchet_findings(rule: &Rule, ctx: &Ctx, before_policy: &Policy, before: &Rat
                     format!(
                         "{id} froze {} new violation(s): {}",
                         added.len(),
-                        added.iter().take(3).map(|k| k.as_str()).collect::<Vec<_>>().join(", ")
+                        added
+                            .iter()
+                            .take(3)
+                            .map(|k| k.as_str())
+                            .collect::<Vec<_>>()
+                            .join(", ")
                     ),
                 )
                 .expected(format!("at most the {previously_frozen} already frozen"))
@@ -310,10 +334,9 @@ mod tests {
     #[test]
     fn dropping_a_catalog_default_exclusion_is_not_a_weakening() {
         let catalog = Catalog::builtin().expect("the shipped catalog loads");
-        let previous: RuleSetting = serde_yaml::from_str(
-            "enabled: true\noptions:\n  exclude: [plans/next-steps.md]\n",
-        )
-        .expect("parses");
+        let previous: RuleSetting =
+            serde_yaml::from_str("enabled: true\noptions:\n  exclude: [plans/next-steps.md]\n")
+                .expect("parses");
         let current: RuleSetting = serde_yaml::from_str("enabled: true\n").expect("parses");
         assert!(
             rule_findings(
@@ -351,19 +374,24 @@ mod tests {
     #[test]
     fn effective_size_merges_over_the_catalog_default() {
         let catalog = Catalog::builtin().expect("the shipped catalog loads");
-        let size = effective_size(
-            &catalog,
-            "L4.PLAN_PROOF_BUDGET",
-            &serde_yaml::Value::Null,
+        let size = effective_size(&catalog, "L4.PLAN_PROOF_BUDGET", &serde_yaml::Value::Null);
+        assert_eq!(
+            size.excludes, 1,
+            "the default exclude survives a null override"
         );
-        assert_eq!(size.excludes, 1, "the default exclude survives a null override");
-        assert_eq!(size.max, Some(60), "the default budget survives a null override");
+        assert_eq!(
+            size.max,
+            Some(60),
+            "the default budget survives a null override"
+        );
     }
 
     #[test]
     fn removing_goal_or_actor_denylist_values_is_a_weakening() {
         let catalog = Catalog::builtin().expect("the shipped catalog loads");
-        let rule = catalog.get("L2.POLICY_ONLY_TIGHTENS").expect("the rule ships");
+        let rule = catalog
+            .get("L2.POLICY_ONLY_TIGHTENS")
+            .expect("the rule ships");
         let previous: RuleSetting = serde_yaml::from_str(
             "enabled: true\noptions:\n  forbidden_in_goal: [/Users/]\n  forbidden_actors: [scripted]\n",
         )
@@ -380,11 +408,17 @@ mod tests {
             &previous,
             &current,
         )
-            .into_iter()
-            .map(|finding| finding.key)
-            .collect();
-        assert!(keys.contains(&"denylist-reduced:L3.GATE_HAS_FRESH_EVIDENCE:forbidden_in_goal".to_string()));
-        assert!(keys.contains(&"denylist-reduced:L3.GATE_HAS_FRESH_EVIDENCE:forbidden_actors".to_string()));
+        .into_iter()
+        .map(|finding| finding.key)
+        .collect();
+        assert!(keys.contains(
+            &"denylist-reduced:L3.GATE_HAS_FRESH_EVIDENCE:forbidden_in_goal".to_string()
+        ));
+        assert!(
+            keys.contains(
+                &"denylist-reduced:L3.GATE_HAS_FRESH_EVIDENCE:forbidden_actors".to_string()
+            )
+        );
     }
 
     #[test]

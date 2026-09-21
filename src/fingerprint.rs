@@ -98,7 +98,10 @@ impl Reach {
     pub fn weakenings(&self, previous: &Reach) -> Vec<String> {
         let mut found = Vec::new();
         if rank(self.severity) < rank(previous.severity) {
-            found.push(format!("severity dropped from {} to {}", previous.severity, self.severity));
+            found.push(format!(
+                "severity dropped from {} to {}",
+                previous.severity, self.severity
+            ));
         }
         // A ceiling is the one dimension that is optional, so it cannot join
         // the table below: absent in either version means this model has
@@ -198,7 +201,10 @@ const COUNTED: &[Counted] = &[
         get: |r| r.tools,
         weaker: Weaker::WhenItShrinks,
         say: |was, is| {
-            format!("dropped {} language(s) from its tools map, {was} to {is}", was - is)
+            format!(
+                "dropped {} language(s) from its tools map, {was} to {is}",
+                was - is
+            )
         },
         needs_previous: false,
     },
@@ -262,8 +268,9 @@ impl CatalogLock {
         }
         let body = std::fs::read_to_string(&path)
             .with_context(|| format!("reading {CATALOG_LOCK_PATH}"))?;
-        let lock: CatalogLock = serde_json::from_str(&body)
-            .with_context(|| format!("{CATALOG_LOCK_PATH} is not a catalog lock this sf understands"))?;
+        let lock: CatalogLock = serde_json::from_str(&body).with_context(|| {
+            format!("{CATALOG_LOCK_PATH} is not a catalog lock this sf understands")
+        })?;
         anyhow::ensure!(
             lock.schema_version == SCHEMA_VERSION,
             "{CATALOG_LOCK_PATH} declares schema_version {}, and this sf writes {SCHEMA_VERSION}",
@@ -344,22 +351,78 @@ mod direction {
     #[test]
     fn each_dimension_is_detected_alone() {
         let cases: Vec<(&str, Reach, &str)> = vec![
-            ("severity", Reach { severity: Severity::Low, ..base() }, "severity dropped"),
-            ("exclude", Reach { exclude: 3, ..base() }, "gained 2 exclusion(s)"),
-            ("scope", Reach { scope: 1, ..base() }, "scope shrank from 3 to 1"),
-            ("max", Reach { max: Some(20), ..base() }, "ceiling raised from 10 to 20"),
-            ("forbidden", Reach { forbidden: 2, ..base() }, "dropped 2 forbidden pattern(s)"),
+            (
+                "severity",
+                Reach {
+                    severity: Severity::Low,
+                    ..base()
+                },
+                "severity dropped",
+            ),
+            (
+                "exclude",
+                Reach {
+                    exclude: 3,
+                    ..base()
+                },
+                "gained 2 exclusion(s)",
+            ),
+            (
+                "scope",
+                Reach { scope: 1, ..base() },
+                "scope shrank from 3 to 1",
+            ),
+            (
+                "max",
+                Reach {
+                    max: Some(20),
+                    ..base()
+                },
+                "ceiling raised from 10 to 20",
+            ),
+            (
+                "forbidden",
+                Reach {
+                    forbidden: 2,
+                    ..base()
+                },
+                "dropped 2 forbidden pattern(s)",
+            ),
             (
                 "narrowed_patterns",
-                Reach { narrowed_patterns: 3, ..base() },
+                Reach {
+                    narrowed_patterns: 3,
+                    ..base()
+                },
                 "2 more forbidden pattern(s) now restricted",
             ),
-            ("languages", Reach { languages: 4, ..base() }, "stopped covering 1 language(s)"),
-            ("tools", Reach { tools: 1, ..base() }, "dropped 3 language(s) from its tools map"),
-            ("must_live_in", Reach { must_live_in: 4, ..base() }, "allowed 3 more home(s)"),
+            (
+                "languages",
+                Reach {
+                    languages: 4,
+                    ..base()
+                },
+                "stopped covering 1 language(s)",
+            ),
+            (
+                "tools",
+                Reach { tools: 1, ..base() },
+                "dropped 3 language(s) from its tools map",
+            ),
+            (
+                "must_live_in",
+                Reach {
+                    must_live_in: 4,
+                    ..base()
+                },
+                "allowed 3 more home(s)",
+            ),
             (
                 "must_not_live_in",
-                Reach { must_not_live_in: 1, ..base() },
+                Reach {
+                    must_not_live_in: 1,
+                    ..base()
+                },
                 "forbids 1 fewer location(s)",
             ),
         ];
@@ -401,7 +464,10 @@ mod direction {
             "a strictly stronger rule must not be reported: {:?}",
             stronger.weakenings(&base())
         );
-        assert!(base().weakenings(&base()).is_empty(), "an unchanged rule must be silent");
+        assert!(
+            base().weakenings(&base()).is_empty(),
+            "an unchanged rule must be silent"
+        );
     }
 
     /// A rule with no ceiling in either version, and a rule that gained one,
@@ -409,10 +475,25 @@ mod direction {
     /// direction bug would hide, because `None` sorts below `Some`.
     #[test]
     fn an_absent_ceiling_is_not_a_raised_one() {
-        let no_max = Reach { max: None, ..base() };
-        assert!(no_max.weakenings(&Reach { max: None, ..base() }).is_empty());
+        let no_max = Reach {
+            max: None,
+            ..base()
+        };
         assert!(
-            Reach { max: Some(4), ..base() }.weakenings(&no_max).is_empty(),
+            no_max
+                .weakenings(&Reach {
+                    max: None,
+                    ..base()
+                })
+                .is_empty()
+        );
+        assert!(
+            Reach {
+                max: Some(4),
+                ..base()
+            }
+            .weakenings(&no_max)
+            .is_empty(),
             "gaining a ceiling is a tightening"
         );
         assert!(

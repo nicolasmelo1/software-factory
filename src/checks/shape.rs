@@ -47,7 +47,13 @@ fn collect(
         let Some(lang) = Lang::from_path(&file.abs) else {
             continue;
         };
-        if !ctx.policy.project.languages.iter().any(|l| l == lang.name()) {
+        if !ctx
+            .policy
+            .project
+            .languages
+            .iter()
+            .any(|l| l == lang.name())
+        {
             continue;
         }
         let Some(spec) = languages.get(lang.name()) else {
@@ -79,9 +85,14 @@ fn matches_in(
     let Some(unless) = &spec.unless else {
         return Ok(found);
     };
-    let accepted: BTreeSet<usize> =
-        query_file(rule, lang, unless, rel, source)?.into_iter().map(|m| m.line).collect();
-    Ok(found.into_iter().filter(|m| !accepted.contains(&m.line)).collect())
+    let accepted: BTreeSet<usize> = query_file(rule, lang, unless, rel, source)?
+        .into_iter()
+        .map(|m| m.line)
+        .collect();
+    Ok(found
+        .into_iter()
+        .filter(|m| !accepted.contains(&m.line))
+        .collect())
 }
 
 fn query_file(
@@ -108,7 +119,13 @@ fn query_file(
         let mut line = None;
         for capture in m.captures {
             match names[capture.index as usize] {
-                "name" => name = capture.node.utf8_text(source.as_bytes()).ok().map(trim_quotes),
+                "name" => {
+                    name = capture
+                        .node
+                        .utf8_text(source.as_bytes())
+                        .ok()
+                        .map(trim_quotes)
+                }
                 "target" => line = Some(capture.node.start_position().row + 1),
                 _ => {}
             }
@@ -188,7 +205,8 @@ fn density(rule: &Rule, opts: &Options, matches: &[Match]) -> Vec<Finding> {
 }
 
 fn trim_quotes(s: &str) -> String {
-    s.trim_matches(|c| c == '"' || c == '\'' || c == '`').to_string()
+    s.trim_matches(|c| c == '"' || c == '\'' || c == '`')
+        .to_string()
 }
 
 #[cfg(test)]
@@ -203,11 +221,17 @@ mod cancelling_query {
 
     fn typescript(rule_id: &str) -> (crate::catalog::Rule, LangQuery) {
         let catalog = Catalog::builtin().expect("the builtin catalog loads");
-        let rule = catalog.get(rule_id).expect("the rule ships in the catalog").clone();
+        let rule = catalog
+            .get(rule_id)
+            .expect("the rule ships in the catalog")
+            .clone();
         let CheckKind::Shape { languages } = &rule.check else {
             panic!("{rule_id} is not a shape rule");
         };
-        let spec = languages.get("typescript").expect("the rule ships a typescript query").clone();
+        let spec = languages
+            .get("typescript")
+            .expect("the rule ships a typescript query")
+            .clone();
         (rule, spec)
     }
 
@@ -216,8 +240,14 @@ mod cancelling_query {
     #[test]
     fn the_query_alone_matches_every_skip() {
         let (rule, spec) = typescript("L1.SKIPPED_TESTS_STATE_A_REASON");
-        let found = query_file(&rule, Lang::TypeScript, &spec.query, "billing.test.ts", TESTS)
-            .expect("the typescript query is valid");
+        let found = query_file(
+            &rule,
+            Lang::TypeScript,
+            &spec.query,
+            "billing.test.ts",
+            TESTS,
+        )
+        .expect("the typescript query is valid");
         assert_eq!(found.iter().map(|m| m.line).collect::<Vec<_>>(), vec![2, 5]);
     }
 

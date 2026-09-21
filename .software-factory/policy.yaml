@@ -261,3 +261,16 @@ rules:
   # L6 — Something scans the CI workflows themselves
   L6.WORKFLOWS_ARE_SCANNED:
     enabled: true
+  # L6 — A file URL is converted by the platform's own decoder
+  L6.URLS_ARE_DECODED_BY_THE_PLATFORM:
+    # Disabled: this repository is Rust, and the rule's vocabulary is
+    # JavaScript and Go source — the file-URL surgery it bans has no
+    # surface to fire on here. The rule earns its keep in the repositories
+    # that consume this binary and load plugins by file URL.
+    enabled: false
+  # L6 — A test that moves the home variable names the platform's own
+  L6.HOME_VARIABLES_ARE_PLATFORM_DERIVED:
+    # Disabled: same reason as the URL rule — the fixture vocabulary is
+    # JavaScript and Go tests, and this repository's fixtures are Rust.
+    # The rule fires in the consumers whose test trees it was cut for.
+    enabled: false

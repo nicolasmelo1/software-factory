@@ -64,7 +64,6 @@ impl Lang {
             .map(|(lang, _)| *lang)
     }
 
-
     pub fn from_name(name: &str) -> Result<Lang> {
         match name {
             "python" => Ok(Lang::Python),

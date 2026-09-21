@@ -44,7 +44,11 @@ pub struct Report {
 
 impl Report {
     pub fn exit_code(&self) -> i32 {
-        if self.findings.is_empty() { EXIT_OK } else { EXIT_FINDINGS }
+        if self.findings.is_empty() {
+            EXIT_OK
+        } else {
+            EXIT_FINDINGS
+        }
     }
 
     pub fn json(&self) -> Result<String> {
@@ -95,7 +99,10 @@ impl Report {
             out.push_str(&format!("> {}\n\n", overlay.disclaimer()));
         }
         if self.findings.is_empty() {
-            out.push_str(&format!("No findings across {} enabled rules.\n", self.rules_run));
+            out.push_str(&format!(
+                "No findings across {} enabled rules.\n",
+                self.rules_run
+            ));
             return out;
         }
         out.push_str("| Rule | Location | Finding |\n| --- | --- | --- |\n");
@@ -115,7 +122,10 @@ impl Report {
                 .get(rule_id)
                 .or_else(|| catalog.get(crate::policy::base_rule_id(rule_id)))
             {
-                out.push_str(&format!("\n### {} — {}\n\n{}\n\n**Fix.** {}\n", rule.id, rule.title, rule.why, rule.fix));
+                out.push_str(&format!(
+                    "\n### {} — {}\n\n{}\n\n**Fix.** {}\n",
+                    rule.id, rule.title, rule.why, rule.fix
+                ));
             }
         }
         out
@@ -125,7 +135,10 @@ impl Report {
 fn group_findings(findings: &[Finding]) -> BTreeMap<&str, Vec<&Finding>> {
     let mut grouped: BTreeMap<&str, Vec<&Finding>> = BTreeMap::new();
     for finding in findings {
-        grouped.entry(finding.rule.as_str()).or_default().push(finding);
+        grouped
+            .entry(finding.rule.as_str())
+            .or_default()
+            .push(finding);
     }
     grouped
 }
@@ -249,8 +262,14 @@ mod an_instance_keeps_its_prose {
             "an instance lost its title: {rendered}"
         );
         assert!(rendered.contains("No function exceeds the cyclomatic ceiling"));
-        assert!(rendered.contains("  why  "), "an instance lost its why: {rendered}");
-        assert!(rendered.contains("  fix  "), "an instance lost its fix: {rendered}");
+        assert!(
+            rendered.contains("  why  "),
+            "an instance lost its why: {rendered}"
+        );
+        assert!(
+            rendered.contains("  fix  "),
+            "an instance lost its fix: {rendered}"
+        );
         // The instance id itself still has to be what the report names, or
         // there is no way to tell which of two instances fired.
         assert!(rendered.contains("L1.COMPLEXITY_CEILING@legacy"));
@@ -280,9 +299,9 @@ mod an_instance_keeps_its_prose {
 #[cfg(test)]
 mod overlay_provenance {
     use super::Report;
-    use std::collections::BTreeMap;
-    use crate::checks::Overlay;
     use crate::catalog::Catalog;
+    use crate::checks::Overlay;
+    use std::collections::BTreeMap;
 
     fn report_with_overlay() -> Report {
         Report {
@@ -304,7 +323,10 @@ mod overlay_provenance {
         let catalog = Catalog::builtin().expect("the shipped catalog loads");
         let report = report_with_overlay();
         let text = report.text(&catalog);
-        assert!(text.contains("policy overlay: ../factory-policy/.software-factory"), "{text}");
+        assert!(
+            text.contains("policy overlay: ../factory-policy/.software-factory"),
+            "{text}"
+        );
         assert!(text.contains("no ratchet"), "{text}");
         assert!(text.contains("3857f5559a3e"), "{text}");
         let markdown = report.markdown(&catalog);
@@ -323,8 +345,18 @@ mod overlay_provenance {
     #[test]
     fn a_vendored_report_carries_no_disclaimer() {
         let catalog = Catalog::builtin().expect("the shipped catalog loads");
-        let plain = Report { findings: Vec::new(), frozen: 0, rules_run: 1, trail: BTreeMap::new(), overlay: None };
-        assert!(!plain.text(&catalog).contains("overlay"), "{}", plain.text(&catalog));
+        let plain = Report {
+            findings: Vec::new(),
+            frozen: 0,
+            rules_run: 1,
+            trail: BTreeMap::new(),
+            overlay: None,
+        };
+        assert!(
+            !plain.text(&catalog).contains("overlay"),
+            "{}",
+            plain.text(&catalog)
+        );
     }
 }
 
@@ -464,7 +496,10 @@ mod the_attempt_trail {
             overlay: None,
         };
         assert!(
-            !plain.json().expect("the report serialises").contains("\"trail\""),
+            !plain
+                .json()
+                .expect("the report serialises")
+                .contains("\"trail\""),
             "absent when empty"
         );
     }

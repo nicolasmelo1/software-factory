@@ -33,7 +33,10 @@ pub struct InitOptions {
 pub fn run(root: &Path, catalog: &Catalog, opts: &InitOptions) -> Result<Vec<String>> {
     let policy_path = root.join(POLICY_PATH);
     if policy_path.exists() && !opts.force {
-        bail!("{} already exists — pass --force to overwrite", policy_path.display());
+        bail!(
+            "{} already exists — pass --force to overwrite",
+            policy_path.display()
+        );
     }
 
     // The interview can pull a rule in from a layer that was not selected —
@@ -46,8 +49,18 @@ pub fn run(root: &Path, catalog: &Catalog, opts: &InitOptions) -> Result<Vec<Str
 
     let template_rules = interview_rules(opts)?;
     let mut written = Vec::new();
-    write(root, POLICY_PATH, &policy_document(opts, &selected, root, &template_rules), &mut written)?;
-    write(root, opts.rules_document.as_deref().unwrap_or("docs/rules.md"), &rules_document(opts, &selected, &template_rules), &mut written)?;
+    write(
+        root,
+        POLICY_PATH,
+        &policy_document(opts, &selected, root, &template_rules),
+        &mut written,
+    )?;
+    write(
+        root,
+        opts.rules_document.as_deref().unwrap_or("docs/rules.md"),
+        &rules_document(opts, &selected, &template_rules),
+        &mut written,
+    )?;
     if let Some(answers) = &opts.answers {
         write_from_interview(root, answers, &template_rules, &mut written)?;
     }
@@ -68,13 +81,18 @@ pub fn run(root: &Path, catalog: &Catalog, opts: &InitOptions) -> Result<Vec<Str
 /// enable each one and each fixture has to carry it, so both are computed from
 /// the same list — and a template that fails to fill in aborts the whole init
 /// before anything is written.
-fn interview_rules(
-    opts: &InitOptions,
-) -> Result<Vec<(String, crate::interview::Instantiated)>> {
-    let Some(plan) = &opts.plan else { return Ok(Vec::new()) };
+fn interview_rules(opts: &InitOptions) -> Result<Vec<(String, crate::interview::Instantiated)>> {
+    let Some(plan) = &opts.plan else {
+        return Ok(Vec::new());
+    };
     plan.templates
         .iter()
-        .map(|name| Ok((name.clone(), crate::interview::instantiate(name, &plan.vars)?)))
+        .map(|name| {
+            Ok((
+                name.clone(),
+                crate::interview::instantiate(name, &plan.vars)?,
+            ))
+        })
         .collect()
 }
 
@@ -88,7 +106,12 @@ fn write_from_interview(
     written: &mut Vec<String>,
 ) -> Result<()> {
     for (name, built) in template_rules {
-        write(root, &format!("{RULES_DIR}/{name}.yaml"), &built.body, written)?;
+        write(
+            root,
+            &format!("{RULES_DIR}/{name}.yaml"),
+            &built.body,
+            written,
+        )?;
         let base = format!("{FIXTURES_DIR}/{}", built.rule.id);
         write(
             root,
@@ -102,12 +125,22 @@ fn write_from_interview(
         // trip and the mutation proves nothing — the rule would read as
         // verified while being untested. Copy it beside the policy that
         // enables it.
-        write(root, &format!("{base}/{RULES_DIR}/{name}.yaml"), &built.body, written)?;
+        write(
+            root,
+            &format!("{base}/{RULES_DIR}/{name}.yaml"),
+            &built.body,
+            written,
+        )?;
         for (path, body) in &built.fixture {
             write(root, &format!("{base}/{path}"), body, written)?;
         }
     }
-    write(root, "docs/architecture-decisions.md", &decision_record(answers)?, written)?;
+    write(
+        root,
+        "docs/architecture-decisions.md",
+        &decision_record(answers)?,
+        written,
+    )?;
     Ok(())
 }
 
@@ -124,16 +157,24 @@ fn decision_record(answers: &crate::interview::Answers) -> Result<String> {
          the policy is its consequence.\n",
     );
     for (id, answer) in &answers.answers {
-        let Some(decision) = interview.get(id) else { continue };
+        let Some(decision) = interview.get(id) else {
+            continue;
+        };
         let chosen = decision
             .options
             .iter()
             .find(|o| o.id == *answer)
             .map(|o| o.label.clone())
             .unwrap_or_else(|| answer.clone());
-        out.push_str(&format!("\n## {}\n\n**{}**\n\n{}\n", decision.question, chosen, decision.why));
-        if let Some(note) =
-            decision.options.iter().find(|o| o.id == *answer).and_then(|o| o.note.clone())
+        out.push_str(&format!(
+            "\n## {}\n\n**{}**\n\n{}\n",
+            decision.question, chosen, decision.why
+        ));
+        if let Some(note) = decision
+            .options
+            .iter()
+            .find(|o| o.id == *answer)
+            .and_then(|o| o.note.clone())
         {
             out.push_str(&format!("\n{note}\n"));
         }
@@ -147,7 +188,10 @@ fn write_cadence_files(
     selected: &[&crate::catalog::Rule],
     written: &mut Vec<String>,
 ) -> Result<()> {
-    if selected.iter().any(|r| r.id == "L4.PLAN_DECLARES_EXIT_CONDITION") {
+    if selected
+        .iter()
+        .any(|r| r.id == "L4.PLAN_DECLARES_EXIT_CONDITION")
+    {
         write_if_absent(root, "plans/next-steps.md", NEXT_STEPS, written)?;
     }
     Ok(())
@@ -162,7 +206,10 @@ fn write_root_allowlist(
     selected: &[&crate::catalog::Rule],
     written: &mut Vec<String>,
 ) -> Result<()> {
-    if selected.iter().any(|r| r.id == "L4.ROOT_FILES_ARE_DECLARED") {
+    if selected
+        .iter()
+        .any(|r| r.id == "L4.ROOT_FILES_ARE_DECLARED")
+    {
         write_if_absent(root, ".allowed-root-files", &root_allowlist(root)?, written)?;
     }
     Ok(())
@@ -194,7 +241,12 @@ fn write_fixtures(
             continue;
         };
         let base = format!("{FIXTURES_DIR}/{}", rule.id);
-        write(root, &format!("{base}/{POLICY_PATH}"), &fixtures::fixture_policy(fixture), written)?;
+        write(
+            root,
+            &format!("{base}/{POLICY_PATH}"),
+            &fixtures::fixture_policy(fixture),
+            written,
+        )?;
         for (path, body) in fixture.files {
             write(root, &format!("{base}/{path}"), body, written)?;
         }
@@ -211,11 +263,21 @@ fn write_fixtures(
 /// answer justified, minus anything an answer ruled out. Saying "we use
 /// repositories" turns the L0 rule on even on a day-one L1/L4/L5 install,
 /// because the person just told you the boundary is real.
-fn select_rules<'a>(catalog: &'a Catalog, opts: &InitOptions, root: &Path) -> Vec<&'a crate::catalog::Rule> {
-    let enabled: Vec<String> =
-        opts.plan.as_ref().map(|p| p.enable.iter().cloned().collect()).unwrap_or_default();
-    let disabled: Vec<String> =
-        opts.plan.as_ref().map(|p| p.disable.iter().cloned().collect()).unwrap_or_default();
+fn select_rules<'a>(
+    catalog: &'a Catalog,
+    opts: &InitOptions,
+    root: &Path,
+) -> Vec<&'a crate::catalog::Rule> {
+    let enabled: Vec<String> = opts
+        .plan
+        .as_ref()
+        .map(|p| p.enable.iter().cloned().collect())
+        .unwrap_or_default();
+    let disabled: Vec<String> = opts
+        .plan
+        .as_ref()
+        .map(|p| p.disable.iter().cloned().collect())
+        .unwrap_or_default();
     catalog
         .rules
         .values()
@@ -275,8 +337,11 @@ fn write(root: &Path, rel: &str, body: &str, written: &mut Vec<String>) -> Resul
 /// policy. Adding a rule should not mean re-scaffolding the repository.
 pub fn refresh_fixtures(root: &Path, catalog: &Catalog) -> Result<Vec<String>> {
     let policy = Policy::load(root)?;
-    let selected: Vec<&crate::catalog::Rule> =
-        catalog.rules.values().filter(|r| policy.any_instance_enabled(&r.id)).collect();
+    let selected: Vec<&crate::catalog::Rule> = catalog
+        .rules
+        .values()
+        .filter(|r| policy.any_instance_enabled(&r.id))
+        .collect();
     let mut written = Vec::new();
     write_fixtures(root, &selected, &mut written)?;
     Ok(written)
@@ -307,7 +372,9 @@ pub fn seed_ratchet(root: &Path, catalog: &Catalog, months: i64) -> Result<(Ratc
     let mut ratchet = Ratchet::default();
     let mut total = 0;
     for (instance, base) in policy.instances() {
-        let Some(rule) = catalog.get(&base) else { continue };
+        let Some(rule) = catalog.get(&base) else {
+            continue;
+        };
         if rule.ratchet == RatchetPolicy::None {
             continue;
         }
@@ -343,7 +410,9 @@ pub fn update_locks(root: &Path, catalog: &Catalog) -> Result<Vec<String>> {
     };
     let mut written = Vec::new();
     for (instance, base) in policy.instances() {
-        let Some(rule) = catalog.get(&base) else { continue };
+        let Some(rule) = catalog.get(&base) else {
+            continue;
+        };
         if !matches!(rule.check, crate::catalog::CheckKind::Lock) {
             continue;
         }
@@ -374,18 +443,28 @@ pub fn update_locks(root: &Path, catalog: &Catalog) -> Result<Vec<String>> {
 /// Dependency manifests that actually exist here. A lock over files that are
 /// not present is the same as no lock at all.
 fn dependency_manifests(root: &Path) -> Vec<String> {
-    ["package.json", "pyproject.toml", "requirements.txt", "go.mod", "Cargo.toml", "Cargo.lock", "Gemfile"]
-        .iter()
-        .filter(|name| root.join(name).exists())
-        .map(|name| name.to_string())
-        .collect()
+    [
+        "package.json",
+        "pyproject.toml",
+        "requirements.txt",
+        "go.mod",
+        "Cargo.toml",
+        "Cargo.lock",
+        "Gemfile",
+    ]
+    .iter()
+    .filter(|name| root.join(name).exists())
+    .map(|name| name.to_string())
+    .collect()
 }
 
 fn interview_options(opts: &InitOptions, rule_id: &str) -> Option<String> {
     let value = opts.plan.as_ref()?.options.get(rule_id)?;
     let rendered = serde_yaml::to_string(value).ok()?;
-    let indented: String =
-        rendered.lines().map(|line| format!("      {line}\n")).collect();
+    let indented: String = rendered
+        .lines()
+        .map(|line| format!("      {line}\n"))
+        .collect();
     Some(format!("    options:\n{indented}"))
 }
 
@@ -431,7 +510,9 @@ fn policy_document(
                 out.push_str(&format!("        - \"{manifest}\"\n"));
             }
             if manifests.is_empty() {
-                out.push_str("        # No dependency manifest found. Add yours, or disable the rule.\n");
+                out.push_str(
+                    "        # No dependency manifest found. Add yours, or disable the rule.\n",
+                );
             }
         } else if rule.id == "L2.GENERATED_FILES_ARE_LOCKED" {
             out.push_str(
@@ -479,8 +560,11 @@ pub fn refresh_rules_document(root: &Path, catalog: &Catalog) -> Result<()> {
 
 pub fn rules_document_content(root: &Path, catalog: &Catalog) -> Result<(PathBuf, String)> {
     let policy = Policy::load(root)?;
-    let selected: Vec<&crate::catalog::Rule> =
-        catalog.rules.values().filter(|r| policy.any_instance_enabled(&r.id)).collect();
+    let selected: Vec<&crate::catalog::Rule> = catalog
+        .rules
+        .values()
+        .filter(|r| policy.any_instance_enabled(&r.id))
+        .collect();
     let path = root.join(policy.docs.rules_document());
     let existing = std::fs::read_to_string(&path).unwrap_or_default();
     let preamble: String = existing
@@ -527,7 +611,11 @@ fn rule_sections(selected: &[&crate::catalog::Rule]) -> String {
     for rule in selected {
         if layer != Some(rule.layer) {
             layer = Some(rule.layer);
-            out.push_str(&format!("\n## {} — {}\n", rule.layer.as_str(), layer_title(rule.layer)));
+            out.push_str(&format!(
+                "\n## {} — {}\n",
+                rule.layer.as_str(),
+                layer_title(rule.layer)
+            ));
         }
         out.push_str(&format!(
             "\n### {}\n\n**{}**\n\n{}\n\n**Why.** {}\n\n**Fix.** {}\n",
@@ -649,7 +737,10 @@ fn workflow(languages: &[String], selected: &[&crate::catalog::Rule]) -> String 
          BASE_REF: ${{ github.base_ref || 'main' }}\n        \
          run: sf check --changed \"origin/$BASE_REF\"\n",
     );
-    if !selected.iter().any(|r| r.layer == crate::catalog::Layer::L6) {
+    if !selected
+        .iter()
+        .any(|r| r.layer == crate::catalog::Layer::L6)
+    {
         return pinned(out);
     }
     // fetch-depth: 0 because the secret scanner diffs against the base
@@ -780,7 +871,8 @@ mod conformance {
                 .duration_since(std::time::UNIX_EPOCH)
                 .expect("clock is before the epoch")
                 .as_nanos();
-            let path = std::env::temp_dir().join(format!("sf-{tag}-{}-{nanos}", std::process::id()));
+            let path =
+                std::env::temp_dir().join(format!("sf-{tag}-{}-{nanos}", std::process::id()));
             std::fs::create_dir_all(&path).expect("scratch directory");
             Scratch(path)
         }
@@ -919,7 +1011,9 @@ mod conformance {
         // from the fixture's own rules dir, and a template rule is not builtin,
         // so the fixture has nothing to trip.
         let mut local = Catalog::builtin().expect("builtin catalog");
-        local.extend_from_dir(&root.join(RULES_DIR)).expect("local rules load");
+        local
+            .extend_from_dir(&root.join(RULES_DIR))
+            .expect("local rules load");
         let outcomes =
             crate::verify::run(root, &policy, &local, Some(RULE), false).expect("verify runs");
         let outcome = outcomes

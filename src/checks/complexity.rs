@@ -22,7 +22,13 @@ pub fn run(rule: &Rule, opts: &Options, ctx: &Ctx) -> Result<Vec<Finding>> {
         let Some(lang) = Lang::from_path(&file.abs) else {
             continue;
         };
-        if !ctx.policy.project.languages.iter().any(|l| l == lang.name()) {
+        if !ctx
+            .policy
+            .project
+            .languages
+            .iter()
+            .any(|l| l == lang.name())
+        {
             continue;
         }
         let Ok(source) = std::fs::read_to_string(&file.abs) else {

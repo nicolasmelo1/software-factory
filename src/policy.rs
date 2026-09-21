@@ -192,7 +192,9 @@ pub fn activation(root: &Path, setting: &RuleSetting) -> Result<Activation> {
     };
     let (dependency, manifest) = (&when.dependency, &when.manifest);
     let stale = match crate::manifest::declared(root, manifest, dependency)? {
-        Declared::NoManifest => format!("its `when` reads `{manifest}`, which is not in this repository"),
+        Declared::NoManifest => {
+            format!("its `when` reads `{manifest}`, which is not in this repository")
+        }
         Declared::UnknownFormat => format!(
             "its `when` reads `{manifest}`, which is not a manifest this binary knows how to read ({})",
             crate::manifest::READABLE
@@ -204,7 +206,10 @@ pub fn activation(root: &Path, setting: &RuleSetting) -> Result<Activation> {
             "its `when` is about {dependency}, which `{manifest}` does not declare — a rule about a dependency no manifest declares is a rule about somebody else's resolution"
         ),
         Declared::Range(range) => match unsatisfied(&when.version, &range) {
-            Some(detail) => format!("its `when` is about {dependency} {}, and `{manifest}` {detail}", when.version),
+            Some(detail) => format!(
+                "its `when` is about {dependency} {}, and `{manifest}` {detail}",
+                when.version
+            ),
             None => return Ok(Activation::Active),
         },
     };
@@ -258,7 +263,9 @@ pub fn satisfies(expected: &str, found: &Version) -> bool {
 /// `0.x` locks the minor, which is what every ecosystem that has the operator
 /// means by it.
 fn significant(base: &Version) -> usize {
-    (0..base.0.len()).find(|index| base.at(*index) != 0).unwrap_or(0)
+    (0..base.0.len())
+        .find(|index| base.at(*index) != 0)
+        .unwrap_or(0)
 }
 
 fn shares_prefix(found: &Version, base: &Version, width: usize) -> bool {
@@ -406,9 +413,22 @@ pub fn base_rule_id(key: &str) -> &str {
 
 /// The default noise every repo wants skipped, before policy excludes apply.
 pub const ALWAYS_SKIP: &[&str] = &[
-    ".git", "node_modules", "target", "dist", "build", ".venv", "venv",
-    "__pycache__", ".mypy_cache", ".ruff_cache", ".pytest_cache", "vendor",
-    ".next", ".turbo", "coverage", ".software-factory/mutations",
+    ".git",
+    "node_modules",
+    "target",
+    "dist",
+    "build",
+    ".venv",
+    "venv",
+    "__pycache__",
+    ".mypy_cache",
+    ".ruff_cache",
+    ".pytest_cache",
+    "vendor",
+    ".next",
+    ".turbo",
+    "coverage",
+    ".software-factory/mutations",
 ];
 
 pub fn repo_root(start: &Path) -> Result<PathBuf> {
@@ -438,7 +458,9 @@ mod when_conditions {
     use crate::scan;
 
     fn fixture_root() -> PathBuf {
-        Path::new(env!("CARGO_MANIFEST_DIR")).join(FIXTURES_DIR).join("L5.NO_INERT_RULE")
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join(FIXTURES_DIR)
+            .join("L5.NO_INERT_RULE")
     }
 
     fn setting(yaml: &str) -> RuleSetting {
@@ -454,7 +476,10 @@ mod when_conditions {
         assert_eq!(when.dependency, "tailwindcss");
         assert_eq!(when.manifest, "package.json");
         assert_eq!(when.version, "^3");
-        assert!(setting("enabled: true\n").when.is_none(), "a rule without one is unconditional");
+        assert!(
+            setting("enabled: true\n").when.is_none(),
+            "a rule without one is unconditional"
+        );
     }
 
     /// The decision itself: the instance whose pin still matches runs and
@@ -505,15 +530,29 @@ mod when_conditions {
             .activation_of(&root, "L1.NO_BLANKET_SUPPRESSION@tailwind3")
             .expect("the condition is decidable");
         let reason = moved.stale_reason().expect("a pin that moved is stale");
-        assert!(reason.contains("^3"), "names the range it was written for: {reason}");
-        assert!(reason.contains("^4.0.2"), "names the version found: {reason}");
+        assert!(
+            reason.contains("^3"),
+            "names the range it was written for: {reason}"
+        );
+        assert!(
+            reason.contains("^4.0.2"),
+            "names the version found: {reason}"
+        );
 
         let undeclared = policy
             .activation_of(&root, "L1.NO_BLANKET_SUPPRESSION@quickbooks")
             .expect("the condition is decidable");
-        let reason = undeclared.stale_reason().expect("an undeclared dependency is stale");
-        assert!(reason.contains("node-quickbooks"), "names the package: {reason}");
-        assert!(reason.contains("does not declare"), "says what is missing: {reason}");
+        let reason = undeclared
+            .stale_reason()
+            .expect("an undeclared dependency is stale");
+        assert!(
+            reason.contains("node-quickbooks"),
+            "names the package: {reason}"
+        );
+        assert!(
+            reason.contains("does not declare"),
+            "says what is missing: {reason}"
+        );
 
         let holds = policy
             .activation_of(&root, "L1.NO_BLANKET_SUPPRESSION@tailwind4")
@@ -535,16 +574,24 @@ mod when_conditions {
         let missing = activation(root, &conditional("package.json", "^1"))
             .expect("the condition is decidable");
         let reason = missing.stale_reason().expect("no manifest is stale");
-        assert!(reason.contains("package.json"), "names the manifest: {reason}");
+        assert!(
+            reason.contains("package.json"),
+            "names the manifest: {reason}"
+        );
 
         // Cargo.lock exists here and is deliberately not a manifest this tool
         // reads: a `when` resolves the range the team wrote, never the version
         // a resolver picked.
         let unreadable =
             activation(root, &conditional("Cargo.lock", "^1")).expect("the condition is decidable");
-        let reason = unreadable.stale_reason().expect("an unreadable manifest is stale");
+        let reason = unreadable
+            .stale_reason()
+            .expect("an unreadable manifest is stale");
         assert!(reason.contains("Cargo.lock"), "names the file: {reason}");
-        assert!(reason.contains("Cargo.toml"), "names what it can read instead: {reason}");
+        assert!(
+            reason.contains("Cargo.toml"),
+            "names what it can read instead: {reason}"
+        );
 
         // And the case that has to keep working: this repository's own
         // manifest, read for a dependency it really declares.
@@ -554,7 +601,10 @@ mod when_conditions {
         );
         let moved =
             activation(root, &conditional("Cargo.toml", "^2")).expect("the condition is decidable");
-        assert!(moved.stale_reason().is_some(), "serde is pinned to 1.x here, not 2.x");
+        assert!(
+            moved.stale_reason().is_some(),
+            "serde is pinned to 1.x here, not 2.x"
+        );
     }
 
     #[test]
@@ -572,7 +622,10 @@ mod when_conditions {
         ];
         for (expected, found) in matches {
             let found = Version::parse(found).expect("the version parses");
-            assert!(satisfies(expected, &found), "{expected} should match {found:?}");
+            assert!(
+                satisfies(expected, &found),
+                "{expected} should match {found:?}"
+            );
         }
         let misses: &[(&str, &str)] = &[
             ("^3", "4.0.2"),
@@ -589,7 +642,10 @@ mod when_conditions {
         ];
         for (expected, found) in misses {
             let found = Version::parse(found).expect("the version parses");
-            assert!(!satisfies(expected, &found), "{expected} should not match {found:?}");
+            assert!(
+                !satisfies(expected, &found),
+                "{expected} should not match {found:?}"
+            );
         }
     }
 }
@@ -616,7 +672,7 @@ pub fn refuse_second_policy(root: &Path, overlay: &Path) -> Result<()> {
 
 #[cfg(test)]
 mod overlay_load {
-    use super::{Policy, POLICY_PATH, refuse_second_policy};
+    use super::{POLICY_PATH, Policy, refuse_second_policy};
     use std::path::Path;
 
     /// The overlay form of the same document: `load` is the vendored case of
@@ -656,7 +712,11 @@ mod overlay_load {
     fn a_root_with_its_own_policy_refuses_a_second_one() {
         let scratch = scratch_dir("second-policy");
         let governed = scratch.join("governed");
-        let factory = governed.join(Path::new(POLICY_PATH).parent().expect("the policy path names a directory"));
+        let factory = governed.join(
+            Path::new(POLICY_PATH)
+                .parent()
+                .expect("the policy path names a directory"),
+        );
         std::fs::create_dir_all(&factory).expect("the factory directory is created");
         std::fs::write(governed.join(POLICY_PATH), "version: 1\n").expect("the policy is written");
 

@@ -7,9 +7,9 @@
 mod catalog;
 mod checks;
 mod clock;
-mod escapes;
 mod digest;
 mod docs;
+mod escapes;
 mod finding;
 mod fingerprint;
 mod fixtures;
@@ -201,7 +201,11 @@ pub fn accepted_commands() -> BTreeMap<String, BTreeSet<String>> {
 }
 
 fn long_flags(command: &clap::Command) -> BTreeSet<String> {
-    command.get_arguments().filter_map(|arg| arg.get_long()).map(|l| format!("--{l}")).collect()
+    command
+        .get_arguments()
+        .filter_map(|arg| arg.get_long())
+        .map(|l| format!("--{l}"))
+        .collect()
 }
 
 struct Loaded {
@@ -218,7 +222,13 @@ fn load(root: PathBuf) -> Result<Loaded> {
     catalog.extend_from_dir(&root.join(RULES_DIR))?;
     let ratchet = Ratchet::load(&root)?;
     let files = scan::walk(&root, &policy)?;
-    Ok(Loaded { root, policy, catalog, ratchet, files })
+    Ok(Loaded {
+        root,
+        policy,
+        catalog,
+        ratchet,
+        files,
+    })
 }
 
 /// The overlay provenance a report names: the directory and the digest of its
@@ -273,10 +283,17 @@ fn dispatch(cli: Cli, root: PathBuf) -> Result<i32> {
     // Split by whether the command writes: it keeps each arm list short, and
     // it is the distinction someone reading this actually wants.
     match cli.command {
-        Cmd::Check { format, changed, rule, allow_commands, policy } => {
-            cmd_check(root, format, changed, rule, allow_commands, policy)
-        }
-        Cmd::Verify { rule, allow_commands } => cmd_verify(root, rule, allow_commands),
+        Cmd::Check {
+            format,
+            changed,
+            rule,
+            allow_commands,
+            policy,
+        } => cmd_check(root, format, changed, rule, allow_commands, policy),
+        Cmd::Verify {
+            rule,
+            allow_commands,
+        } => cmd_verify(root, rule, allow_commands),
         Cmd::Explain { rule } => cmd_explain(root, rule),
         Cmd::Catalog { layer } => cmd_catalog(root, layer),
         Cmd::Interview { json } => cmd_interview(json),
@@ -291,9 +308,14 @@ fn dispatch_writing(command: Cmd, root: PathBuf) -> Result<i32> {
     // family owes — nothing writes repo-local state from a policy that is not
     // in the repository, because no writer can be pointed at one.
     match command {
-        Cmd::Init { name, language, layer, force, answers, rules_document } => {
-            cmd_init(root, name, language, layer, force, answers, rules_document)
-        }
+        Cmd::Init {
+            name,
+            language,
+            layer,
+            force,
+            answers,
+            rules_document,
+        } => cmd_init(root, name, language, layer, force, answers, rules_document),
         Cmd::Ratchet { months } => cmd_ratchet(root, months),
         Cmd::Lock => cmd_lock(root),
         Cmd::Fixtures => cmd_fixtures(root),
@@ -349,7 +371,10 @@ fn cmd_interview(json: bool) -> Result<i32> {
             println!("  asked when: {}", gates.join(" and "));
         }
         if decision.free_text {
-            println!("  free text, e.g. {}", decision.example.as_deref().unwrap_or(""));
+            println!(
+                "  free text, e.g. {}",
+                decision.example.as_deref().unwrap_or("")
+            );
         }
         for option in &decision.options {
             println!("  - {:<18} {}", option.id, option.label);
@@ -407,10 +432,11 @@ fn cmd_init(
         println!("  {path}");
     }
     let (_, frozen) = init::seed_ratchet(&root, &catalog, 6)?;
-    println!("  {} ({frozen} existing violations frozen)", policy::RATCHET_PATH);
     println!(
-        "\nnote: {}", init::FIXTURES_HINT
+        "  {} ({frozen} existing violations frozen)",
+        policy::RATCHET_PATH
     );
+    println!("\nnote: {}", init::FIXTURES_HINT);
     println!(
         "\nnext:\n  \
          git config core.hooksPath .githooks\n  \
@@ -445,9 +471,7 @@ fn cmd_check(
     // zero on that arm and the vendored half applies its own inside
     // `check_vendored`.
     let (findings, frozen, rules_run, trail, overlay) = match &overlay_flag {
-        Some(dir) => {
-            check_under_overlay(root.clone(), dir, allow_commands, rule, overlay.clone())?
-        }
+        Some(dir) => check_under_overlay(root.clone(), dir, allow_commands, rule, overlay.clone())?,
         None => check_vendored(root.clone(), changed, allow_commands, rule)?,
     };
     let catalog = match &overlay_flag {
@@ -458,7 +482,9 @@ fn cmd_check(
         }
         None => local_catalog(&root)?,
     };
-    emit(&catalog, format, findings, frozen, rules_run, trail, overlay)
+    emit(
+        &catalog, format, findings, frozen, rules_run, trail, overlay,
+    )
 }
 
 /// The overlay half of `check`: the target carries no factory directory, so
@@ -536,7 +562,13 @@ fn emit(
     trail: BTreeMap<String, report::Trail>,
     overlay: Option<checks::Overlay>,
 ) -> Result<i32> {
-    let report = report::Report { findings, frozen, rules_run, trail, overlay };
+    let report = report::Report {
+        findings,
+        frozen,
+        rules_run,
+        trail,
+        overlay,
+    };
     match format {
         Format::Text => print!("{}", report.text(catalog)),
         Format::Json => println!("{}", report.json()?),
@@ -550,7 +582,9 @@ fn emit(
 /// record the bisect's own probes as the model's attempts. The marker file
 /// is written by the capture path below.
 fn escapes_logged(root: &Path) -> bool {
-    root.join(escapes::DIR_NAME).join(".capture-in-progress").exists()
+    root.join(escapes::DIR_NAME)
+        .join(".capture-in-progress")
+        .exists()
 }
 
 /// The digest of the current working-tree diff, or an empty string when git
@@ -569,7 +603,11 @@ fn working_tree_diff(root: &Path) -> Result<String> {
         return Ok(String::new());
     }
     let body = String::from_utf8_lossy(&output.stdout);
-    Ok(if body.is_empty() { String::new() } else { digest::hex(body.as_bytes()) })
+    Ok(if body.is_empty() {
+        String::new()
+    } else {
+        digest::hex(body.as_bytes())
+    })
 }
 
 /// The red side of the write path. Every still-red key gains one attempt
@@ -585,7 +623,10 @@ fn escape_bookkeeping(
     let mut red_by_rule: BTreeMap<&str, Vec<String>> = BTreeMap::new();
     for finding in findings {
         let rule_id = policy::base_rule_id(&finding.rule);
-        red_by_rule.entry(rule_id).or_default().push(finding.key.clone());
+        red_by_rule
+            .entry(rule_id)
+            .or_default()
+            .push(finding.key.clone());
         if tree_diff.is_empty() {
             continue;
         }
@@ -645,7 +686,9 @@ fn capture_transitions(
     red_by_rule: &BTreeMap<&str, Vec<String>>,
 ) -> Result<()> {
     for rule_id in escapes::pending_rules(root)? {
-        let Some(rule) = catalog.get(&rule_id) else { continue };
+        let Some(rule) = catalog.get(&rule_id) else {
+            continue;
+        };
         let current = red_by_rule.get(rule_id.as_str());
         for key in escapes::pending_keys(root, &rule_id)? {
             if current.is_some_and(|keys| keys.contains(&key)) {
@@ -667,7 +710,8 @@ fn capture_transitions(
             let probe = move |tree: &Path| -> anyhow::Result<Vec<String>> {
                 probe_rule(&root_for_probe, &rule_for_probe, tree, &key_owned)
             };
-            let captured = escapes::capture_escape(root, &rule_id, &key, &snapshot, &green, &probe)?;
+            let captured =
+                escapes::capture_escape(root, &rule_id, &key, &snapshot, &green, &probe)?;
             if captured {
                 escapes::record_green(root, &rule_id, std::slice::from_ref(&key))?;
             }
@@ -843,15 +887,21 @@ fn cmd_docs(root: PathBuf, check: bool) -> Result<i32> {
             println!("documentation is up to date");
             Ok(EXIT_OK)
         } else {
-            for path in changed { println!("would change {}", path.display()); }
+            for path in changed {
+                println!("would change {}", path.display());
+            }
             println!("run `sf docs` to update documentation");
             Ok(finding::EXIT_FINDINGS)
         }
     } else {
         init::refresh_rules_document(&root, &catalog)?;
         let written = docs::apply(&root, &catalog)?;
-        println!("regenerated docs/rules.md (everything above the first `## L` heading was preserved)");
-        for path in written { println!("updated {}", path.display()); }
+        println!(
+            "regenerated docs/rules.md (everything above the first `## L` heading was preserved)"
+        );
+        for path in written {
+            println!("updated {}", path.display());
+        }
         Ok(EXIT_OK)
     }
 }
@@ -887,8 +937,13 @@ fn cmd_seal(root: PathBuf, gate: String) -> Result<i32> {
 
 fn cmd_verify(root: PathBuf, rule: Option<String>, allow_commands: bool) -> Result<i32> {
     let loaded = load(root)?;
-    let outcomes =
-        verify::run(&loaded.root, &loaded.policy, &loaded.catalog, rule.as_deref(), allow_commands)?;
+    let outcomes = verify::run(
+        &loaded.root,
+        &loaded.policy,
+        &loaded.catalog,
+        rule.as_deref(),
+        allow_commands,
+    )?;
     let mut broken = 0;
     for outcome in &outcomes {
         if outcome.fired {
@@ -898,8 +953,16 @@ fn cmd_verify(root: PathBuf, rule: Option<String>, allow_commands: bool) -> Resu
             println!("\u{2717} {} — {}", outcome.rule, outcome.detail);
         }
     }
-    println!("\n{}/{} enabled rules proven to fire", outcomes.len() - broken, outcomes.len());
-    Ok(if broken == 0 { EXIT_OK } else { finding::EXIT_FINDINGS })
+    println!(
+        "\n{}/{} enabled rules proven to fire",
+        outcomes.len() - broken,
+        outcomes.len()
+    );
+    Ok(if broken == 0 {
+        EXIT_OK
+    } else {
+        finding::EXIT_FINDINGS
+    })
 }
 
 /// The writers refuse `--policy`, read out of the clap definition rather
@@ -916,7 +979,9 @@ mod policy_stays_off_the_writers {
     /// The five subcommands the plan names, plus every other writer this
     /// binary carries: `docs` and `skills` write too, so the sweep covers
     /// all of them rather than the list somebody remembered.
-    const WRITERS: &[&str] = &["init", "ratchet", "lock", "fixtures", "seal", "docs", "skills"];
+    const WRITERS: &[&str] = &[
+        "init", "ratchet", "lock", "fixtures", "seal", "docs", "skills",
+    ];
 
     #[test]
     fn only_check_takes_the_policy_flag() {
@@ -929,7 +994,8 @@ mod policy_stays_off_the_writers {
             let has = accepted[name].contains("--policy");
             let is_check = *name == "check";
             assert_eq!(
-                has, is_check,
+                has,
+                is_check,
                 "`--policy` belongs to `check` alone; {name} {} it",
                 if has { "must not take" } else { "may take" }
             );
@@ -942,7 +1008,12 @@ mod policy_stays_off_the_writers {
         // surface `L4.RULE_PROSE_NAMES_A_REAL_COMMAND` holds prose to.
         Cli::command().debug_assert();
         for writer in WRITERS {
-            let argv = vec!["sf", writer, "--policy", "../factory-policy/.software-factory"];
+            let argv = vec![
+                "sf",
+                writer,
+                "--policy",
+                "../factory-policy/.software-factory",
+            ];
             match Cli::try_parse_from(argv) {
                 Err(error) => {
                     let rendered = format!("{error}");
@@ -951,12 +1022,17 @@ mod policy_stays_off_the_writers {
                         "the refusal names the flag it is refusing: {rendered}"
                     );
                 }
-                Ok(_) => panic!("`sf {writer} --policy ...` must be refused by the command definition"),
+                Ok(_) => {
+                    panic!("`sf {writer} --policy ...` must be refused by the command definition")
+                }
             }
         }
         // And the one reader that takes it parses.
         let check = Cli::try_parse_from(vec![
-            "sf", "check", "--policy", "../factory-policy/.software-factory",
+            "sf",
+            "check",
+            "--policy",
+            "../factory-policy/.software-factory",
         ]);
         assert!(
             check.is_ok(),

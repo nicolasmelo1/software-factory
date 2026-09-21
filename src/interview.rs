@@ -74,16 +74,31 @@ pub struct Interview {
 const DECISIONS: &str = include_str!("../interview/decisions.yaml");
 
 const TEMPLATES: &[(&str, &str)] = &[
-    ("schemas-live-with-their-handler", include_str!("../templates/schemas-live-with-their-handler.yaml")),
-    ("no-fetch-inside-an-effect", include_str!("../templates/no-fetch-inside-an-effect.yaml")),
-    ("global-state-lives-in-one-place", include_str!("../templates/global-state-lives-in-one-place.yaml")),
-    ("client-never-imports-the-data-layer", include_str!("../templates/client-never-imports-the-data-layer.yaml")),
+    (
+        "schemas-live-with-their-handler",
+        include_str!("../templates/schemas-live-with-their-handler.yaml"),
+    ),
+    (
+        "no-fetch-inside-an-effect",
+        include_str!("../templates/no-fetch-inside-an-effect.yaml"),
+    ),
+    (
+        "global-state-lives-in-one-place",
+        include_str!("../templates/global-state-lives-in-one-place.yaml"),
+    ),
+    (
+        "client-never-imports-the-data-layer",
+        include_str!("../templates/client-never-imports-the-data-layer.yaml"),
+    ),
 ];
 
 /// Rule ids the templates can produce. Documenting one is legitimate even
 /// though it is not in the catalog until an interview instantiates it.
 pub fn template_rule_ids() -> Vec<String> {
-    template_docs().into_iter().map(|template| template.rule_id).collect()
+    template_docs()
+        .into_iter()
+        .map(|template| template.rule_id)
+        .collect()
 }
 
 pub struct TemplateDoc {
@@ -108,7 +123,10 @@ pub fn template_docs() -> Vec<TemplateDoc> {
 }
 
 fn field(body: &str, prefix: &str) -> Option<String> {
-    body.lines().find_map(|line| line.strip_prefix(prefix).map(|value| value.trim().to_string()))
+    body.lines().find_map(|line| {
+        line.strip_prefix(prefix)
+            .map(|value| value.trim().to_string())
+    })
 }
 
 /// `@@name@@`, in the order a reader meets them, deduplicated.
@@ -148,8 +166,8 @@ impl Answers {
     pub fn load(path: &Path) -> Result<Answers> {
         let body = std::fs::read_to_string(path)
             .with_context(|| format!("no answers at {}", path.display()))?;
-        let answers: Answers =
-            serde_yaml::from_str(&body).with_context(|| format!("{} is malformed", path.display()))?;
+        let answers: Answers = serde_yaml::from_str(&body)
+            .with_context(|| format!("{} is malformed", path.display()))?;
         anyhow::ensure!(answers.version == 1, "unsupported answers version");
         Ok(answers)
     }
@@ -196,7 +214,12 @@ pub fn plan(interview: &Interview, answers: &Answers) -> Result<Plan> {
                 .with_context(|| {
                     format!(
                         "{decision_id}: {answer:?} is not one of {}",
-                        decision.options.iter().map(|o| o.id.as_str()).collect::<Vec<_>>().join(", ")
+                        decision
+                            .options
+                            .iter()
+                            .map(|o| o.id.as_str())
+                            .collect::<Vec<_>>()
+                            .join(", ")
                     )
                 })?;
             plan.vars.insert(decision_id.clone(), option.id.clone());
@@ -267,16 +290,32 @@ fn expand_vars(plan: &mut Plan, id: &str, answer: &str) {
     plan.vars.insert(format!("{id}_list"), yaml_list(&items));
     plan.vars.insert(
         format!("{id}_globs"),
-        yaml_list(&items.iter().map(|item| format!("{}/**", item.trim_end_matches('/'))).collect::<Vec<_>>()),
+        yaml_list(
+            &items
+                .iter()
+                .map(|item| format!("{}/**", item.trim_end_matches('/')))
+                .collect::<Vec<_>>(),
+        ),
     );
     plan.vars.insert(
         format!("{id}_pattern"),
-        items.iter().map(|item| regex_escape(item)).collect::<Vec<_>>().join("|"),
+        items
+            .iter()
+            .map(|item| regex_escape(item))
+            .collect::<Vec<_>>()
+            .join("|"),
     );
 }
 
 fn yaml_list(items: &[String]) -> String {
-    format!("[{}]", items.iter().map(|i| format!("\"{i}\"")).collect::<Vec<_>>().join(", "))
+    format!(
+        "[{}]",
+        items
+            .iter()
+            .map(|i| format!("\"{i}\""))
+            .collect::<Vec<_>>()
+            .join(", ")
+    )
 }
 
 fn regex_escape(item: &str) -> String {
@@ -311,7 +350,10 @@ pub fn instantiate(name: &str, vars: &BTreeMap<String, String>) -> Result<Instan
         filled = filled.replace(&format!("@@{key}@@"), value);
     }
     if let Some(start) = filled.find("@@") {
-        let end = filled[start + 2..].find("@@").map(|e| start + e + 4).unwrap_or(filled.len());
+        let end = filled[start + 2..]
+            .find("@@")
+            .map(|e| start + e + 4)
+            .unwrap_or(filled.len());
         bail!(
             "template {name} still needs {} — the interview did not answer it",
             &filled[start..end]
@@ -329,7 +371,8 @@ pub fn instantiate(name: &str, vars: &BTreeMap<String, String>) -> Result<Instan
     let body = serde_yaml::to_string(&value)?;
     let rule: Rule = serde_yaml::from_value(value)
         .with_context(|| format!("template {name} does not describe a valid rule"))?;
-    rule.validate().with_context(|| format!("template {name} is not runnable once filled in"))?;
+    rule.validate()
+        .with_context(|| format!("template {name} is not runnable once filled in"))?;
     Ok(Instantiated {
         rule,
         body,
@@ -375,7 +418,8 @@ mod completeness {
     /// from `sf init`. Both directions, offenders named.
     #[test]
     fn templates_matches_templates_dir() {
-        let registered: BTreeSet<String> = TEMPLATES.iter().map(|(name, _)| name.to_string()).collect();
+        let registered: BTreeSet<String> =
+            TEMPLATES.iter().map(|(name, _)| name.to_string()).collect();
         let disk = on_disk();
 
         let unregistered: Vec<_> = disk.difference(&registered).collect();
@@ -405,21 +449,34 @@ mod completeness {
             BTreeMap::from([
                 ("kind".to_string(), "backend-service".to_string()),
                 ("validation".to_string(), "pydantic".to_string()),
-                ("validation_placement".to_string(), "with-the-handler".to_string()),
+                (
+                    "validation_placement".to_string(),
+                    "with-the-handler".to_string(),
+                ),
             ]),
             BTreeMap::from([
                 ("kind".to_string(), "web-client".to_string()),
                 ("client_data".to_string(), "react-query".to_string()),
                 ("client_state".to_string(), "single-directory".to_string()),
                 ("client_root".to_string(), "apps/web".to_string()),
-                ("data_layer_packages".to_string(), "@acme/db, prisma".to_string()),
+                (
+                    "data_layer_packages".to_string(),
+                    "@acme/db, prisma".to_string(),
+                ),
             ]),
         ];
 
         let interview = Interview::load().expect("built-in interview loads");
         let mut activated = BTreeSet::new();
         for answers in sets {
-            let plan = plan(&interview, &Answers { version: 1, answers }).expect("answers plan");
+            let plan = plan(
+                &interview,
+                &Answers {
+                    version: 1,
+                    answers,
+                },
+            )
+            .expect("answers plan");
             for template in &plan.templates {
                 instantiate(template, &plan.vars)
                     .unwrap_or_else(|e| panic!("template {template} is not runnable: {e:#}"));
@@ -428,6 +485,9 @@ mod completeness {
         }
 
         let all: BTreeSet<String> = TEMPLATES.iter().map(|(name, _)| name.to_string()).collect();
-        assert_eq!(activated, all, "some template is never reached by these answers");
+        assert_eq!(
+            activated, all,
+            "some template is never reached by these answers"
+        );
     }
 }

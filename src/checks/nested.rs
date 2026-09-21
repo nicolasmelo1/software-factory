@@ -31,7 +31,13 @@ pub fn run(
         let Some(lang) = Lang::from_path(&file.abs) else {
             continue;
         };
-        if !ctx.policy.project.languages.iter().any(|l| l == lang.name()) {
+        if !ctx
+            .policy
+            .project
+            .languages
+            .iter()
+            .any(|l| l == lang.name())
+        {
             continue;
         }
         let Some(spec) = languages.get(lang.name()) else {
@@ -54,10 +60,20 @@ fn scan_file(
     threshold: usize,
 ) -> Result<Vec<Finding>> {
     let grammar = lang.grammar();
-    let outer = Query::new(&grammar, &spec.outer)
-        .with_context(|| format!("rule {} has an invalid {} outer query", rule.id, lang.name()))?;
-    let inner = Query::new(&grammar, &spec.inner)
-        .with_context(|| format!("rule {} has an invalid {} inner query", rule.id, lang.name()))?;
+    let outer = Query::new(&grammar, &spec.outer).with_context(|| {
+        format!(
+            "rule {} has an invalid {} outer query",
+            rule.id,
+            lang.name()
+        )
+    })?;
+    let inner = Query::new(&grammar, &spec.inner).with_context(|| {
+        format!(
+            "rule {} has an invalid {} inner query",
+            rule.id,
+            lang.name()
+        )
+    })?;
     let mut parser = Parser::new();
     parser.set_language(&grammar)?;
     let Some(tree) = parser.parse(source, None) else {
@@ -106,7 +122,9 @@ fn inside(
             if seen < threshold {
                 continue;
             }
-            findings.push(finding_for(rule, found.node, rel, bytes, opened, seen, threshold));
+            findings.push(finding_for(
+                rule, found.node, rel, bytes, opened, seen, threshold,
+            ));
         }
     }
     findings
@@ -131,9 +149,15 @@ fn finding_for(
         .trim()
         .to_string();
     let message = if threshold > 1 {
-        format!("`{}` is acquisition #{seen} in the scope starting at line {opened}", truncate(&text, 60))
+        format!(
+            "`{}` is acquisition #{seen} in the scope starting at line {opened}",
+            truncate(&text, 60)
+        )
     } else {
-        format!("`{}` appears inside the guarded region starting at line {opened}", truncate(&text, 60))
+        format!(
+            "`{}` appears inside the guarded region starting at line {opened}",
+            truncate(&text, 60)
+        )
     };
     Finding::new(
         &rule.id,

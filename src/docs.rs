@@ -32,8 +32,15 @@ const BLOCKS: &[&str] = &[
     "templates-index",
 ];
 
-const LAYERS: [Layer; 7] =
-    [Layer::L0, Layer::L1, Layer::L2, Layer::L3, Layer::L4, Layer::L5, Layer::L6];
+const LAYERS: [Layer; 7] = [
+    Layer::L0,
+    Layer::L1,
+    Layer::L2,
+    Layer::L3,
+    Layer::L4,
+    Layer::L5,
+    Layer::L6,
+];
 
 /// Flags every subcommand carries. They are documented once in prose rather
 /// than in every generated row.
@@ -55,9 +62,16 @@ pub fn render(root: &Path, catalog: &Catalog) -> Result<Vec<RenderedPage>> {
         found.extend(names);
         rendered.push(RenderedPage { path, content });
     }
-    let missing: Vec<&str> = BLOCKS.iter().copied().filter(|name| !found.contains(*name)).collect();
+    let missing: Vec<&str> = BLOCKS
+        .iter()
+        .copied()
+        .filter(|name| !found.contains(*name))
+        .collect();
     if !missing.is_empty() {
-        bail!("generated block(s) have no placement: {}", missing.join(", "));
+        bail!(
+            "generated block(s) have no placement: {}",
+            missing.join(", ")
+        );
     }
     Ok(rendered)
 }
@@ -103,7 +117,10 @@ fn blocks(root: &Path, catalog: &Catalog) -> Result<BTreeMap<&'static str, Strin
     out.insert("language-coverage", language_coverage(catalog));
     out.insert("language-grammars", language_grammars());
     out.insert("layer-index", layer_index(catalog, &policy));
-    out.insert("rules-summary", rules_summary(root, catalog, &policy, &ratchet));
+    out.insert(
+        "rules-summary",
+        rules_summary(root, catalog, &policy, &ratchet),
+    );
     out.insert("skills-index", skills_index());
     out.insert("templates-index", templates_index());
     Ok(out)
@@ -161,7 +178,9 @@ fn replace_blocks(
 }
 
 fn block_name(trimmed: &str) -> Option<&str> {
-    trimmed.strip_prefix("<!-- sf:generated ").and_then(|s| s.strip_suffix(" -->"))
+    trimmed
+        .strip_prefix("<!-- sf:generated ")
+        .and_then(|s| s.strip_suffix(" -->"))
 }
 
 fn close_block<'a>(
@@ -205,7 +224,10 @@ fn rules_summary(root: &Path, catalog: &Catalog, policy: &Policy, ratchet: &Ratc
     let debt = if dates.is_empty() {
         "Nothing is frozen.".to_string()
     } else {
-        format!("Frozen, with a date the build fails on: {}.", dates.join(", "))
+        format!(
+            "Frozen, with a date the build fails on: {}.",
+            dates.join(", ")
+        )
     };
     format!(
         "**{shipped} rules shipped**, {} enabled here, {} switched off, {fixtures} carrying a \
@@ -220,9 +242,15 @@ fn layer_index(catalog: &Catalog, policy: &Policy) -> String {
     let mut out = String::from("| | Layer | What it checks | Shipped | Enabled here |\n");
     out.push_str("| :-- | :-- | :-- | --: | --: |\n");
     for layer in LAYERS {
-        let rules: Vec<&Rule> =
-            catalog.rules.values().filter(|rule| rule.layer == layer).collect();
-        let on = rules.iter().filter(|rule| enabled.contains(&rule.id)).count();
+        let rules: Vec<&Rule> = catalog
+            .rules
+            .values()
+            .filter(|rule| rule.layer == layer)
+            .collect();
+        let on = rules
+            .iter()
+            .filter(|rule| enabled.contains(&rule.id))
+            .count();
         let title = init::layer_title(layer);
         let (name, about) = title.split_once(": ").unwrap_or((title, ""));
         out.push_str(&format!(
@@ -242,7 +270,10 @@ fn subcommands() -> Vec<clap::Command> {
 }
 
 fn about_of(command: &clap::Command) -> String {
-    command.get_about().map(|about| about.to_string()).unwrap_or_default()
+    command
+        .get_about()
+        .map(|about| about.to_string())
+        .unwrap_or_default()
 }
 
 fn cli_index() -> String {
@@ -312,11 +343,16 @@ fn flag_table(command: &clap::Command) -> Option<String> {
     if rows.is_empty() {
         return None;
     }
-    Some(format!("| Flag | What it does | Default |\n| :-- | :-- | :-- |\n{rows}"))
+    Some(format!(
+        "| Flag | What it does | Default |\n| :-- | :-- | :-- |\n{rows}"
+    ))
 }
 
 fn takes_a_value(arg: &clap::Arg) -> bool {
-    matches!(arg.get_action(), clap::ArgAction::Set | clap::ArgAction::Append)
+    matches!(
+        arg.get_action(),
+        clap::ArgAction::Set | clap::ArgAction::Append
+    )
 }
 
 fn usage_of(arg: &clap::Arg) -> String {
@@ -328,7 +364,10 @@ fn usage_of(arg: &clap::Arg) -> String {
 }
 
 fn help_of(arg: &clap::Arg) -> String {
-    let help = arg.get_help().map(|help| help.to_string()).unwrap_or_default();
+    let help = arg
+        .get_help()
+        .map(|help| help.to_string())
+        .unwrap_or_default();
     let text = help.replace('\n', " ");
     let text = text.split_whitespace().collect::<Vec<_>>().join(" ");
     match text.split_once(". ") {
@@ -346,7 +385,11 @@ fn default_of(arg: &clap::Arg) -> String {
     if !values.is_empty() {
         return values.join(", ");
     }
-    if takes_a_value(arg) { "none".to_string() } else { "off".to_string() }
+    if takes_a_value(arg) {
+        "none".to_string()
+    } else {
+        "off".to_string()
+    }
 }
 
 fn query_languages(rule: &Rule) -> BTreeSet<String> {
@@ -377,8 +420,10 @@ fn language_coverage(catalog: &Catalog) -> String {
 fn language_grammars() -> String {
     let mut out = String::from("| Grammar | Files it reads |\n| :-- | :-- |\n");
     for (lang, extensions) in crate::lang::GRAMMARS {
-        let globs: Vec<String> =
-            extensions.iter().map(|extension| format!("`*.{extension}`")).collect();
+        let globs: Vec<String> = extensions
+            .iter()
+            .map(|extension| format!("`*.{extension}`"))
+            .collect();
         out.push_str(&format!("| {} | {} |\n", lang.name(), globs.join(", ")));
     }
     out
@@ -386,14 +431,25 @@ fn language_grammars() -> String {
 
 fn tools_of(rule: &Rule) -> BTreeMap<String, Vec<String>> {
     let mut out = BTreeMap::new();
-    let Some(mapping) = rule.defaults.get("tools").and_then(|value| value.as_mapping()) else {
+    let Some(mapping) = rule
+        .defaults
+        .get("tools")
+        .and_then(|value| value.as_mapping())
+    else {
         return out;
     };
     for (language, tools) in mapping {
-        let Some(language) = language.as_str() else { continue };
+        let Some(language) = language.as_str() else {
+            continue;
+        };
         let listed: Vec<String> = tools
             .as_sequence()
-            .map(|values| values.iter().filter_map(|v| v.as_str().map(str::to_string)).collect())
+            .map(|values| {
+                values
+                    .iter()
+                    .filter_map(|v| v.as_str().map(str::to_string))
+                    .collect()
+            })
             .unwrap_or_default();
         out.insert(language.to_string(), listed);
     }
@@ -407,8 +463,10 @@ fn hazard_tools(catalog: &Catalog) -> String {
         .filter(|rule| matches!(rule.check, CheckKind::Toolchain))
         .map(|rule| (rule, tools_of(rule)))
         .collect();
-    let languages: BTreeSet<String> =
-        hazards.iter().flat_map(|(_, tools)| tools.keys().cloned()).collect();
+    let languages: BTreeSet<String> = hazards
+        .iter()
+        .flat_map(|(_, tools)| tools.keys().cloned())
+        .collect();
     let header: Vec<&str> = languages.iter().map(String::as_str).collect();
     let mut out = format!("| Concern | {} |\n", header.join(" | "));
     out.push_str(&format!("| :-- |{}\n", " :-- |".repeat(header.len())));
@@ -430,8 +488,11 @@ fn templates_index() -> String {
     out.push_str("| Template | Rule it writes | What that rule requires | Filled in with |\n");
     out.push_str("| :-- | :-- | :-- | :-- |\n");
     for template in interview::template_docs() {
-        let placeholders: Vec<String> =
-            template.placeholders.iter().map(|name| format!("`{name}`")).collect();
+        let placeholders: Vec<String> = template
+            .placeholders
+            .iter()
+            .map(|name| format!("`{name}`"))
+            .collect();
         let filled = if placeholders.is_empty() {
             "nothing; it ships as written".to_string()
         } else {
@@ -448,7 +509,10 @@ fn templates_index() -> String {
 fn skills_index() -> String {
     let mut out = String::from("| Skill | What it is for |\n| :-- | :-- |\n");
     for (name, body) in crate::skills::SKILLS {
-        out.push_str(&format!("| `/{name}` | {} |\n", first_sentence(description_of(body))));
+        out.push_str(&format!(
+            "| `/{name}` | {} |\n",
+            first_sentence(description_of(body))
+        ));
     }
     out
 }
@@ -470,7 +534,10 @@ fn first_sentence(text: &str) -> String {
 fn interview_tree(interview: &Interview) -> String {
     let mut out = String::new();
     for decision in &interview.decisions {
-        out.push_str(&format!("### `{}` — {}\n\n", decision.id, decision.question));
+        out.push_str(&format!(
+            "### `{}` — {}\n\n",
+            decision.id, decision.question
+        ));
         out.push_str(&format!("{}\n\n", wrapped(decision.why.trim())));
         if let Some(condition) = asked_when(decision) {
             out.push_str(&format!("{condition}\n\n"));
@@ -576,7 +643,11 @@ mod tests {
     fn unknown_and_unclosed_blocks_fail() {
         let blocks = BTreeMap::new();
         assert!(
-            replace_blocks("<!-- sf:generated nope -->\n<!-- sf:end nope -->\n", &blocks).is_err()
+            replace_blocks(
+                "<!-- sf:generated nope -->\n<!-- sf:end nope -->\n",
+                &blocks
+            )
+            .is_err()
         );
         let mut blocks = BTreeMap::new();
         blocks.insert("x", "new".to_string());
@@ -601,7 +672,9 @@ mod tests {
         let catalog = Catalog::builtin().expect("the embedded catalog loads");
         let rendered = blocks(root, &catalog).expect("every block renders");
         for name in BLOCKS {
-            let body = rendered.get(name).unwrap_or_else(|| panic!("{name} is rendered"));
+            let body = rendered
+                .get(name)
+                .unwrap_or_else(|| panic!("{name} is rendered"));
             assert!(!body.trim().is_empty(), "{name} rendered nothing");
         }
     }
