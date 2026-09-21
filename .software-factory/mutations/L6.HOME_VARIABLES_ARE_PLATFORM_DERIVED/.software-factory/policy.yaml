@@ -1,0 +1,11 @@
+# Generated mutation fixture for L6.HOME_VARIABLES_ARE_PLATFORM_DERIVED. It is supposed to fail.
+version: 1
+project:
+  name: mutation-L6.HOME_VARIABLES_ARE_PLATFORM_DERIVED
+  languages: [python, typescript, go, rust, ruby]
+docs:
+  scan: ["docs/**/*.md"]
+gates: {}
+rules:
+  L6.HOME_VARIABLES_ARE_PLATFORM_DERIVED:
+    enabled: true

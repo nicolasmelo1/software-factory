@@ -5,8 +5,9 @@ severity: medium
 statement: >-
   A test that assigns the process's home environment variable — `HOME` or
   `USERPROFILE` — derives the variable's name from the platform it is
-  running on and restores it in a `finally`, so the assignment moves the
-  test's own scratch and nothing of the developer's.
+  running on and restores it in a `finally` (or Go's `t.Setenv`, which
+  restores on its own), so the assignment moves the test's own scratch and
+  nothing of the developer's.
 why: >-
   The home variable is the one environment entry a test must move to prove
   expansion, and the name of it is the platform's: `HOME` on Unix,
@@ -22,7 +23,7 @@ why: >-
   was found in a review loop where the repair for the platform of the
   author was green and the other platform was never exercised.
 fix: >-
-  Name the variable through the platform: `process.platform === "win32" ? "USERPROFILE" : "HOME"` in JavaScript, `runtime.GOOS == "windows"` in Go. Set it in a `try` and restore the original in `finally`, and point it at the test's own scratch directory — never at a path under the developer's real home.
+  Name the variable through the platform: `process.platform === "win32" ? "USERPROFILE" : "HOME"` in JavaScript, `runtime.GOOS == "windows"` in Go. Set it in a `try` and restore the original in `finally` — or use Go's `t.Setenv`, which registers the restore for you — and point it at the test's own scratch directory — never at a path under the developer's real home.
 ratchet: allowlist
 check:
   kind: text_pattern
@@ -43,8 +44,12 @@ defaults:
       message: "Assigning process.env.HOME by its literal name moves nothing on Windows, where the home variable is USERPROFILE. Name the variable through the platform and restore it in a finally."
     - regex: 'os\.Setenv\("(HOME|USERPROFILE)"'
       unless: 'GOOS|windows'
-      message: "Setting HOME by its literal name is a no-op on Windows, where the home variable is USERPROFILE. Derive the name from runtime.GOOS and restore with t.Setenv."
-    # The restore half: a home assignment with no finally on the file at all.
-    - regex: 'process\.env\.HOME\s*=[^=]'
-      unless: 'finally|afterEach'
+      message: "Setting HOME by its literal name is a no-op on Windows, where the home variable is USERPROFILE. Derive the name from runtime.GOOS and restore with t.Setenv or a Cleanup."
+    # The restore half: a home assignment with no teardown on the line at
+    # all. Both halves cover both languages' shapes.
+    - regex: 'process\.env\.(HOME|USERPROFILE)\s*=[^=]'
+      unless: 'finally|afterEach|t\.Cleanup'
       message: "A test that moves the home variable restores it in a finally — an assertion failure before a bare assignment leaves the next test running against a deleted home."
+    - regex: 'os\.Setenv\("(HOME|USERPROFILE)"'
+      unless: 'defer|t\.Setenv|Unsetenv|Restore|Cleanup'
+      message: "A Go test that moves the home variable restores it — t.Setenv restores on its own, and a bare os.Setenv with no defer or Cleanup leaves the next test running against a home that is gone."

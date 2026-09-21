@@ -6,8 +6,10 @@ statement: >-
   A `file:` URL in source is decoded by the platform's URL library —
   `fileURLToPath` in JavaScript, `url.URL.Path` in Go — never by hand. This
   rule fires on the manual shapes: `decodeURIComponent` applied to a
-  `file:` string, and string surgery on a `file:` URL — slicing off the
+  `file:` URL, and string surgery on a `file:` URL — slicing off the
   `file://` prefix, or stripping the host segment to recover a path.
+  Constructing or passing a `file:` URL on is not the finding; the rule
+  stays quiet until the line also tries to decode it or operate on it.
 why: >-
   A file URL is not a path with a prefix; it is a URL, and the difference
   is not cosmetic. Percent-encoded characters (`%20` for a space, `%25`
@@ -26,7 +28,7 @@ why: >-
 fix: >-
   Call the platform's own converter: `fileURLToPath(url)` from
   `node:url` in JavaScript (and `pathToFileURL` for the way back), or
-  `(&url.URL{...}).Path` / `filepath.FromSlash` in Go. If the platform has
+  `url.Parse` and the parsed URL's `Path` field in Go. If the platform has
   no converter, that is the finding — the code is about to disagree with
   every runtime that does.
 ratchet: allowlist
@@ -41,13 +43,18 @@ defaults:
     - "**/*.tsx"
     - "**/*.go"
   forbidden:
-    # decodeURIComponent anywhere on a line that also carries a file: URL.
-    - regex: 'decodeURIComponent\([^)]*\)[^;]*file:|"file:|`file:'
+    # decodeURIComponent on a line that also carries file: URL text — the URL
+    # text alone never fires; the decode operation is what makes it a finding.
+    # A line holding two statements is the residual coarseness a line-based
+    # engine accepts.
+    - regex: 'decodeURIComponent\([^)]*file:[^)]*\)|decodeURIComponent\([^)]*\).*//.*file:|["''`]file:[^"''`]*["''`].*decodeURIComponent\(|decodeURIComponent\([^)]*\).*["''`]file:'
       unless: 'fileURLToPath'
       message: "decodeURIComponent over a file: URL decodes it as form text, not as a file URL — percent escapes and the host segment are both wrong. Use fileURLToPath."
-    # String surgery on the file:// prefix.
-    - regex: '(replace|slice|substring|substr|split)\([^)]*\)[^;]*file://|file://[^"''`]*\.(replace|slice|substring|split)\('
-      message: "Slicing the file:// prefix off a URL is not decoding it. Use fileURLToPath, which the platform wrote for exactly this."
+    # String surgery on the file:// prefix: a call whose argument (or a
+    # regex-literal argument) is the URL text, the method form on a file:
+    # string, and Go's strings package taking the prefix off.
+    - regex: '(?:replace|slice|substring|substr|split)\(\s*(?:["''`]|/\^?)file:|["''`]file:[^"''`]*["'']\s*\.\s*(?:replace|slice|substring|substr|split)\(|strings\.(?:Replace|TrimPrefix|TrimSuffix|SplitN?|Cut)\([^)]*"file:'
+      message: "Slicing the file:// prefix off a URL is not decoding it. Use fileURLToPath, or url.Parse and the URL's Path field in Go — the platform wrote them for exactly this."
     # Stripping a file: scheme by hand to make a path.
-    - regex: '^\s*.{0,40}(path|dir|file)\w*\s*=\s*["''`]?\w*[uU]rl\w*\.(replace|slice|substring)\('
+    - regex: '^\s*.{0,40}(path|dir|file)\w*\s*=\s*["''`]?file:[^"''`]*["'']?\s*\.\s*(?:replace|slice|substring|substr|split)\(|^\s*\w+\s*(?::=|=)\s*strings\.(?:TrimPrefix|TrimSuffix|SplitN?|Cut|Replace)\([^)]*"file:'
       message: "A path derived from a URL by string surgery disagrees with the platform about escapes, hosts and drive letters. Use fileURLToPath."

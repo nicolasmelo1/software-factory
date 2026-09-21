@@ -1,14 +1,14 @@
 {
   "schema_version": 1,
   "gate": "adoption",
-  "implementation_sha256": "03f7ff4066b92a6375fd11d27ad1865b525aa463aeadbd5326c0594c58c27cac",
+  "implementation_sha256": "1f7c3fffc82795777d5152eddd356c60f9b5c32c6caa35e00274be7721519cfb",
   "runs": [
     {
       "scenario": "adoption",
       "status": "passed",
-      "actor": "Hermes (agent), running .software-factory/evidence/adoption-scenario.sh against a scratch checkout of revvadas-frontend at 77e4f8a2a4913e72bf40a8672a76529115b855fe, for Nicolas Melo",
+      "actor": "Hermes (agent), running .software-factory/evidence/adoption-scenario.sh against a scratch checkout of the adopter corpus (a TypeScript workspace checkout prepared for the scenario), for Nicolas Melo",
       "report": ".software-factory/evidence/adoption-run.json",
-      "report_sha256": "3a8653b14c910ccb52cdd16de90cc7c738e4de2f4a4df7782cf49033a0c96bb8",
+      "report_sha256": "45adb5dfbe689345ef36277a5008a5223b200a42525721fb8ff3e32c9961b601",
       "required_assertions": []
     }
   ]

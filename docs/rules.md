@@ -22,7 +22,13 @@ a coverage table looks full is how a rule starts producing findings nobody
 believes. `L2.GENERATED_FILES_ARE_LOCKED` is off because nothing here is
 generated. `L6.DATA_RACES_ARE_DETECTED` is off because `sf` spawns no threads,
 holds no locks and shares no mutable state — and that stops being true the
-moment any of it becomes concurrent. All four remain proven by their fixtures;
+moment any of it becomes concurrent. `L6.URLS_ARE_DECODED_BY_THE_PLATFORM` and
+`L6.HOME_VARIABLES_ARE_PLATFORM_DERIVED` are off because their vocabulary is
+JavaScript and Go source and tests, and this repository's source is Rust — the
+file-URL surgery and the home-variable fixture they hunt have no surface to
+fire on here. The rule earns its keep in the repositories that consume this
+binary and load plugins by `file:` URL, and in the consumers whose test trees
+move the home variable. All six remain proven by their fixtures;
 they are simply pointed at nothing here, and `L5.NO_INERT_RULE` is what forced
 each of them to become a written decision instead of a silent pass.
 

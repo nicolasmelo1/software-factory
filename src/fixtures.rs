@@ -557,11 +557,20 @@ pub const FIXTURES: &[Fixture] = &[
             (
                 "src/loader.go",
                 "package loader\n\n\
-                 // Stripping the scheme by hand: the host segment and the escapes\n\
-                 // are both wrong on the machines the author never ran.\n\
-                 func toPath(raw string) string {\n\
-                 \treturn strings.Replace(raw, \"file://\", \"\", 1)\n\
-                 }\n",
+                 // Stripping the scheme by hand: the host segment and the escapes\
+                 \n// are both wrong on the machines the author never ran.\
+                 \nfunc toPath(raw string) string {\
+                 \n\treturn strings.Replace(raw, \"file://\", \"\", 1)\
+                 \n}\
+                 \n\
+                 \n// The accepted form beside them: the platform's own decoder.\
+                 \nfunc fromURL(raw string) (string, error) {\
+                 \n\tu, err := url.Parse(raw)\
+                 \n\tif err != nil {\
+                 \n\t\treturn \"\", err\
+                 \n\t}\
+                 \n\treturn u.Path, nil\
+                 \n}\n",
             ),
         ],
     },
@@ -572,21 +581,35 @@ pub const FIXTURES: &[Fixture] = &[
         files: &[
             (
                 "tests/expand.spec.ts",
-                "// The violation and the accepted form together: the literal assignment\n\
-                 // moves nothing on Windows; the platform-derived one names its own.\n\
-                 process.env.HOME = scratch;\n\
-                 const home = process.platform === \"win32\" ? \"USERPROFILE\" : \"HOME\";\n\
-                 process.env[home] = scratch;\n",
+                "// The violation and the accepted form together: the literal assignment\
+                 \n// moves nothing on Windows; the platform-derived one names its own.\
+                 \nprocess.env.HOME = scratch;\
+                 \nconst home = process.platform === \"win32\" ? \"USERPROFILE\" : \"HOME\";\
+                 \nprocess.env[home] = scratch;\
+                 \n// The accepted restore beside them: an assertion failure before the\
+                 \n// finally still unsets the variable.\
+                 \ntry {\
+                 \n  process.env[home] = scratch;\
+                 \n} finally {\
+                 \n  process.env[home] = prev;\
+                 \n}\n",
             ),
             (
                 "tests/expand_test.go",
                 "package expand\n\n\
                  import \"os\"\n\n\
-                 func TestExpansion(t *testing.T) {\n\
-                 \t// HOME by its literal name: a no-op the moment this runs on a\n\
-                 \t// machine whose home variable is USERPROFILE.\n\
-                 \tos.Setenv(\"HOME\", t.TempDir())\n\
-                 }\n",
+                 func TestExpansion(t *testing.T) {\
+                 \n\t// HOME by its literal name: a no-op the moment this runs on a\
+                 \n\t// machine whose home variable is USERPROFILE.\
+                 \n\tos.Setenv(\"HOME\", t.TempDir())\
+                 \n\tt.Cleanup(func() { os.Unsetenv(\"HOME\") })\
+                 \n\t// The accepted form beside them: the name derived from the platform.\
+                 \n\tname := \"HOME\"\
+                 \n\tif runtime.GOOS == \"windows\" {\
+                 \n\t\tname = \"USERPROFILE\"\
+                 \n\t}\
+                 \n\tos.Setenv(name, t.TempDir())\
+                 \n}\n",
             ),
         ],
     },

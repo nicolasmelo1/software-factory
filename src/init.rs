@@ -333,14 +333,19 @@ fn write(root: &Path, rel: &str, body: &str, written: &mut Vec<String>) -> Resul
     Ok(())
 }
 
-/// Write the mutation fixtures for every enabled rule, without touching the
-/// policy. Adding a rule should not mean re-scaffolding the repository.
+/// Write the mutation fixtures for every rule, without touching the policy.
+/// Adding a rule should not mean re-scaffolding the repository.
+///
+/// The selection is every rule with a built-in fixture, not merely the enabled
+/// ones. A rule switched off with a written decision is pointed at nothing
+/// here *because* its fixture lives in some other vocabulary, and the rules
+/// document's "proven by their fixtures, simply pointed at nothing here" rests
+/// on those trees existing — see the method doc for the full argument.
 pub fn refresh_fixtures(root: &Path, catalog: &Catalog) -> Result<Vec<String>> {
-    let policy = Policy::load(root)?;
     let selected: Vec<&crate::catalog::Rule> = catalog
         .rules
         .values()
-        .filter(|r| policy.any_instance_enabled(&r.id))
+        .filter(|r| fixtures::for_rule(&r.id).is_some())
         .collect();
     let mut written = Vec::new();
     write_fixtures(root, &selected, &mut written)?;

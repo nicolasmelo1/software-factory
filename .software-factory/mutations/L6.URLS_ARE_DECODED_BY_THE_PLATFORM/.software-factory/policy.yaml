@@ -1,0 +1,11 @@
+# Generated mutation fixture for L6.URLS_ARE_DECODED_BY_THE_PLATFORM. It is supposed to fail.
+version: 1
+project:
+  name: mutation-L6.URLS_ARE_DECODED_BY_THE_PLATFORM
+  languages: [python, typescript, go, rust, ruby]
+docs:
+  scan: ["docs/**/*.md"]
+gates: {}
+rules:
+  L6.URLS_ARE_DECODED_BY_THE_PLATFORM:
+    enabled: true
