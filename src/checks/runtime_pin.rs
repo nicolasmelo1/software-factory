@@ -120,13 +120,49 @@ pub struct Pin {
     pub reading: Reading,
 }
 
+/// What a pin accepts, in the grammar of the declaration that states it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Requirement {
+    /// Alternatives, each a set of comparators that must all hold, read by
+    /// [`crate::policy::satisfies`].
+    Ranges(Vec<Vec<String>>),
+    /// Go's minimum, compared in Go's own order, where a pre-release sits
+    /// between the language version and the first release.
+    GoAtLeast(GoVersion),
+}
+
+/// A Go version ordered the way the go command orders them:
+/// `1.21 < 1.21beta1 < 1.21rc1 < 1.21rc2 < 1.21.0 < 1.21.1`.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct GoVersion(u64, u64, u8, u64);
+
+impl GoVersion {
+    /// The first Go version in a piece of text: `1.22`, `go1.21rc2`, or
+    /// `go version go1.23.2 linux/amd64`.
+    pub fn parse(text: &str) -> Option<GoVersion> {
+        let pattern = Regex::new(r"(\d+)\.(\d+)(?:\.(\d+))?(?:(beta|rc)(\d+))?")
+            .expect("the pattern compiles");
+        let found = pattern.captures(text)?;
+        let number = |index: usize| found.get(index).and_then(|m| m.as_str().parse().ok());
+        let (major, minor) = (number(1)?, number(2)?);
+        let (stage, rank) = match (number(3), found.get(4).map(|m| m.as_str())) {
+            (Some(patch), _) => (3, patch),
+            (None, Some("beta")) => (1, number(5)?),
+            (None, Some(_)) => (2, number(5)?),
+            // Before 1.21, `1.N` named the release itself.
+            (None, None) if (major, minor) < (1, 21) => (3, 0),
+            (None, None) => (0, 0),
+        };
+        Some(GoVersion(major, minor, stage, rank))
+    }
+}
+
 /// What a declaration turned out to say.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Reading {
-    /// Alternatives, each a set of comparators that must all hold, in the
-    /// small grammar [`crate::policy::satisfies`] reads. A bare `20.11.1` is
-    /// an exact pin and a bare `20` is the series, as in every version manager.
-    Requires(Vec<Vec<String>>),
+    /// A version the process has to be. A bare `20.11.1` is an exact pin and
+    /// a bare `20` is the series, as in every version manager.
+    Requires(Requirement),
     /// A statement that names no version: `system`, `lts/*`, `stable`. The
     /// repository did not say which one, so there is nothing to enforce. It
     /// is silent here and named by `L5.NO_INERT_RULE` if nothing else is left.
@@ -232,7 +268,7 @@ fn first_line_pin(
 
 fn read_single(text: &str, alias: fn(&str) -> bool) -> Reading {
     if let Some(version) = bare(text) {
-        return Reading::Requires(vec![vec![version]]);
+        return Reading::Requires(Requirement::Ranges(vec![vec![version]]));
     }
     if text == "system" || alias(text) {
         return Reading::NoVersion(format!("`{text}` names no version"));
@@ -247,8 +283,27 @@ fn node_alias(text: &str) -> bool {
 /// pyenv names other interpreters (`pypy3.10-7.3.12`, `miniconda3-latest`)
 /// the same way it names CPython. Those state a version of something `python
 /// --version` does not report comparably, so there is nothing to hold it to.
+/// Any other name is malformed, not skipped.
 fn python_alias(text: &str) -> bool {
-    text.chars().next().is_some_and(|c| c.is_ascii_alphabetic())
+    [
+        "pypy",
+        "pyston",
+        "graalpy",
+        "graalpython",
+        "jython",
+        "ironpython",
+        "stackless",
+        "micropython",
+        "cinder",
+        "nogil",
+        "activepython",
+        "anaconda",
+        "miniconda",
+        "miniforge",
+        "mambaforge",
+    ]
+    .iter()
+    .any(|interpreter| text.starts_with(interpreter))
 }
 
 /// `channel = "…"` under `[toolchain]`, in either TOML string quote. A file
@@ -345,7 +400,10 @@ fn go_mod(body: &str) -> Vec<Pin> {
             ),
             (_, number) if bare_go(number) => (
                 format!(">={number}"),
-                Reading::Requires(vec![vec![format!(">={number}")]]),
+                GoVersion::parse(number).map_or_else(
+                    || Reading::Malformed(format!("`{value}` is not a Go version")),
+                    |minimum| Reading::Requires(Requirement::GoAtLeast(minimum)),
+                ),
             ),
             _ => (
                 value.clone(),
@@ -397,6 +455,9 @@ pub fn npm_range(range: &str) -> Reading {
     }
     let mut alternatives = Vec::new();
     for alternative in trimmed.split("||") {
+        if ["", "*", "x", "X"].contains(&alternative.trim()) {
+            return Reading::NoVersion(format!("`{range}` accepts every version"));
+        }
         match comparators(alternative) {
             Some(set) => alternatives.push(set),
             None => {
@@ -406,7 +467,7 @@ pub fn npm_range(range: &str) -> Reading {
             }
         }
     }
-    Reading::Requires(alternatives)
+    Reading::Requires(Requirement::Ranges(alternatives))
 }
 
 fn comparators(alternative: &str) -> Option<Vec<String>> {
@@ -432,12 +493,23 @@ fn comparators(alternative: &str) -> Option<Vec<String>> {
     }
 }
 
-/// Whether `observed` falls in what a reading requires.
+/// Whether `observed` falls in what a set of alternatives requires.
 fn holds(alternatives: &[Vec<String>], observed: &Version) -> bool {
     alternatives.iter().any(|set| {
         set.iter()
             .all(|comparator| crate::policy::satisfies(comparator.trim_end_matches('.'), observed))
     })
+}
+
+/// Whether what a version command printed is a version the pin accepts.
+/// `None` when the text carries no version at all.
+fn accepts(requirement: &Requirement, printed: &str) -> Option<bool> {
+    match requirement {
+        Requirement::Ranges(alternatives) => {
+            Version::parse(printed).map(|version| holds(alternatives, &version))
+        }
+        Requirement::GoAtLeast(minimum) => GoVersion::parse(printed).map(|found| found >= *minimum),
+    }
 }
 
 /// Every finding the pins earn. Empty means every pin that states a version
@@ -446,7 +518,7 @@ pub fn check(rule: &Rule, root: &Path, probe: &dyn Probe) -> Vec<Finding> {
     let mut asked: BTreeMap<&str, (String, Observed)> = BTreeMap::new();
     let mut findings = Vec::new();
     for pin in declarations(root) {
-        let alternatives = match &pin.reading {
+        let requirement = match &pin.reading {
             Reading::NoVersion(_) => continue,
             Reading::Malformed(why) => {
                 findings.push(malformed(rule, &pin, why));
@@ -456,13 +528,13 @@ pub fn check(rule: &Rule, root: &Path, probe: &dyn Probe) -> Vec<Finding> {
                 findings.push(unreadable(rule, &pin, why));
                 continue;
             }
-            Reading::Requires(alternatives) => alternatives,
+            Reading::Requires(requirement) => requirement,
         };
         let (command, observed) = asked
             .entry(pin.runtime.name)
             .or_insert_with(|| ask(pin.runtime, root, probe))
             .clone();
-        findings.extend(compare(rule, &pin, alternatives, &command, &observed));
+        findings.extend(compare(rule, &pin, requirement, &command, &observed));
     }
     findings
 }
@@ -482,7 +554,7 @@ fn ask(runtime: &Runtime, root: &Path, probe: &dyn Probe) -> (String, Observed) 
 fn compare(
     rule: &Rule,
     pin: &Pin,
-    alternatives: &[Vec<String>],
+    requirement: &Requirement,
     command: &str,
     observed: &Observed,
 ) -> Option<Finding> {
@@ -502,9 +574,9 @@ fn compare(
             ),
             why.clone(),
         ),
-        Observed::Printed(text) => match Version::parse(text) {
-            Some(version) if holds(alternatives, &version) => return None,
-            Some(_) => (
+        Observed::Printed(text) => match accepts(requirement, text) {
+            Some(true) => return None,
+            Some(false) => (
                 format!(
                     "`{}` pins {wanted}, but `{command}` in this repository reports `{text}`",
                     pin.path
@@ -777,6 +849,59 @@ mod tests {
     }
 
     #[test]
+    fn go_pre_releases_are_ordered_the_way_go_orders_them() {
+        let order = [
+            "1.21",
+            "1.21beta1",
+            "1.21rc1",
+            "1.21rc2",
+            "1.21.0",
+            "1.21.1",
+            "1.22",
+        ];
+        let parsed: Vec<GoVersion> = order
+            .iter()
+            .map(|text| GoVersion::parse(text).expect("a Go version"))
+            .collect();
+        assert!(
+            parsed.windows(2).all(|pair| pair[0] < pair[1]),
+            "{parsed:?}"
+        );
+        assert_eq!(GoVersion::parse("go1.20"), GoVersion::parse("1.20.0"));
+        let module = "module m\n\ngo 1.21\n\ntoolchain go1.21rc2\n";
+        let older = findings(
+            &[("go.mod", module)],
+            &[("go version", "go version go1.21rc1 linux/amd64")],
+        );
+        assert_eq!(older.len(), 1, "{older:?}");
+        assert_eq!(older[0].key, "go.mod:toolchain");
+        let newer = findings(
+            &[("go.mod", module)],
+            &[("go version", "go version go1.21.0 linux/amd64")],
+        );
+        assert!(newer.is_empty(), "{newer:?}");
+    }
+
+    #[test]
+    fn an_unknown_python_name_is_malformed_and_another_interpreter_is_not_enforced() {
+        let unknown = findings(
+            &[(".python-version", "twenty\n")],
+            &[("python --version", "Python 3.12.1")],
+        );
+        assert_eq!(unknown.len(), 1, "{unknown:?}");
+        assert!(
+            unknown[0].message.contains("could not be read"),
+            "{}",
+            unknown[0].message
+        );
+        let pypy = findings(
+            &[(".python-version", "pypy3.10-7.3.12\n")],
+            &[("python --version", "Python 3.10.13")],
+        );
+        assert!(pypy.is_empty(), "{pypy:?}");
+    }
+
+    #[test]
     fn a_malformed_declaration_is_its_own_finding() {
         let found = findings(&[(".nvmrc", "twenty\n")], &[("node --version", "v20.11.1")]);
         assert_eq!(found.len(), 1, "{found:?}");
@@ -908,7 +1033,7 @@ mod tests {
             "18 - 20.11.1",
             "v20.11.1",
         ] {
-            let Reading::Requires(alternatives) = npm_range(accepted) else {
+            let Reading::Requires(Requirement::Ranges(alternatives)) = npm_range(accepted) else {
                 panic!("`{accepted}` should read as a range");
             };
             assert!(
@@ -917,7 +1042,7 @@ mod tests {
             );
         }
         for rejected in ["^18", "<20", "~20.10"] {
-            let Reading::Requires(alternatives) = npm_range(rejected) else {
+            let Reading::Requires(Requirement::Ranges(alternatives)) = npm_range(rejected) else {
                 panic!("`{rejected}` should read as a range");
             };
             assert!(
@@ -927,5 +1052,7 @@ mod tests {
         }
         assert!(matches!(npm_range("latest"), Reading::Malformed(_)));
         assert!(matches!(npm_range("*"), Reading::NoVersion(_)));
+        assert!(matches!(npm_range("* || >=20"), Reading::NoVersion(_)));
+        assert!(matches!(npm_range(">=18 || x"), Reading::NoVersion(_)));
     }
 }
