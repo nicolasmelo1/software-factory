@@ -809,6 +809,41 @@ mod tests {
         );
     }
 
+    /// Every component written is compared, so a full release number is an
+    /// exact pin: the next patch in the same series is a mismatch.
+    #[test]
+    fn a_full_release_number_is_exact_in_every_format_that_reads_one() {
+        let cases: [(&str, &str, &str, &str); 4] = [
+            (".nvmrc", "20.11.1\n", "node --version", "v20.11.2"),
+            (
+                ".python-version",
+                "3.12.1\n",
+                "python --version",
+                "Python 3.12.2",
+            ),
+            (
+                ".tool-versions",
+                "ruby 3.3.0\n",
+                "ruby --version",
+                "ruby 3.3.1 (2024-04-23 revision c56cd86388) [arm64-darwin23]",
+            ),
+            (
+                "rust-toolchain.toml",
+                "[toolchain]\nchannel = \"1.80.0\"\n",
+                "rustc --version",
+                "rustc 1.80.1 (3f5fd8dd4 2024-08-06)",
+            ),
+        ];
+        for (path, body, command, printed) in cases {
+            let found = findings(&[(path, body)], &[(command, printed)]);
+            assert_eq!(
+                found.len(),
+                1,
+                "{path} accepted a different patch: {found:?}"
+            );
+        }
+    }
+
     #[test]
     fn a_series_pin_accepts_any_release_in_the_series() {
         assert!(
