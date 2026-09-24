@@ -166,6 +166,12 @@ rules:
         test -n "$locked" && test -n "$running" || { echo "could not read the catalog digest from the lock or from sf --version"; exit 1; }
         case "$locked" in "$running"*) ;; *) echo "the committed catalog fingerprint names $locked and this binary carries $running — run sf lock"; exit 1 ;; esac
 
+  # L2 — The runtime that runs the checks is the one the repository pinned
+  L2.RUNNING_TOOLCHAIN_MATCHES_THE_PIN:
+    # Disabled: this repository pins no runtime. CI builds with whatever
+    # stable Rust the runner carries, and there is no rust-toolchain.toml
+    # for the preflight to hold a process to, so enabled it would be inert.
+    enabled: false
   # L2 — Every frozen exception carries a future review date
   L2.NO_PERMANENT_EXCEPTION:
     enabled: true

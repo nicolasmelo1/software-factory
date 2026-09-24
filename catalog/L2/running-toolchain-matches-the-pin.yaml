@@ -1,0 +1,28 @@
+id: L2.RUNNING_TOOLCHAIN_MATCHES_THE_PIN
+layer: L2
+title: The runtime that runs the checks is the one the repository pinned
+severity: high
+statement: >-
+  Where the root pins a runtime in `.nvmrc`, `.node-version`,
+  `.python-version`, `rust-toolchain.toml`, `.tool-versions`, `go.mod` or
+  `engines.node` in `package.json`, the executable this process would run
+  reports a version the pin accepts. It runs before every other rule, and a
+  disagreement stops the run.
+why: >-
+  A repository pins its runtime, the shell runs another one, and the first
+  visible disagreement is a regenerated lockfile, an artifact that differs, or
+  a fixture that fails for a reason no diff contains. Every finding produced
+  after that point was measured by an instrument the repository did not ask
+  for, so it either misleads or hides the real one. Stopping first and naming
+  the pin, the executable and both versions turns an afternoon of chasing
+  secondary findings into one line. A pin that names no version (`system`,
+  `lts/*`, `stable`) is not enforced, because the repository did not say
+  which one; a pin this check cannot read is a finding, never a guessed match.
+fix: >-
+  Switch to the pinned runtime (`nvm use`, `pyenv install`, `rustup`,
+  `asdf install`) and run again, or change the pin in the same commit that
+  moves the project to the new version. A missing executable means the
+  runtime is not installed where `sf` runs, CI included.
+ratchet: none
+check:
+  kind: runtime_pin

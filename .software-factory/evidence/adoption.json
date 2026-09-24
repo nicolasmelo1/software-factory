@@ -1,14 +1,14 @@
 {
   "schema_version": 1,
   "gate": "adoption",
-  "implementation_sha256": "1f7c3fffc82795777d5152eddd356c60f9b5c32c6caa35e00274be7721519cfb",
+  "implementation_sha256": "ca18e7c3bc128c8a519d2f1aba32511777141c06bd92915e192c75b798270f2e",
   "runs": [
     {
       "scenario": "adoption",
       "status": "passed",
-      "actor": "Hermes (agent), running .software-factory/evidence/adoption-scenario.sh against a scratch checkout of the adopter corpus (a TypeScript workspace checkout prepared for the scenario), for Nicolas Melo",
+      "actor": "Claude (agent), running .software-factory/evidence/adoption-scenario.sh against a scratch checkout of the public hono repository at 57ba76a, for Nicolas Melo",
       "report": ".software-factory/evidence/adoption-run.json",
-      "report_sha256": "45adb5dfbe689345ef36277a5008a5223b200a42525721fb8ff3e32c9961b601",
+      "report_sha256": "ef4ee91f4c7684b7c3b078e674d64cdbfc9fd934393e58ea4d42bafffc77db81",
       "required_assertions": []
     }
   ]

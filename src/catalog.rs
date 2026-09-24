@@ -126,6 +126,9 @@ pub enum CheckKind {
     CatalogTightening,
     /// A check this tool cannot express, run as a command. L2.
     Command,
+    /// The process that would run the code is the runtime the repository
+    /// pinned. Run before every other kind; see `checks::runtime_pin`. L2.
+    RuntimePin,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize)]
@@ -365,6 +368,10 @@ pub const BUILTIN: &[(&str, &str)] = &[
     (
         "L2/factory-config-is-locked.yaml",
         include_str!("../catalog/L2/factory-config-is-locked.yaml"),
+    ),
+    (
+        "L2/running-toolchain-matches-the-pin.yaml",
+        include_str!("../catalog/L2/running-toolchain-matches-the-pin.yaml"),
     ),
     (
         "L2/policy-only-tightens.yaml",

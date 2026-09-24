@@ -28,7 +28,12 @@ JavaScript and Go source and tests, and this repository's source is Rust — the
 file-URL surgery and the home-variable fixture they hunt have no surface to
 fire on here. The rule earns its keep in the repositories that consume this
 binary and load plugins by `file:` URL, and in the consumers whose test trees
-move the home variable. All six remain proven by their fixtures;
+move the home variable. `L2.RUNNING_TOOLCHAIN_MATCHES_THE_PIN` is off because
+this repository pins no runtime: there is no `rust-toolchain.toml`, CI builds
+with the runner's stable Rust, and a preflight with no pin to read has nothing
+to hold a process to. Committing a pin would turn it on, and that is a decision
+about the toolchain rather than about the rule. All seven remain proven by
+their fixtures;
 they are simply pointed at nothing here, and `L5.NO_INERT_RULE` is what forced
 each of them to become a written decision instead of a silent pass.
 

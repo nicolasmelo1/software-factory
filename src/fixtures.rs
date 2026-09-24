@@ -470,6 +470,15 @@ pub const FIXTURES: &[Fixture] = &[
         )],
     },
     Fixture {
+        rule: "L2.RUNNING_TOOLCHAIN_MATCHES_THE_PIN",
+        // No Node release is 0.0.1, so the host either reports another
+        // version or has no node at all, and both trip the rule. What each
+        // format reads is proven with injected output in `PIN_CASES` below.
+        policy_extra: "",
+        extra_rules: "",
+        files: &[(".node-version", "0.0.1\n")],
+    },
+    Fixture {
         rule: "L2.POLICY_ONLY_TIGHTENS",
         policy_extra: "        baseline: \"baseline\"\n",
         extra_rules: "  L3.GATE_HAS_FRESH_EVIDENCE:\n    enabled: true\n    options:\n      forbidden_in_goal: []\n      forbidden_actors: []\n",
@@ -727,6 +736,87 @@ Mark a promise like this:\n\n\
 /// A believable CI file that tests and lints and hunts none of the hazards.
 const CI_WITHOUT_HAZARD_TOOLS: &str = "name: ci\non: [push]\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - run: pytest\n      - run: npm test\n      - run: go test ./...\n      - run: cargo test\n";
 
+/// One runtime-pin declaration format, held to a mutation and a repair.
+///
+/// The runtime's answer is injected rather than read from the host, so both
+/// halves are exact on any machine. `files` state the pin; `mutation` is what
+/// the version commands print when the process disagrees, `repair` when it
+/// agrees.
+#[cfg(test)]
+pub struct PinCase {
+    pub format: &'static str,
+    pub files: &'static [(&'static str, &'static str)],
+    pub mutation: &'static [(&'static str, &'static str)],
+    pub repair: &'static [(&'static str, &'static str)],
+}
+
+#[cfg(test)]
+pub const PIN_CASES: &[PinCase] = &[
+    PinCase {
+        format: ".nvmrc",
+        files: &[(".nvmrc", "20.11.1\n")],
+        mutation: &[("node --version", "v18.19.0")],
+        repair: &[("node --version", "v20.11.1")],
+    },
+    PinCase {
+        format: ".node-version",
+        files: &[(".node-version", "v20\n")],
+        mutation: &[("node --version", "v22.1.0")],
+        repair: &[("node --version", "v20.18.0")],
+    },
+    PinCase {
+        format: ".python-version",
+        files: &[(".python-version", "3.12.1\n")],
+        mutation: &[("python --version", "Python 3.11.9")],
+        repair: &[("python --version", "Python 3.12.1")],
+    },
+    PinCase {
+        format: "rust-toolchain.toml",
+        files: &[(
+            "rust-toolchain.toml",
+            "[toolchain]\nchannel = \"1.80.0\"\ncomponents = [\"clippy\"]\n",
+        )],
+        mutation: &[("rustc --version", "rustc 1.79.0 (129f3b996 2024-06-10)")],
+        repair: &[("rustc --version", "rustc 1.80.0 (051478957 2024-07-21)")],
+    },
+    // Two runtimes, one right and one wrong: the right one must not hide the
+    // other, which is the reason each line is its own pin.
+    PinCase {
+        format: ".tool-versions",
+        files: &[(
+            ".tool-versions",
+            "nodejs 20.11.1\npython 3.12.1 3.11.9\nterraform 1.9.0\n",
+        )],
+        mutation: &[
+            ("node --version", "v20.11.1"),
+            ("python --version", "Python 3.11.9"),
+        ],
+        repair: &[
+            ("node --version", "v20.11.1"),
+            ("python --version", "Python 3.12.1"),
+        ],
+    },
+    // A minimum, in Go's own semantics: a newer local toolchain is the repair.
+    PinCase {
+        format: "go.mod",
+        files: &[(
+            "go.mod",
+            "module example.com/app\n\ngo 1.22\n\ntoolchain go1.22.3\n",
+        )],
+        mutation: &[("go version", "go version go1.22.1 linux/amd64")],
+        repair: &[("go version", "go version go1.23.2 linux/amd64")],
+    },
+    PinCase {
+        format: "package.json",
+        files: &[(
+            "package.json",
+            "{\"name\": \"app\", \"engines\": {\"node\": \">=18 <21\"}}\n",
+        )],
+        mutation: &[("node --version", "v22.0.0")],
+        repair: &[("node --version", "v20.11.1")],
+    },
+];
+
 /// The mini-policy a fixture runs under: the target rule, plus whatever the
 /// fixture needs to be a coherent repository.
 pub fn fixture_policy(fixture: &Fixture) -> String {
@@ -801,4 +891,64 @@ pub fn minimal_policy(rule_id: &str) -> String {
 
 pub fn for_rule(rule: &str) -> Option<&'static Fixture> {
     FIXTURES.iter().find(|f| f.rule == rule)
+}
+
+#[cfg(test)]
+mod runtime_pins {
+    use super::PIN_CASES;
+    use crate::catalog::Catalog;
+    use crate::checks::runtime_pin::{Answers, READERS, check, scratch};
+
+    fn rule() -> crate::catalog::Rule {
+        Catalog::builtin()
+            .expect("the built-in catalog loads")
+            .get("L2.RUNNING_TOOLCHAIN_MATCHES_THE_PIN")
+            .expect("the rule ships")
+            .clone()
+    }
+
+    #[test]
+    fn every_supported_format_has_a_case() {
+        for (format, _) in READERS {
+            assert!(
+                PIN_CASES.iter().any(|case| case.format == *format),
+                "{format} is read by the check and proven by nothing"
+            );
+        }
+    }
+
+    #[test]
+    fn every_mutation_trips_the_rule_and_every_repair_clears_it() {
+        for case in PIN_CASES {
+            let root = scratch("case", case.files);
+            let mutated = check(&rule(), &root, &Answers::printing(case.mutation));
+            assert!(
+                !mutated.is_empty(),
+                "{}: the mutation did not trip the rule",
+                case.format
+            );
+            let repaired = check(&rule(), &root, &Answers::printing(case.repair));
+            assert!(
+                repaired.is_empty(),
+                "{}: the repair left {repaired:?}",
+                case.format
+            );
+        }
+    }
+
+    /// Only the wrong line of a multi-runtime file is reported.
+    #[test]
+    fn one_matching_runtime_does_not_hide_another() {
+        let case = PIN_CASES
+            .iter()
+            .find(|case| case.format == ".tool-versions")
+            .expect("the case exists");
+        let found = check(
+            &rule(),
+            &scratch("tools", case.files),
+            &Answers::printing(case.mutation),
+        );
+        assert_eq!(found.len(), 1, "{found:?}");
+        assert_eq!(found[0].key, ".tool-versions:python");
+    }
 }

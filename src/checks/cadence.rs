@@ -199,6 +199,7 @@ fn inert_bookkeeping_reason(
             Some("no command set: there is nothing for it to run".to_string())
         }
         CheckKind::Toolchain => inert_toolchain_reason(options, ctx),
+        CheckKind::RuntimePin => super::runtime_pin::inert_reason(ctx.root),
         CheckKind::Evidence => inert_evidence_reason(ctx),
         CheckKind::Cadence {
             mode: CadenceMode::GateCoverage,
