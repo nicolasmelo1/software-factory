@@ -90,6 +90,7 @@ does not. How that works is [written down](docs/development/documentation.md).
 | [The gate](docs/concepts/the-gate.md) | L3 in practice: evidence that expires when the code moves |
 | [Stopping an agent from relaxing the rules](docs/concepts/locking-the-guardrail.md) | The two rules that make a weakened guardrail undeniable |
 | [Hunting defect classes](docs/concepts/hunting-defect-classes.md) | L6, and what static analysis honestly cannot do |
+| [Judging a claim against its evidence](docs/concepts/judging-a-claim-against-its-evidence.md) | The one check no query can make, and how to wire the oracle it needs |
 
 **Reference**
 
@@ -116,6 +117,27 @@ method nobody will adopt.
 
 ---
 
+## When the check is a judgment
+
+Most of the catalog is queries and globs. One rule is not:
+`L4.CLAIM_IS_SUPPORTED_BY_ITS_EVIDENCE` asks whether the evidence a claim
+cites actually supports the sentence — a question no query can decide, and the
+failure it catches is a report that says `passed` without containing the effect
+the claim promises.
+
+It ships enabled by nothing, because the catalog names no judge for the same
+reason it names no code generator: a judgment that costs money or needs a
+credential belongs to the repository running it. Enabling it is one policy
+block pointing at a command you own, and the reference oracle is a
+[TypeSafe Jev](https://typesafe.ai) judgment — a typed choice with a
+calibrated confidence, compared against a floor instead of parsed and
+believed.
+
+The full recipe — every file complete, from zero to green, judge and
+fail-proof twin included:
+[judging a claim against its evidence](docs/concepts/judging-a-claim-against-its-evidence.md).
+---
+
 ## This repository checks itself
 
 `sf` is written in Rust and Rust is one of its target languages, so this
@@ -123,7 +145,7 @@ repository runs its own rules against its own source, with its own mutation
 fixtures, in its own CI.
 
 <!-- sf:generated rules-summary -->
-**41 rules shipped**, 35 enabled here, 6 switched off, 35 carrying a mutation fixture, 3 violations frozen.
+**42 rules shipped**, 35 enabled here, 7 switched off, 35 carrying a mutation fixture, 3 violations frozen.
 
 Frozen, with a date the build fails on: `L4.PLAN_PROOF_BUDGET` by 2027-03-04, `L6.PERFORMANCE_REGRESSION_IS_GUARDED` by 2027-02-18.
 <!-- sf:end rules-summary -->

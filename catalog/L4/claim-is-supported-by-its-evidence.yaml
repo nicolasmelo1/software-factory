@@ -1,0 +1,38 @@
+id: L4.CLAIM_IS_SUPPORTED_BY_ITS_EVIDENCE
+layer: L4
+title: A marked claim is supported by the evidence it cites
+severity: medium
+statement: >-
+  A command that judges every marked claim against the evidence of the gate
+  its marker names runs and succeeds. Configure it with `run`.
+why: >-
+  `L4.CLAIM_CITES_ITS_EVIDENCE` joins a promise to a gate and
+  `L3.GATE_HAS_FRESH_EVIDENCE` expires that join when the implementation
+  moves, but nothing reads the sentence against the report. A report can say
+  "passed" without ever containing the effect the sentence promises, the same
+  way a summary can assert a pass the report never held, and a sentence can
+  age into stronger than its proof without any digest changing. Whether a
+  body of evidence supports a sentence is not a question a glob or a query
+  can ask, so the rule runs a command the repository owns. What it buys over
+  a plain CI step is everything around it: the reason printed where it fails,
+  a mutation proving it still fails when it should, and a policy that cannot
+  be quietly loosened. The catalog names no judge for the same reason it
+  names no generator: a judgment that costs money or needs a credential
+  belongs to the repository running it, and its verdicts should be cached and
+  committed so the check stays deterministic and reviewable.
+fix: >-
+  Fix the claim to say what the evidence shows, or produce evidence that
+  supports it and seal the gate. If the judge itself is broken or cannot
+  run, that is the finding — an oracle nobody can run is a promise nobody
+  can verify. Writing the judge for the first time:
+  `docs/concepts/judging-a-claim-against-its-evidence.md` gives the reference
+  wiring — a TypeSafe Jev judgment over a committed request file, the
+  deterministic part run first, a confidence floor, cached verdicts, and the
+  negated-criterion twin that proves the oracle can still fail.
+ratchet: none
+check:
+  kind: command
+defaults:
+  # No default: the judge is this repository's own. Until you set one the
+  # rule is inert, and L5.NO_INERT_RULE says so.
+  run: null

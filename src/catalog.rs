@@ -351,6 +351,10 @@ pub const BUILTIN: &[(&str, &str)] = &[
         include_str!("../catalog/L4/claim-cites-its-evidence.yaml"),
     ),
     (
+        "L4/claim-is-supported-by-its-evidence.yaml",
+        include_str!("../catalog/L4/claim-is-supported-by-its-evidence.yaml"),
+    ),
+    (
         "L4/rule-prose-names-a-real-command.yaml",
         include_str!("../catalog/L4/rule-prose-names-a-real-command.yaml"),
     ),

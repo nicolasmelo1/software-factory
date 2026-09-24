@@ -408,6 +408,18 @@ pub const FIXTURES: &[Fixture] = &[
         files: &[("docs/landing.md", A_PAGE_THAT_PROMISES)],
     },
     Fixture {
+        rule: "L4.CLAIM_IS_SUPPORTED_BY_ITS_EVIDENCE",
+        // Fires either way: without --allow-commands because a check that did
+        // not run is not a check that passed, and with it because the command
+        // fails. `sf verify --allow-commands` exercises the second path.
+        policy_extra: "        run: \"exit 1\"\n",
+        extra_rules: "",
+        files: &[(
+            "README.md",
+            "<!-- claim: ADOPTION_ENDS_GREEN proven-by: adoption -->\nAdopting the factory in an existing repository ends green.\n",
+        )],
+    },
+    Fixture {
         rule: "L4.RULE_PROSE_NAMES_A_REAL_COMMAND",
         policy_extra: "",
         // The rule is about other rules' prose, so the fixture needs one to be

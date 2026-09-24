@@ -24,6 +24,7 @@ disagree. The prose between those tables is written by hand.
 | [The gate](concepts/the-gate.md) | L3 in practice: evidence that expires when the code moves |
 | [Stopping an agent from relaxing the rules](concepts/locking-the-guardrail.md) | The two rules that make a weakened guardrail undeniable |
 | [Hunting defect classes](concepts/hunting-defect-classes.md) | L6, and what static analysis honestly cannot do |
+| [Judging a claim against its evidence](concepts/judging-a-claim-against-its-evidence.md) | The one check a query cannot make, and the oracle a repository has to own |
 
 **Reference**
 
