@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.2](https://github.com/nicolasmelo1/software-factory/compare/v0.4.1...v0.4.2) - 2026-09-24
+
+### Added
+
+- *(L2)* the running toolchain matches the pin ([#66](https://github.com/nicolasmelo1/software-factory/pull/66))
+- ban hand-decoded file URLs and platform-blind home variables ([#62](https://github.com/nicolasmelo1/software-factory/pull/62))
+
+### Other
+
+- *(plans)* three rows for judging a claim against its evidence, after #63 is split ([#65](https://github.com/nicolasmelo1/software-factory/pull/65))
+- a private name does not reach a public repository ([#64](https://github.com/nicolasmelo1/software-factory/pull/64))
+- every pull request is read by Copilot before it is read by a person ([#61](https://github.com/nicolasmelo1/software-factory/pull/61))
+- *(plans)* two rows — a property is a proof with a falsifier, and a hazard tool is proven to fail ([#60](https://github.com/nicolasmelo1/software-factory/pull/60))
+- *(plans)* convert open findings into ordered work ([#58](https://github.com/nicolasmelo1/software-factory/pull/58))
+
 ## [0.4.1](https://github.com/nicolasmelo1/software-factory/compare/v0.4.0...v0.4.1) - 2026-09-12
 
 ### Added
