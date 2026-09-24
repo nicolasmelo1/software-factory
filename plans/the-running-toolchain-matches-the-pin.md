@@ -46,21 +46,21 @@ happen to be installed on the machine running the suite.
 
 ## Acceptance criteria
 
-- [ ] A supported exact pin that differs from the running executable stops
+- [x] A supported exact pin that differs from the running executable stops
       `sf check` before any ordinary rule runs and names the pin, executable,
       declared version and observed version
       (proof: test:src/checks/runtime_pin.rs)
-- [ ] A matching exact pin and a satisfied supported range pass, while a
+- [x] A matching exact pin and a satisfied supported range pass, while a
       malformed declaration and a missing executable produce distinct,
       actionable findings
       (proof: test:src/checks/runtime_pin.rs)
-- [ ] A repository carrying none of the supported pin declarations receives
+- [x] A repository carrying none of the supported pin declarations receives
       no runtime-pin finding
       (proof: test:src/checks/runtime_pin.rs)
-- [ ] Every supported declaration format has a mutation and a repair whose
+- [x] Every supported declaration format has a mutation and a repair whose
       command output is injected rather than read from the test host
       (proof: test:src/fixtures.rs)
-- [ ] The existing L6 `toolchain` rules keep their present meaning and output
+- [x] The existing L6 `toolchain` rules keep their present meaning and output
       unchanged
       (proof: test:src/checks/toolchain.rs)
 

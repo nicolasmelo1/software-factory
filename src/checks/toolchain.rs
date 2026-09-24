@@ -93,4 +93,70 @@ mod tests {
         let stripped = without_comment_lines(workflow);
         assert!(stripped.contains("gitleaks"));
     }
+
+    /// The runtime-pin preflight shares a layer of vocabulary with this
+    /// check and nothing else. A hazard rule keeps its kind, its key and
+    /// every word of its output, pinned here so a change to one cannot leak
+    /// into the other.
+    #[test]
+    fn a_hazard_rule_keeps_its_kind_and_its_output() {
+        use crate::catalog::{Catalog, CheckKind};
+        use crate::checks::{Ctx, run_all_with, runtime_pin};
+        use crate::policy::Policy;
+        use crate::ratchet::Ratchet;
+
+        let root = runtime_pin::scratch(
+            "toolchain",
+            &[
+                (
+                    ".github/workflows/ci.yml",
+                    "on: [push]\njobs:\n  test:\n    steps:\n      - run: pytest\n",
+                ),
+                (".nvmrc", "20.11.1\n"),
+            ],
+        );
+        let policy: Policy = serde_yaml::from_str(
+            "version: 1\nproject:\n  name: hazard\n  languages: [python]\nrules:\n  L6.SECRETS_ARE_SCANNED:\n    enabled: true\n  L2.RUNNING_TOOLCHAIN_MATCHES_THE_PIN:\n    enabled: true\n",
+        )
+        .expect("the policy parses");
+        let catalog = Catalog::builtin().expect("the built-in catalog loads");
+        let rule = catalog
+            .get("L6.SECRETS_ARE_SCANNED")
+            .expect("the rule ships");
+        assert!(matches!(rule.check, CheckKind::Toolchain));
+        let files = crate::scan::walk(&root, &policy).expect("the scratch repo scans");
+        let ratchet = Ratchet::default();
+        let ctx = Ctx {
+            root: &root,
+            policy: &policy,
+            catalog: &catalog,
+            files: &files,
+            ratchet: &ratchet,
+            changed: None,
+            base: None,
+            today: crate::clock::today(),
+            allow_commands: false,
+            overlay: None,
+        };
+        let answers = runtime_pin::Answers::printing(&[("node --version", "v20.11.1")]);
+        let found = run_all_with(&ctx, &answers).expect("the run completes");
+        assert_eq!(found.len(), 1, "{found:?}");
+        let hazard = &found[0];
+        assert_eq!(hazard.rule, "L6.SECRETS_ARE_SCANNED");
+        assert_eq!(hazard.key, "python");
+        assert_eq!(
+            hazard.message,
+            "nothing in this repository runs a python tool for this hazard"
+        );
+        assert_eq!(
+            hazard.actual.as_deref(),
+            Some("not found in any CI workflow or task runner")
+        );
+        assert!(
+            hazard
+                .expected
+                .as_deref()
+                .is_some_and(|e| e.starts_with("one of: "))
+        );
+    }
 }

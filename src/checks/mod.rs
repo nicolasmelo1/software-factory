@@ -9,6 +9,7 @@ pub mod evidence;
 pub mod forwarder;
 pub mod lock;
 pub mod nested;
+pub mod runtime_pin;
 pub mod shape;
 pub mod text_pattern;
 pub mod tightening;
@@ -78,11 +79,33 @@ pub fn options_for(rule: &Rule, policy: &Policy) -> Result<Options> {
 
 /// Run every enabled rule instance. Returns findings in stable order.
 pub fn run_all(ctx: &Ctx) -> Result<Vec<Finding>> {
+    run_all_with(ctx, &runtime_pin::SystemProbe)
+}
+
+/// `run_all` with the version commands answered by `probe`, so a test can
+/// say what the runtime reports instead of asking the host.
+///
+/// The runtime pins run first. A disagreement there means every later result
+/// would be measured by a runtime the repository did not pin, so the run
+/// stops with those findings and nothing else.
+pub fn run_all_with(ctx: &Ctx, probe: &dyn runtime_pin::Probe) -> Result<Vec<Finding>> {
+    let preflight = run_instances(ctx, Some(probe))?;
+    if !preflight.is_empty() {
+        return Ok(preflight);
+    }
+    run_instances(ctx, None)
+}
+
+/// With a probe, only the runtime-pin instances; without one, every other.
+fn run_instances(ctx: &Ctx, probe: Option<&dyn runtime_pin::Probe>) -> Result<Vec<Finding>> {
     let mut findings = Vec::new();
     for (instance, base) in ctx.policy.instances() {
         let Some(rule) = ctx.catalog.get(&base) else {
             anyhow::bail!("policy enables {instance}, but {base} is not a rule in the catalog");
         };
+        if matches!(rule.check, CheckKind::RuntimePin) != probe.is_some() {
+            continue;
+        }
         // An instance whose `when` no longer matches is about a dependency
         // version this repository does not have, so running it would report
         // findings on code that is now right. It is not silently dropped:
@@ -108,7 +131,11 @@ pub fn run_all(ctx: &Ctx) -> Result<Vec<Finding>> {
             findings.push(inapplicable_finding(rule, &instance, overlay, reason));
             continue;
         }
-        findings.extend(run_one(&as_instance(rule, &instance), ctx)?);
+        let rule = as_instance(rule, &instance);
+        findings.extend(match probe {
+            Some(probe) => runtime_pin::check(&rule, ctx.root, probe),
+            None => run_one(&rule, ctx)?,
+        });
     }
     Ok(findings)
 }
@@ -292,6 +319,7 @@ fn run_bookkeeping(
         CheckKind::PolicyTightening => tightening::run(rule, opts, ctx),
         CheckKind::CatalogTightening => catalog_tightening::run(rule, ctx),
         CheckKind::Command => command::run(rule, opts, ctx),
+        CheckKind::RuntimePin => runtime_pin::run(rule, ctx),
         // Handled by `run_one` before it delegates here. Not `unreachable!`:
         // an added kind should reach its own arm, not abort the run.
         CheckKind::Shape { .. }

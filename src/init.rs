@@ -289,6 +289,10 @@ fn select_rules<'a>(
                 // a fresh repository would therefore make the rule inert on
                 // day one, which is the exact state L5 refuses.
                 && (r.id != "L4.PLAN_PROOF_BUDGET" || has_scoped_plan(root))
+                // Same argument for the runtime preflight: a root that pins
+                // no version gives it nothing to hold a process to.
+                && (!matches!(r.check, crate::catalog::CheckKind::RuntimePin)
+                    || crate::checks::runtime_pin::inert_reason(root).is_none())
         })
         .collect()
 }
@@ -963,6 +967,40 @@ mod conformance {
             policy.any_instance_enabled("L4.PLAN_PROOF_BUDGET"),
             "an existing scoped plan makes the budget meaningful"
         );
+    }
+
+    fn init_with_l2(root: &Path) -> Policy {
+        let catalog = Catalog::builtin().expect("builtin catalog");
+        run(
+            root,
+            &catalog,
+            &InitOptions {
+                name: "probe".to_string(),
+                languages: vec!["typescript".to_string()],
+                layers: vec!["L2".to_string()],
+                force: false,
+                plan: None,
+                answers: None,
+                rules_document: None,
+            },
+        )
+        .expect("sf init succeeds");
+        Policy::load(root).expect("generated policy loads")
+    }
+
+    #[test]
+    fn a_fresh_install_leaves_the_runtime_preflight_off_until_something_is_pinned() {
+        let scratch = Scratch::new("runtime-pin-none");
+        let policy = init_with_l2(scratch.0.as_path());
+        assert!(!policy.any_instance_enabled("L2.RUNNING_TOOLCHAIN_MATCHES_THE_PIN"));
+    }
+
+    #[test]
+    fn a_pinned_runtime_turns_the_runtime_preflight_on() {
+        let scratch = Scratch::new("runtime-pin-some");
+        std::fs::write(scratch.0.join(".nvmrc"), "20\n").expect(".nvmrc");
+        let policy = init_with_l2(scratch.0.as_path());
+        assert!(policy.any_instance_enabled("L2.RUNNING_TOOLCHAIN_MATCHES_THE_PIN"));
     }
 
     #[test]

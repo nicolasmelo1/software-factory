@@ -3,17 +3,17 @@
   "status": "passed",
   "goal": "I maintain a TypeScript framework with a few years of history in it. Install the software factory, set it up the way the README says to, and tell me whether it will stop the next bad change I write without drowning me in the mess that is already there.",
   "corpus": {
-    "repository": "adopt-corpus2",
-    "commit": "57371276a4a3cfcbb750fec33a03df2cfb257665",
-    "tracked_files": 535
+    "repository": "hono",
+    "commit": "57ba76a2a45d0573ed8f1c1e4a9d11dda9c6ab11",
+    "tracked_files": 482
   },
-  "sf": "sf 0.4.1 (catalog c7c4e0fee9e1, 41 rules)",
+  "sf": "sf 0.4.1 (catalog 2e8bcfb619f2, 42 rules)",
   "observed": {
-    "rules_enabled_by_init": 16,
-    "violations_frozen_at_init": 29,
-    "verify": "16/16 enabled rules proven to fire",
-    "check_on_baseline": "✓ 16 rules, no findings (33 frozen by the ratchet)",
-    "check_after_one_new_violation": "2 findings across 2 rules (33 frozen by the ratchet)"
+    "rules_enabled_by_init": 15,
+    "violations_frozen_at_init": 323,
+    "verify": "15/15 enabled rules proven to fire",
+    "check_on_baseline": "✓ 15 rules, no findings (558 frozen by the ratchet)",
+    "check_after_one_new_violation": "3 findings across 3 rules (558 frozen by the ratchet)"
   },
   "assertions": [
     { "type": "cli.init_scaffolds_a_policy", "status": "passed" },
