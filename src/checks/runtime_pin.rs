@@ -133,6 +133,9 @@ pub enum Reading {
     NoVersion(String),
     /// Syntax this check cannot interpret. A finding, never a guessed match.
     Malformed(String),
+    /// The file is there and could not be read at all: a permission, or
+    /// bytes that are not text. Also a finding, never "no pin".
+    Unreadable(String),
 }
 
 impl Pin {
@@ -177,17 +180,33 @@ pub const READERS: &[(&str, Reader)] = &[
     ("package.json", |body| engines(body).into_iter().collect()),
 ];
 
+/// Stands in for the runtime when a file could not be read far enough to
+/// say which one it pins.
+const UNREAD: Runtime = Runtime {
+    name: "unreadable",
+    commands: &[],
+};
+
 /// Every pin the root declares, in a stable order.
 pub fn declarations(root: &Path) -> Vec<Pin> {
     READERS
         .iter()
-        .filter_map(|(name, reader)| read(root, name).map(|body| reader(&body)))
-        .flatten()
+        .flat_map(|(name, reader)| match read(root, name) {
+            None => Vec::new(),
+            Some(Ok(body)) => reader(&body),
+            Some(Err(why)) => vec![Pin::new(name, &UNREAD, "", Reading::Unreadable(why))],
+        })
         .collect()
 }
 
-fn read(root: &Path, name: &str) -> Option<String> {
-    std::fs::read_to_string(root.join(name)).ok()
+/// `None` only when the file is not there. Any other error is kept, because
+/// a pin nobody could read is not the same statement as no pin.
+fn read(root: &Path, name: &str) -> Option<std::result::Result<String, String>> {
+    match std::fs::read_to_string(root.join(name)) {
+        Ok(body) => Some(Ok(body)),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+        Err(error) => Some(Err(error.to_string())),
+    }
 }
 
 /// A bare release number, with an optional leading `v`: `20`, `3.12`, `v1.80.0`.
@@ -232,27 +251,36 @@ fn python_alias(text: &str) -> bool {
     text.chars().next().is_some_and(|c| c.is_ascii_alphabetic())
 }
 
-/// `channel = "…"` under `[toolchain]`. A file with no channel pins nothing:
-/// it only names components.
+/// `channel = "…"` under `[toolchain]`, in either TOML string quote. A file
+/// with no channel pins nothing: it only names components. A `channel` key
+/// this cannot read is malformed rather than absent.
 fn rust_toolchain(body: &str) -> Option<Pin> {
-    let channel = Regex::new(r#"^\s*channel\s*=\s*"([^"]*)""#).expect("the pattern compiles");
+    let channel = Regex::new(r#"^\s*channel\s*=\s*(?:"([^"]*)"|'([^']*)')\s*(?:#.*)?$"#)
+        .expect("the pattern compiles");
     let mut section = String::new();
     for line in body.lines() {
-        let trimmed = line.trim();
+        let trimmed = line.split('#').next().unwrap_or("").trim();
         if trimmed.starts_with('[') {
             section = trimmed.to_string();
             continue;
         }
-        let Some(found) = channel.captures(line).filter(|_| section == "[toolchain]") else {
+        if section != "[toolchain]" || !trimmed.starts_with("channel") {
             continue;
+        }
+        let reading_of = |value: &str| read_single(value, rust_channel);
+        let pin = match channel.captures(line) {
+            Some(found) => {
+                let value = found.get(1).or(found.get(2)).map_or("", |m| m.as_str());
+                Pin::new("rust-toolchain.toml", &RUST, value, reading_of(value))
+            }
+            None => Pin::new(
+                "rust-toolchain.toml",
+                &RUST,
+                trimmed,
+                Reading::Malformed(format!("`{trimmed}` is not a channel this check can read")),
+            ),
         };
-        let value = found[1].to_string();
-        return Some(Pin::new(
-            "rust-toolchain.toml",
-            &RUST,
-            &value,
-            read_single(&value, rust_channel),
-        ));
+        return Some(pin);
     }
     None
 }
@@ -424,6 +452,10 @@ pub fn check(rule: &Rule, root: &Path, probe: &dyn Probe) -> Vec<Finding> {
                 findings.push(malformed(rule, &pin, why));
                 continue;
             }
+            Reading::Unreadable(why) => {
+                findings.push(unreadable(rule, &pin, why));
+                continue;
+            }
             Reading::Requires(alternatives) => alternatives,
         };
         let (command, observed) = asked
@@ -508,6 +540,21 @@ fn malformed(rule: &Rule, pin: &Pin, why: &str) -> Finding {
     )
     .expected("a release number such as 20.11.1, or a range in the declaration's own grammar")
     .actual(pin.declared.clone())
+}
+
+fn unreadable(rule: &Rule, pin: &Pin, why: &str) -> Finding {
+    Finding::new(
+        &rule.id,
+        rule.severity,
+        &pin.path,
+        &pin.key,
+        format!(
+            "`{}` is here but could not be read, so what it pins is unknown",
+            pin.path
+        ),
+    )
+    .expected("a readable text file")
+    .actual(why.to_string())
 }
 
 pub fn run(rule: &Rule, ctx: &Ctx) -> Result<Vec<Finding>> {
@@ -739,6 +786,49 @@ mod tests {
             found[0].message
         );
         assert_eq!(found[0].actual.as_deref(), Some("twenty"));
+    }
+
+    /// Bytes that are not UTF-8 stand in for every read failure short of
+    /// the file not being there: a permission bit would too, but a test
+    /// running as root would read straight through it.
+    #[test]
+    fn an_unreadable_declaration_is_a_finding_and_not_an_absent_pin() {
+        let root = scratch("unreadable", &[]);
+        std::fs::write(root.join(".nvmrc"), [0xff, 0xfe, 0x32, 0x30])
+            .expect("the bytes are written");
+        let found = check(
+            &rule(),
+            &root,
+            &Answers::printing(&[("node --version", "v20.0.0")]),
+        );
+        assert_eq!(found.len(), 1, "{found:?}");
+        assert!(
+            found[0].message.contains("could not be read"),
+            "{}",
+            found[0].message
+        );
+        assert_eq!(found[0].key, ".nvmrc:unreadable");
+        assert!(
+            inert_reason(&root).is_none(),
+            "an unreadable pin is not an absent one"
+        );
+    }
+
+    #[test]
+    fn a_rust_channel_reads_in_either_quote_and_a_broken_one_is_malformed() {
+        let single = "[toolchain]\nchannel = '1.80.0' # pinned\n";
+        let answers = [("rustc --version", "rustc 1.80.0 (051478957 2024-07-21)")];
+        assert!(findings(&[("rust-toolchain.toml", single)], &answers).is_empty());
+        let broken = "[toolchain]\nchannel = 1.80\n";
+        let found = findings(&[("rust-toolchain.toml", broken)], &answers);
+        assert_eq!(found.len(), 1, "{found:?}");
+        assert!(
+            found[0]
+                .message
+                .contains("could not be read as a rustc version"),
+            "{}",
+            found[0].message
+        );
     }
 
     #[test]
