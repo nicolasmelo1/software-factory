@@ -475,10 +475,8 @@ fn comparators(alternative: &str) -> Option<Vec<String>> {
     let alternative = glued.replace_all(alternative.trim(), "$1");
     let words: Vec<&str> = alternative.split_whitespace().collect();
     if let [low, "-", high] = words.as_slice() {
-        return [low, high]
-            .iter()
-            .all(|end| bare(end).is_some())
-            .then(|| vec![format!(">={low}"), format!("<={high}")]);
+        let (low, high) = (bare(&unwild(low))?, bare(&unwild(high))?);
+        return Some(vec![format!(">={low}"), upper_bound(&high)]);
     }
     let comparator = Regex::new(r"^(<=|>=|<|>|=|\^|~)?v?\d+(\.(\d+|x|X|\*)){0,2}$")
         .expect("the pattern compiles");
@@ -493,6 +491,39 @@ fn comparators(alternative: &str) -> Option<Vec<String>> {
     }
 }
 
+/// `20.x` and `20.*` as npm writes them, as the `20` they mean.
+fn unwild(end: &str) -> String {
+    end.trim_end_matches(['x', 'X', '*'])
+        .trim_end_matches('.')
+        .to_string()
+}
+
+/// The top of an inclusive hyphen range. A full release is inclusive; a
+/// partial one covers its whole series, so `18 - 20` reaches every 20.x.
+fn upper_bound(high: &str) -> String {
+    let mut parts: Vec<u64> = high
+        .split('.')
+        .filter_map(|part| part.parse().ok())
+        .collect();
+    if parts.len() >= 3 {
+        return format!("<={high}");
+    }
+    if let Some(last) = parts.last_mut() {
+        *last += 1;
+    }
+    let next: Vec<String> = parts.iter().map(u64::to_string).collect();
+    format!("<{}", next.join("."))
+}
+
+/// Whether a version command reported a pre-release: `1.80.0-nightly`,
+/// `v22.0.0-rc.1`, `3.13.0rc1`, `3.4.0preview1`. No pin in a release grammar
+/// accepts one, the way npm ranges exclude them unless they name one.
+fn pre_release(printed: &str) -> bool {
+    Regex::new(r"\d+(?:\.\d+)+(?:-[0-9A-Za-z]|(?:a|b|rc|alpha|beta|preview|dev)\d)")
+        .expect("the pattern compiles")
+        .is_match(printed)
+}
+
 /// Whether `observed` falls in what a set of alternatives requires.
 fn holds(alternatives: &[Vec<String>], observed: &Version) -> bool {
     alternatives.iter().any(|set| {
@@ -505,9 +536,8 @@ fn holds(alternatives: &[Vec<String>], observed: &Version) -> bool {
 /// `None` when the text carries no version at all.
 fn accepts(requirement: &Requirement, printed: &str) -> Option<bool> {
     match requirement {
-        Requirement::Ranges(alternatives) => {
-            Version::parse(printed).map(|version| holds(alternatives, &version))
-        }
+        Requirement::Ranges(alternatives) => Version::parse(printed)
+            .map(|version| !pre_release(printed) && holds(alternatives, &version)),
         Requirement::GoAtLeast(minimum) => GoVersion::parse(printed).map(|found| found >= *minimum),
     }
 }
@@ -809,6 +839,40 @@ mod tests {
         );
     }
 
+    #[test]
+    fn a_pre_release_does_not_satisfy_a_release_pin() {
+        let cases = [
+            (
+                "rust-toolchain.toml",
+                "[toolchain]\nchannel = \"1.80.0\"\n",
+                "rustc --version",
+                "rustc 1.80.0-nightly (8b1a2f3 2024-06-01)",
+            ),
+            (".nvmrc", "22.0.0\n", "node --version", "v22.0.0-rc.1"),
+            (
+                ".python-version",
+                "3.13\n",
+                "python --version",
+                "Python 3.13.0rc1",
+            ),
+            (
+                ".tool-versions",
+                "ruby 3.4\n",
+                "ruby --version",
+                "ruby 3.4.0preview1 (2024-05-16 master 9d69619623) [arm64-darwin23]",
+            ),
+        ];
+        for (path, body, command, printed) in cases {
+            let found = findings(&[(path, body)], &[(command, printed)]);
+            assert_eq!(found.len(), 1, "{path} accepted `{printed}`: {found:?}");
+        }
+        let release = findings(
+            &[(".python-version", "3.13\n")],
+            &[("python --version", "Python 3.13.0")],
+        );
+        assert!(release.is_empty(), "{release:?}");
+    }
+
     /// Every component written is compared, so a full release number is an
     /// exact pin: the next patch in the same series is a mismatch.
     #[test]
@@ -1086,6 +1150,25 @@ mod tests {
             );
         }
         assert!(matches!(npm_range("latest"), Reading::Malformed(_)));
+        for (range, inside, outside) in [
+            ("18 - 20", "20.11.1", "21.0.0"),
+            ("18 - 20.x", "20.99.0", "21.0.0"),
+            ("18 - 20.11", "20.11.9", "20.12.0"),
+            ("18 - 20.11.1", "20.11.1", "20.11.2"),
+        ] {
+            let Reading::Requires(Requirement::Ranges(alternatives)) = npm_range(range) else {
+                panic!("`{range}` should read as a range");
+            };
+            let version = |text| Version::parse(text).expect("a version");
+            assert!(
+                holds(&alternatives, &version(inside)),
+                "`{range}` should accept {inside}"
+            );
+            assert!(
+                !holds(&alternatives, &version(outside)),
+                "`{range}` should reject {outside}"
+            );
+        }
         assert!(matches!(npm_range("*"), Reading::NoVersion(_)));
         assert!(matches!(npm_range("* || >=20"), Reading::NoVersion(_)));
         assert!(matches!(npm_range(">=18 || x"), Reading::NoVersion(_)));
