@@ -16,6 +16,13 @@ helper adoption groups sibling functions by what they consume; guard agreement
 compares callers by what dominates them, and neither exit condition proves the
 other.
 
+Rows 15 to 17 follow the split of #63, which adds a rule that asks a model
+whether a gate's report supports a claim. They start once that rule and its
+backend protocol have landed. A verdict becomes sealed evidence first, because
+the other two are checks over it; the judge is proven to fail next, because a
+backend nobody proved can say no makes every verdict worthless; and the backend
+suite comes last, because it needs both to have something to prove end to end.
+
 | # | Work | Exit condition |
 | --- | --- | --- |
 | 1 | [The gate assumes a way to run the product](the-gate-assumes-a-way-to-run-the-product.md) | This repository's `adoption` evidence comes from a harness the tool generated, the gate is sealed against it and `sf check` is green, and the same generator run against a repository nobody tuned it for writes a harness whose report goes red when that product is broken. |
@@ -45,6 +52,12 @@ other.
 | 13 | [A property is a proof with a falsifier](a-property-is-a-proof-with-a-falsifier.md) | A plan cites a statement rather than an example, the citation names the mutation that statement rejects, and removing that mutation turns the plan's own gate red. |
 
 | 14 | [A hazard tool is proven to fail](a-hazard-tool-is-proven-to-fail.md) | A repository whose performance guard cannot fail is told so by `sf verify`, with the command it ran and the exit code it got, and every other hazard tool it declares is proved to go red on a defect planted under it. |
+
+| 15 | [A verdict is evidence](a-verdict-is-evidence.md) | A repository with marked claims runs `sf judge` once, commits the sealed verdicts, and from then on `sf check` is deterministic and offline for this rule, and goes red the moment a claim sentence or the report it cites changes without being judged again. |
+
+| 16 | [A judge is proven to fail](a-judge-is-proven-to-fail.md) | A repository whose judge approves everything is told so by `sf verify` before any claim is judged, and relaxing what the judge accepts is a policy change the L2 rules refuse rather than a string edit `sf lock` absorbs. |
+
+| 17 | [Any typed decision model can judge](any-typed-decision-model-can-judge.md) | This repository's own tests prove the rule end to end with no account, no key and no tokens spent, and switching a consumer from Jev to a local model is a change to one backend command with no change to the question file or the sealed verdict format. |
 
 ## Parked
 
