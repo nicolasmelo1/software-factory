@@ -297,6 +297,14 @@ pub fn catalog_digest() -> String {
         .iter()
         .map(|(path, body)| (path.to_string(), digest::hex(body.as_bytes())))
         .collect();
+    // The presets a policy can name are part of what a consumer agreed to:
+    // `extends: amy/workflow` is a promise about rule ids, so an edit to a
+    // preset changes what the binary enforces and has to move the digest the
+    // version line prints and the lock records, exactly like a catalog rule.
+    for (name, body) in crate::presets::BUILTIN_PRESETS {
+        entries.push((format!("preset/{name}"), digest::hex(body.as_bytes())));
+    }
+    entries.sort();
     digest::tree(&mut entries)
 }
 

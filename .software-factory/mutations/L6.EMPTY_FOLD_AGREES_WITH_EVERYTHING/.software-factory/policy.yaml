@@ -1,7 +1,11 @@
+# Generated mutation fixture for L6.EMPTY_FOLD_AGREES_WITH_EVERYTHING. It is supposed to fail.
 version: 1
 project:
-  name: proving
+  name: mutation-L6.EMPTY_FOLD_AGREES_WITH_EVERYTHING
   languages: [python, typescript, go, rust, ruby]
+docs:
+  scan: ["docs/**/*.md"]
+gates: {}
 rules:
   L6.EMPTY_FOLD_AGREES_WITH_EVERYTHING:
     enabled: true

@@ -35,5 +35,5 @@ defaults:
     - "**/*.mjs"
   forbidden:
     - regex: '\.every\('
-      unless: '\.length\b|Array\.isArray\(|for\s*\(.*\bof\b'
-      message: "[].every(...) is true, so a fold over nothing agrees with everything — a ticket with no approvals reads as approved in all of them. Guard with a length check on the same line or fold with some/filter when 'none of them' is the sentence you mean."
+      unless: '\.length\s*(>|>=)\s*1|\.length\s*(!==|>)\s*0|\.some\(|\.filter\('
+      message: "[].every(...) is true, so a fold over nothing agrees with everything — a ticket with no approvals reads as approved in all of them. Guard with a non-empty length check on the same line (Array.isArray does not prove non-empty), or fold with some/filter when 'none of them' is the sentence you mean."

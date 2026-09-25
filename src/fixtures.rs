@@ -179,7 +179,7 @@ pub const FIXTURES: &[Fixture] = &[
         files: &[
             (
                 "src/sync.ts",
-                "// The violation and the accepted form together: the second line's\n// fetch-and-verify is the `unless` that makes a deliberate move expressible.\nawait git(repo, \"checkout\", \"-B\", branch, base);\nawait git(repo, \"checkout\", \"-B\", branch, \"origin/\" + branch); // rev-parse verified\n",
+                "// The violation and the accepted form together: the second line names the\n// rev-parse check that proves the tip reachable — the `unless` that makes a\n// deliberate move expressible.\nawait git(repo, \"checkout\", \"-B\", branch, base);\nawait git(repo, \"checkout\", \"-B\", branch, \"origin/\" + branch); // rev-parse verified\n",
             ),
             (
                 "scripts/release.py",

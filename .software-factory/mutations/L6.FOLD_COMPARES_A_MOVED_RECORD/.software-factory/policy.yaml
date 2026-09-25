@@ -1,7 +1,11 @@
+# Generated mutation fixture for L6.FOLD_COMPARES_A_MOVED_RECORD. It is supposed to fail.
 version: 1
 project:
-  name: proving
+  name: mutation-L6.FOLD_COMPARES_A_MOVED_RECORD
   languages: [python, typescript, go, rust, ruby]
+docs:
+  scan: ["docs/**/*.md"]
+gates: {}
 rules:
   L6.FOLD_COMPARES_A_MOVED_RECORD:
     enabled: true

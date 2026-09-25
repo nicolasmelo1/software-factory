@@ -32,8 +32,13 @@ move the home variable. `L2.RUNNING_TOOLCHAIN_MATCHES_THE_PIN` is off because
 this repository pins no runtime: there is no `rust-toolchain.toml`, CI builds
 with the runner's stable Rust, and a preflight with no pin to read has nothing
 to hold a process to. Committing a pin would turn it on, and that is a decision
-about the toolchain rather than about the rule. All seven remain proven by
-their fixtures;
+about the toolchain rather than about the rule. `L6.BRANCH_RESET_LOSES_COMMITS`,
+`L6.FOLD_COMPARES_A_MOVED_RECORD` and `L6.EMPTY_FOLD_AGREES_WITH_EVERYTHING` are
+off because this repository has no workflow in it: the git checkout, the fold
+over a record the engine has advanced and the `.every(` fold they hunt live in
+the workflow engines that consume this binary, which is why they ship through
+the `amy/workflow` preset rather than through this policy. All ten remain
+proven by their fixtures;
 they are simply pointed at nothing here, and `L5.NO_INERT_RULE` is what forced
 each of them to become a written decision instead of a silent pass.
 

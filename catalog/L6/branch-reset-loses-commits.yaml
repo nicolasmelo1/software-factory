@@ -38,5 +38,5 @@ defaults:
     - "**/*.rb"
   forbidden:
     - regex: '\bcheckout\b[^#\n]*["''\s]-B\b'
-      unless: 'proven|ancestor|is-ancestor|rev-parse|fetch'
-      message: "checkout -B moves a branch that exists, and a commit the machine made and could not push is gone with nothing to say it existed. Create with -b, or move with branch -f only after the tip is proven reachable (rev-parse/ancestor check on the line)."
+      unless: 'rev-parse|is-ancestor|merge-base|reflog|branch -f|proven'
+      message: "checkout -B moves a branch that exists, and a commit the machine made and could not push is gone with nothing to say it existed. Create with -b, or move with branch -f only after the tip is proven reachable (rev-parse/merge-base --is-ancestor on the line)."

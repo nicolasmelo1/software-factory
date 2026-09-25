@@ -280,3 +280,22 @@ rules:
     # JavaScript and Go tests, and this repository's fixtures are Rust.
     # The rule fires in the consumers whose test trees it was cut for.
     enabled: false
+  # L6 — A branch is never reset with checkout -B
+  L6.BRANCH_RESET_LOSES_COMMITS:
+    # Disabled: this repository has no workflow driving git — the rule's
+    # vocabulary is the workflow engines and agents that consume this binary,
+    # and it ships to them through the `amy/workflow` preset rather than
+    # through this policy.
+    enabled: false
+  # L6 — A fold never reads the state off the record the engine handed it
+  L6.FOLD_COMPARES_A_MOVED_RECORD:
+    # Disabled: same reason as the branch rule — no fold over a workflow
+    # record exists in this repository; the rule's scope is the workflows
+    # that consume this binary.
+    enabled: false
+  # L6 — A decision function never calls .every on a collection it did not prove non-empty
+  L6.EMPTY_FOLD_AGREES_WITH_EVERYTHING:
+    # Disabled: same reason as the branch rule — the decision functions this
+    # rule is about live in the workflows this binary's preset reaches, not
+    # in the Rust source here.
+    enabled: false

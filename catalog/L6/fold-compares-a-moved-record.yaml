@@ -34,7 +34,7 @@ check:
         [
           (function_declaration name: (identifier) @fn (#match? @fn "^(apply|fold)") (#not-match? @fn "applyPlan"))
           (method_definition name: (property_identifier) @fn (#match? @fn "^(apply|fold)") (#not-match? @fn "applyPlan"))
-          (pair key: (property_identifier) @fn (#match? @fn "^(apply|fold)") value: [(arrow_function) (function_expression)])
+          (pair key: (property_identifier) @fn (#match? @fn "^(apply|fold)") (#not-match? @fn "applyPlan") value: [(arrow_function) (function_expression)])
         ] @target
       inner: |
         (member_expression

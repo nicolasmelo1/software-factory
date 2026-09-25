@@ -375,8 +375,15 @@ impl Policy {
                 path.display()
             )
         })?;
-        let policy: Policy = serde_yaml::from_str(&body)
-            .with_context(|| format!("{} is malformed", path.display()))?;
+        Self::parse(&body).with_context(|| format!("{} is malformed", path.display()))
+    }
+
+    /// Parse a policy document: the YAML, the version, and the preset its
+    /// `extends` names. One parse path on purpose — a preset read from
+    /// history must compare against a present read from the same preset,
+    /// never against a present read from the raw document.
+    pub fn parse(body: &str) -> Result<Policy> {
+        let policy: Policy = serde_yaml::from_str(body)?;
         anyhow::ensure!(policy.version == 1, "unsupported policy version");
         policy.extend_from_preset()
     }
@@ -475,6 +482,222 @@ pub fn repo_root(start: &Path) -> Result<PathBuf> {
             Some(parent) => current = parent.to_path_buf(),
             None => anyhow::bail!("not inside a git repository"),
         }
+    }
+}
+
+#[cfg(test)]
+mod extends {
+    use super::*;
+
+    const WITH_PRESET: &str = "version: 1\nextends: amy/workflow\nproject:\n  name: oncall\n  languages: [typescript]\nrules:\n  L6.BRANCH_RESET_LOSES_COMMITS:\n    enabled: false\n";
+
+    #[test]
+    fn the_preset_rules_are_the_effective_rule_set() {
+        let policy = Policy::parse(
+            "version: 1\nextends: amy/workflow\nproject:\n  name: oncall\n  languages: [typescript]\n",
+        )
+        .expect("the policy parses");
+        for id in [
+            "L6.BRANCH_RESET_LOSES_COMMITS",
+            "L6.FOLD_COMPARES_A_MOVED_RECORD",
+            "L6.EMPTY_FOLD_AGREES_WITH_EVERYTHING",
+        ] {
+            assert!(
+                policy.rules.get(id).is_some_and(|s| s.enabled),
+                "{id} should arrive enabled through the preset"
+            );
+        }
+        assert_eq!(
+            policy.rules.len(),
+            3,
+            "the preset adds exactly its three rules"
+        );
+    }
+
+    #[test]
+    fn the_document_s_own_key_wins_over_the_preset() {
+        let policy = Policy::parse(WITH_PRESET).expect("the policy parses");
+        assert!(
+            !policy
+                .rules
+                .get("L6.BRANCH_RESET_LOSES_COMMITS")
+                .expect("the instance exists")
+                .enabled,
+            "the consumer's own disabled key wins"
+        );
+        assert!(
+            policy
+                .rules
+                .get("L6.EMPTY_FOLD_AGREES_WITH_EVERYTHING")
+                .is_some_and(|s| s.enabled),
+            "the two the document does not name stay enabled"
+        );
+    }
+
+    #[test]
+    fn an_unknown_preset_is_a_load_time_refusal_naming_the_name() {
+        let error = Policy::parse(
+            "version: 1\nextends: acme/missing\nproject:\n  name: oncall\n  languages: [typescript]\n",
+        )
+        .expect_err("an unknown preset is refused");
+        let message = format!("{error:#}");
+        assert!(
+            message.contains("acme/missing") || message.contains("acme"),
+            "names the name: {message}"
+        );
+        assert!(
+            message.contains("amy/workflow"),
+            "names what exists: {message}"
+        );
+    }
+
+    #[test]
+    fn a_policy_without_extends_parses_to_the_same_rules_the_yaml_declared() {
+        let policy = Policy::parse(
+            "version: 1\nproject:\n  name: oncall\n  languages: [typescript]\nrules:\n  L1.COMPLEXITY_CEILING:\n    enabled: true\n",
+        )
+        .expect("the policy parses");
+        assert!(policy.rules.contains_key("L1.COMPLEXITY_CEILING"));
+        assert!(!policy.rules.contains_key("L6.BRANCH_RESET_LOSES_COMMITS"));
+    }
+
+    /// The tightening rule's baseline reads history through this parse path,
+    /// so a preset removed from the policy is a weakening the rule sees —
+    /// the check that would have missed it is a comparison between a present
+    /// read from the preset and a past read without it.
+    #[test]
+    fn the_baseline_reader_sees_the_preset_the_same_way_the_live_policy_does() {
+        use crate::checks::Ctx;
+        use crate::ratchet::Ratchet;
+
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock is before the epoch")
+            .as_nanos();
+        let scratch =
+            std::env::temp_dir().join(format!("sf-extends-tighten-{}-{nanos}", std::process::id()));
+        std::fs::create_dir_all(scratch.join(".software-factory")).expect("factory dir");
+        std::fs::create_dir_all(scratch.join("src")).expect("src");
+
+        // The baseline carries the preset line; the working tree drops it —
+        // the guardrails disappear with nobody writing a disabling line.
+        let baseline = "version: 1\nextends: amy/workflow\nproject:\n  name: oncall\n  languages: [typescript]\n";
+        let without = "version: 1\nproject:\n  name: oncall\n  languages: [typescript]\n";
+        std::fs::write(
+            scratch.join(".software-factory").join("policy.yaml"),
+            without,
+        )
+        .expect("policy");
+        let output = std::process::Command::new("git")
+            .arg("-C")
+            .arg(&scratch)
+            .args(["init", "-q"])
+            .output()
+            .expect("git init");
+        assert!(output.status.success());
+        let _ = std::fs::write(scratch.join("src/app.ts"), "export const one = 1;\n");
+        // Stage the baseline into history as a commit, then apply the removal.
+        let stage = |paths: &[&str]| {
+            for path in paths {
+                let status = std::process::Command::new("git")
+                    .arg("-C")
+                    .arg(&scratch)
+                    .args(["add", path])
+                    .status()
+                    .expect("git add");
+                assert!(status.success());
+            }
+        };
+        std::fs::write(
+            scratch.join(".software-factory/policy.yaml.baseline"),
+            baseline,
+        )
+        .expect("baseline");
+        stage(&[".software-factory/policy.yaml.baseline", "src/app.ts"]);
+        let commit = std::process::Command::new("git")
+            .arg("-C")
+            .arg(&scratch)
+            .args([
+                "-c",
+                "user.email=t@example.test",
+                "-c",
+                "user.name=t",
+                "commit",
+                "-q",
+                "-m",
+                "baseline",
+            ])
+            .status()
+            .expect("git commit");
+        assert!(commit.success(), "baseline committed");
+        // The baseline document must live at the path the rule reads from the
+        // base ref, so write it there, commit, then remove the extends line.
+        std::fs::write(
+            scratch.join(".software-factory").join("policy.yaml"),
+            baseline,
+        )
+        .expect("baseline policy");
+        let add = std::process::Command::new("git")
+            .arg("-C")
+            .arg(&scratch)
+            .args(["add", ".software-factory/policy.yaml"])
+            .status()
+            .expect("git add");
+        assert!(add.success());
+        let commit2 = std::process::Command::new("git")
+            .arg("-C")
+            .arg(&scratch)
+            .args([
+                "-c",
+                "user.email=t@example.test",
+                "-c",
+                "user.name=t",
+                "commit",
+                "-q",
+                "-m",
+                "the preset arrives",
+            ])
+            .status()
+            .expect("git commit");
+        assert!(commit2.success(), "baseline policy committed");
+        std::fs::write(
+            scratch.join(".software-factory").join("policy.yaml"),
+            without,
+        )
+        .expect("removal");
+
+        let ctx = Ctx {
+            root: &scratch,
+            policy: &Policy::load(&scratch).expect("policy"),
+            catalog: &crate::catalog::Catalog::builtin().expect("catalog"),
+            files: &[],
+            ratchet: &Ratchet::default(),
+            changed: None,
+            base: None,
+            today: crate::clock::today(),
+            allow_commands: false,
+            overlay: None,
+        };
+        let (before, _frozen_before) = crate::checks::tightening::from_git_for_test(&ctx, "HEAD")
+            .expect("baseline loads")
+            .expect("the base ref carries a policy");
+        for id in [
+            "L6.BRANCH_RESET_LOSES_COMMITS",
+            "L6.FOLD_COMPARES_A_MOVED_RECORD",
+            "L6.EMPTY_FOLD_AGREES_WITH_EVERYTHING",
+        ] {
+            assert!(
+                before.rules.get(id).is_some_and(|s| s.enabled),
+                "the baseline reader expanded the preset: {id} enabled at HEAD"
+            );
+        }
+        // And the live policy — the same parse path — has lost them, so the
+        // comparison the tightening rule makes is between a present without
+        // the preset and a past with it: the removal is a weakening it can
+        // name, never a silent pass.
+        let live = Policy::load(&scratch).expect("live policy loads");
+        assert!(!live.rules.contains_key("L6.BRANCH_RESET_LOSES_COMMITS"));
+        std::fs::remove_dir_all(&scratch).expect("scratch removed");
     }
 }
 

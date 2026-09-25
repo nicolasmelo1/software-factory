@@ -41,7 +41,16 @@ fn from_directory(ctx: &Ctx, dir: &str) -> Result<Option<(Policy, Ratchet)>> {
 
 fn from_git(ctx: &Ctx, base: &str) -> Result<Option<(Policy, Ratchet)>> {
     let policy = match show(ctx, base, POLICY_PATH)? {
-        Some(body) => serde_yaml::from_str(&body)?,
+        // The same parse the live policy gets, preset included: a comparison
+        // between an expanded present and an unexpanded past reads a preset's
+        // removal as no change, which is the exact weakening this rule is
+        // here to name.
+        Some(body) => match Policy::parse(&body) {
+            Ok(policy) => policy,
+            Err(error) => {
+                return Err(error.context(format!("the baseline policy at {base} does not parse")));
+            }
+        },
         None => return Ok(None),
     };
     let ratchet = match show(ctx, base, RATCHET_PATH)? {
@@ -302,6 +311,17 @@ fn effective_size(
         forbidden_in_goal: options.forbidden_in_goal.len(),
         forbidden_actors: options.forbidden_actors.len(),
     }
+}
+
+/// The baseline half of the rule, exposed for the preset-removal test: the
+/// rule's own `run` needs a diff surface; what the preset bug broke is the
+/// reader, and the reader is what this hands back.
+#[cfg(test)]
+pub fn from_git_for_test(
+    ctx: &Ctx,
+    base: &str,
+) -> Result<Option<(crate::policy::Policy, crate::ratchet::Ratchet)>> {
+    from_git(ctx, base)
 }
 
 #[cfg(test)]
