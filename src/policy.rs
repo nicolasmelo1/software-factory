@@ -300,6 +300,14 @@ pub struct Gate {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Policy {
     pub version: u32,
+    /// A named rule set this policy starts from, resolved against the
+    /// catalog binary's own presets: `extends: amy/workflow` is the line
+    /// `amy workflow new` writes, and it stands for the guardrails every
+    /// workflow needs before its author has heard of them. Keys this
+    /// document writes itself win over the preset's — one level, the same
+    /// shallow merge rule options use.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub extends: Option<String>,
     pub project: Project,
     #[serde(default)]
     pub rules: BTreeMap<String, RuleSetting>,
@@ -370,7 +378,33 @@ impl Policy {
         let policy: Policy = serde_yaml::from_str(&body)
             .with_context(|| format!("{} is malformed", path.display()))?;
         anyhow::ensure!(policy.version == 1, "unsupported policy version");
-        Ok(policy)
+        policy.extend_from_preset()
+    }
+
+    /// Merge the named preset's rules under this document's own, the
+    /// document's keys winning. Done at load so every reader of a policy —
+    /// check, verify, seal, the tightening rules — sees the same effective
+    /// rule set; a merge applied at check time only would make `sf explain`
+    /// and the report disagree about what is on.
+    fn extend_from_preset(mut self) -> Result<Policy> {
+        let Some(name) = self.extends.clone() else {
+            return Ok(self);
+        };
+        let preset = crate::presets::rules(&name)?;
+        for (id, setting) in preset {
+            // `entry` API avoids cloning the id twice for a lookup that
+            // usually misses: the preset's point is to add rules.
+            use std::collections::btree_map::Entry;
+            match self.rules.entry(id) {
+                Entry::Vacant(slot) => {
+                    slot.insert(setting);
+                }
+                // The document's own decision wins; say so rather than let a
+                // reader wonder which of the two wrote the setting.
+                Entry::Occupied(_) => {}
+            }
+        }
+        Ok(self)
     }
 
     /// Enabled entries as (instance id, catalog rule id).

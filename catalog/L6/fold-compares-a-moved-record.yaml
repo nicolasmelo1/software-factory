@@ -1,0 +1,56 @@
+id: L6.FOLD_COMPARES_A_MOVED_RECORD
+layer: L6
+title: A fold never reads the state off the record the engine handed it
+severity: high
+statement: >-
+  Inside a workflow's fold — a function or apply member the engine hands an
+  already-advanced record — the record's state is not read with `record.state`
+  to decide anything.
+why: >-
+  The engine advances a record before a workflow's fold ever sees it: the
+  serial worker calls `apply(applyPlan(record, plan, now), ...)` and
+  `applyPlan` moves the state, appends the history line and counts the attempt
+  in the same call that produces the record the fold receives. So a fold that
+  compares `record.state` is comparing the state it has ALREADY been moved to,
+  not the state the workflow was in when the plan was made — the branch
+  silently never matches the state its author named, the code it guards does
+  not run, and nothing fails: the fold simply agrees with whatever else it
+  sees. This was written for a private workflow whose effect fold read the
+  moved record and skipped the one branch that mattered. The engine's own
+  `applyPlan` definition is exempt — it is the code implementing the
+  convention, and the rule says so by name.
+fix: >-
+  Decide from what the fold is handed: `plan.to` is the state the record was
+  moved to, `outcomes` records which effects actually ran, and a value the
+  state carries on itself travels with the fold. The one place
+  `record.state` is correct is the machine's `plan()`, which the engine
+  hands the pre-transition record — a read there is not a finding.
+ratchet: allowlist
+check:
+  kind: nested
+  languages:
+    typescript:
+      outer: |
+        [
+          (function_declaration name: (identifier) @fn (#match? @fn "^(apply|fold)") (#not-match? @fn "applyPlan"))
+          (method_definition name: (property_identifier) @fn (#match? @fn "^(apply|fold)") (#not-match? @fn "applyPlan"))
+          (pair key: (property_identifier) @fn (#match? @fn "^(apply|fold)") value: [(arrow_function) (function_expression)])
+        ] @target
+      inner: |
+        (member_expression
+          object: (identifier) @obj
+          property: (property_identifier) @prop
+          (#eq? @prop "state")) @inner
+defaults:
+  scope:
+    - "**/*.ts"
+    - "**/*.mts"
+    - "**/*.cts"
+    - "**/*.js"
+    - "**/*.mjs"
+    - "**/*.cjs"
+  exclude:
+    - "**/tests/**"
+    - "**/*.test.ts"
+    - "**/*.test.js"
+    - "**/*.test.mjs"

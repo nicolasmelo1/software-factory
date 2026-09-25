@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "gate": "adoption",
-  "implementation_sha256": "ca18e7c3bc128c8a519d2f1aba32511777141c06bd92915e192c75b798270f2e",
+  "implementation_sha256": "6b9d6ddbe13853d89dece038bc2cadcf3787aaf70b5dda89d52b72bed0381cd1",
   "runs": [
     {
       "scenario": "adoption",

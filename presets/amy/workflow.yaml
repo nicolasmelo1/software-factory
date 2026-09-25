@@ -1,0 +1,20 @@
+# The workflow guardrails — the rule set behind `extends: amy/workflow`, the
+# line `amy workflow new` writes into a scaffold's `.software-factory/policy.yaml`.
+#
+# These three rules were written for a private workflow after three defects
+# reached a real board. None of them is about that project: every workflow
+# drives git, every workflow runs the engine's apply with the same record, and
+# every workflow folds a collection somewhere.
+#
+# What this file is deliberately not: a hand-restated contract. A policy that
+# names this preset carries no rule ids of its own; the ids here are resolved
+# against the catalog at load, so the preset and the catalog cannot disagree
+# by construction, and a consumer that strengthens one of them does it in its
+# own policy — never by editing a file a scaffold shipped.
+rules:
+  L6.BRANCH_RESET_LOSES_COMMITS:
+    enabled: true
+  L6.FOLD_COMPARES_A_MOVED_RECORD:
+    enabled: true
+  L6.EMPTY_FOLD_AGREES_WITH_EVERYTHING:
+    enabled: true

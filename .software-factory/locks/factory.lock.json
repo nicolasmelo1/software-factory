@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "files": {
-    ".allowed-root-files": "424bff3387c3647e4d5dc2ad27520917e5af33eead20ccca36bbaef0fdcef028",
+    ".allowed-root-files": "c5256981e99a5569647f3bdbd140873ebe243292ad04ee4cd8260677675e7949",
     ".githooks/pre-commit": "47642e2f720762fecb49bdaecbe28afec61f6ab1611c14c36cf70e240f18b072",
     ".github/workflows/release-plz.yml": "57bab94b235309c9570defdfe5524a888c65bc83c74d10496ce3963fc693b6a0",
     ".github/workflows/release.yml": "cfbf7dfa023db1c52ef6c9fc5111f7df5e151bdb39a0dc992adaf60011579ec3",

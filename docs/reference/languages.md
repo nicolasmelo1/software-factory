@@ -18,6 +18,7 @@ below: they apply to every language the policy declares.
 | `L0.PERSISTENCE_STAYS_IN_REPOSITORIES` | go, python, typescript |
 | `L1.INDIRECTION_EARNS_ITS_NAME` | python, rust, typescript |
 | `L1.SKIPPED_TESTS_STATE_A_REASON` | go, python, ruby, rust, typescript |
+| `L6.FOLD_COMPARES_A_MOVED_RECORD` | typescript |
 | `L6.NO_BLOCKING_CALL_WHILE_HOLDING_A_LOCK` | go, python, ruby, rust |
 | `L6.ONE_LOCK_AT_A_TIME` | go, python, ruby, rust |
 

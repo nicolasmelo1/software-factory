@@ -18,6 +18,7 @@ mod interview;
 mod lang;
 mod manifest;
 mod policy;
+mod presets;
 mod ratchet;
 mod report;
 mod scan;

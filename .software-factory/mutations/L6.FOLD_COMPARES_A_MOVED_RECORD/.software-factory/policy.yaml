@@ -1,0 +1,7 @@
+version: 1
+project:
+  name: proving
+  languages: [python, typescript, go, rust, ruby]
+rules:
+  L6.FOLD_COMPARES_A_MOVED_RECORD:
+    enabled: true

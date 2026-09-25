@@ -154,7 +154,10 @@ fn no_private_name_reaches_this_public_repository() {
     );
 
     let files = tracked_text(&root);
-    assert!(!files.is_empty(), "no tracked text found — is this a checkout?");
+    assert!(
+        !files.is_empty(),
+        "no tracked text found — is this a checkout?"
+    );
 
     let found = find_private_references(&files, &policy.denied);
     let report: Vec<String> = found
@@ -198,7 +201,10 @@ mod tests {
 
     #[test]
     fn finds_a_term_standing_on_its_own_at_its_line() {
-        let files = file("docs/note.md", "first line\nwritten for Acme after a defect");
+        let files = file(
+            "docs/note.md",
+            "first line\nwritten for Acme after a defect",
+        );
         assert_eq!(
             find_private_references(&files, &[deny("acme")]),
             vec![PrivateRef {
@@ -257,9 +263,21 @@ mod tests {
         assert_eq!(
             find_private_references(&files, &[deny("acme")]),
             vec![
-                PrivateRef { file: "a.md".into(), line: 1, word: "acme".into() },
-                PrivateRef { file: "a.md".into(), line: 3, word: "acme".into() },
-                PrivateRef { file: "b.md".into(), line: 1, word: "acme".into() },
+                PrivateRef {
+                    file: "a.md".into(),
+                    line: 1,
+                    word: "acme".into()
+                },
+                PrivateRef {
+                    file: "a.md".into(),
+                    line: 3,
+                    word: "acme".into()
+                },
+                PrivateRef {
+                    file: "b.md".into(),
+                    line: 1,
+                    word: "acme".into()
+                },
             ]
         );
     }

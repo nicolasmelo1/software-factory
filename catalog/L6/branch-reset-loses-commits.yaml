@@ -1,0 +1,42 @@
+id: L6.BRANCH_RESET_LOSES_COMMITS
+layer: L6
+title: A branch is never reset with checkout -B
+severity: high
+statement: >-
+  In code that drives git — workflow engines, release scripts, agents that
+  commit and push — a branch is created or moved with `checkout -B` only when
+  the commit at its tip has been proven to live somewhere else.
+why: >-
+  `-B` is the branch-moving form of `checkout`, and it moves a branch that
+  already exists with nothing to say the old tip ever existed. Every amy
+  workflow drives git: the machine prepares a branch per piece of work, and
+  the day a push fails — quota, credential, network — the commit is at the
+  tip of a branch whose next move is `checkout -B`, and moving it erases the
+  record of work a human was about to look for. This was written after
+  exactly that defect reached a real board: a commit the machine made and
+  could not push vanished with `checkout -B`, and the work was not lost
+  because it was recovered — it was recovered because somebody noticed.
+fix: >-
+  Create with `checkout -b` and fail loudly when the name is taken; move an
+  existing branch with `branch -f` only after the tip is proven reachable —
+  `git rev-parse --verify` on the pushed ref, or `git fetch origin && git
+  merge-base --is-ancestor` for a branch that pushed. If you mean it, say it
+  in writing on the line: `checkout -B` alone is a reset that logs nothing.
+ratchet: allowlist
+check:
+  kind: text_pattern
+defaults:
+  scope:
+    - "**/*.ts"
+    - "**/*.mts"
+    - "**/*.cjs"
+    - "**/*.js"
+    - "**/*.mjs"
+    - "**/*.py"
+    - "**/*.go"
+    - "**/*.rs"
+    - "**/*.rb"
+  forbidden:
+    - regex: '\bcheckout\b[^#\n]*["''\s]-B\b'
+      unless: 'proven|ancestor|is-ancestor|rev-parse|fetch'
+      message: "checkout -B moves a branch that exists, and a commit the machine made and could not push is gone with nothing to say it existed. Create with -b, or move with branch -f only after the tip is proven reachable (rev-parse/ancestor check on the line)."

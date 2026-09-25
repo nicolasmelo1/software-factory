@@ -1,0 +1,39 @@
+id: L6.EMPTY_FOLD_AGREES_WITH_EVERYTHING
+layer: L6
+title: A decision function never calls .every on a collection it did not prove non-empty
+severity: high
+statement: >-
+  In a workflow's decision function, `.every(` must be guarded by a non-empty
+  proof (`length > 0`, `length >= 1`, a `for…of` over the same array, or
+  `every` on a wrapper that refuses empties) on the same line, or a comment
+  naming the intended answer for the empty collection.
+why: >-
+  `[].every(...)` is `true` — the language's vacuous truth. A fold over
+  nothing agrees with everything: a ticket with no approvals reads as
+  approved in all of them, and the plan advances on a decision the work never
+  earned. This is the same defect the workflow-testkit's `folds` probe
+  replays dynamically — every amy workflow's suite runs that probe — and this
+  rule is its static half, firing where the dynamic probe cannot: at the
+  first commit, before a world exists to replay. The dynamic probe stays:
+  a rule that outlives its defect is cheap, and a defect that outlives its
+  rule is not.
+fix: >-
+  Say what an empty collection means: guard with `length` before the fold
+  (`items.length > 0 && items.every(...)`) and decide the empty case
+  explicitly, or fold with `some`/`filter` when "none of them" is the
+  sentence you mean. If the decision is deliberately vacuous-true, write that
+  on the line — `every` over an intentionally-empty fold names its answer.
+ratchet: allowlist
+check:
+  kind: text_pattern
+defaults:
+  scope:
+    - "**/*.ts"
+    - "**/*.mts"
+    - "**/*.cjs"
+    - "**/*.js"
+    - "**/*.mjs"
+  forbidden:
+    - regex: '\.every\('
+      unless: '\.length\b|Array\.isArray\(|for\s*\(.*\bof\b'
+      message: "[].every(...) is true, so a fold over nothing agrees with everything — a ticket with no approvals reads as approved in all of them. Guard with a length check on the same line or fold with some/filter when 'none of them' is the sentence you mean."

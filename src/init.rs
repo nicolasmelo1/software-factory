@@ -652,6 +652,7 @@ fn root_allowlist(root: &Path) -> Result<String> {
     // which is the opposite of what the gate is for.
     let policy = Policy {
         version: 1,
+        extends: None,
         project: crate::policy::Project {
             name: String::new(),
             languages: Vec::new(),

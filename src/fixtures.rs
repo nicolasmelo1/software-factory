@@ -173,6 +173,43 @@ pub const FIXTURES: &[Fixture] = &[
         ],
     },
     Fixture {
+        rule: "L6.BRANCH_RESET_LOSES_COMMITS",
+        policy_extra: "",
+        extra_rules: "",
+        files: &[
+            (
+                "src/sync.ts",
+                "// The violation and the accepted form together: the second line's\n// fetch-and-verify is the `unless` that makes a deliberate move expressible.\nawait git(repo, \"checkout\", \"-B\", branch, base);\nawait git(repo, \"checkout\", \"-B\", branch, \"origin/\" + branch); // rev-parse verified\n",
+            ),
+            (
+                "scripts/release.py",
+                "# The Python spelling of the same defect.\nrun([\"git\", \"checkout\", \"-B\", \"release-candidate\"])\n",
+            ),
+            (
+                "cmd/sync/main.go",
+                "package main\n\nimport \"os/exec\"\n\nfunc prepare() {\n\texec.Command(\"git\", \"checkout\", \"-B\", \"work/branch\").Run()\n}\n",
+            ),
+        ],
+    },
+    Fixture {
+        rule: "L6.FOLD_COMPARES_A_MOVED_RECORD",
+        policy_extra: "",
+        extra_rules: "",
+        files: &[(
+            "packages/workflow-oncall/src/outcomes.ts",
+            "// A fold: the engine hands it a record it has already advanced, so\n// record.state here is the state it was moved to, not the state the plan\n// was made in. applyPlan itself is the convention, not a violation.\nimport { applyPlan, Plan } from \"@amykit/core\";\n\nexport function applyOutcomes(record: OncallRecord, outcomes: EffectOutcomes): OncallRecord {\n  const next = { ...record };\n  if (record.state === \"received\" && outcomes.attempt) next.lastAttempt = outcomes.attempt;\n  return next;\n}\n\nexport function applyNotePlan(record: OncallRecord, plan: Plan, now: Date): OncallRecord {\n  return applyPlan(record, plan, now);\n}\n",
+        )],
+    },
+    Fixture {
+        rule: "L6.EMPTY_FOLD_AGREES_WITH_EVERYTHING",
+        policy_extra: "",
+        extra_rules: "",
+        files: &[(
+            "packages/workflow-oncall/src/decide.ts",
+            "// The violation and the accepted guard together: the second fold\n// proves the collection is non-empty before it asks every() to decide.\nexport const approved = (approvals: string[]) =>\n  approvals.every((a) => a === \"yes\");\nexport const reviewed = (approvals: string[]) =>\n  approvals.length > 0 && approvals.every((a) => a === \"yes\");\n",
+        )],
+    },
+    Fixture {
         rule: "L1.NO_BLANKET_SUPPRESSION",
         policy_extra: "",
         extra_rules: "",
@@ -887,6 +924,77 @@ pub fn minimal_policy(rule_id: &str) -> String {
          project:\n  name: mutation\n  languages: [python, typescript, go, rust]\n\
          rules:\n  {rule_id}:\n    enabled: true\n"
     )
+}
+
+// Rules the catalog ships switched off in this repository's own policy —
+// the vocabulary rules, cut for repos whose languages they have no
+// surface in — are still proven here, so a shipped fixture can never
+// rot behind a disabled rule. Mirrors what `sf verify` proves for the
+// enabled ones.
+#[test]
+fn every_disabled_by_default_rule_still_fires_on_its_fixture() {
+    // Each generated fixture already enables its own rule, so the copy runs
+    // unmodified; copying into a scratch keeps the proof read-only over the
+    // repository it lives in — a test that rewrites a fixture's manifest is
+    // the exact move `L2.FACTORY_CONFIG_IS_LOCKED` exists to make expensive.
+    let disabled = [
+        "L6.URLS_ARE_DECODED_BY_THE_PLATFORM",
+        "L6.HOME_VARIABLES_ARE_PLATFORM_DERIVED",
+        "L6.BRANCH_RESET_LOSES_COMMITS",
+        "L6.FOLD_COMPARES_A_MOVED_RECORD",
+        "L6.EMPTY_FOLD_AGREES_WITH_EVERYTHING",
+    ];
+    for id in disabled {
+        let source = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join(crate::policy::FIXTURES_DIR)
+            .join(id);
+        let scratch =
+            std::env::temp_dir().join(format!("sf-fixture-proof-{}-{id}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&scratch);
+        std::fs::create_dir_all(&scratch).expect("scratch directory");
+        for entry in walkdir::WalkDir::new(&source) {
+            let entry = entry.expect("fixture walks");
+            let relative = entry
+                .path()
+                .strip_prefix(&source)
+                .expect("walked entry is under the fixture");
+            let target = scratch.join(relative);
+            if entry.file_type().is_dir() {
+                std::fs::create_dir_all(&target).expect("fixture directory copied");
+            } else {
+                std::fs::copy(entry.path(), &target).expect("fixture file copied");
+            }
+        }
+        let policy = crate::policy::Policy::load(&scratch)
+            .unwrap_or_else(|e| panic!("{id}: fixture policy loads: {e}"));
+        let mut catalog = crate::catalog::Catalog::builtin().expect("catalog");
+        catalog
+            .extend_from_dir(&scratch.join(crate::policy::RULES_DIR))
+            .expect("local rules");
+        let files = crate::scan::walk(&scratch, &policy).expect("walk");
+        let ctx = crate::checks::Ctx {
+            root: &scratch,
+            policy: &policy,
+            catalog: &catalog,
+            files: &files,
+            ratchet: &crate::ratchet::Ratchet::default(),
+            changed: None,
+            base: None,
+            today: crate::clock::today(),
+            allow_commands: false,
+            overlay: None,
+        };
+        let findings = crate::checks::run_one(
+            catalog.get(id).unwrap_or_else(|| panic!("{id} ships")),
+            &ctx,
+        )
+        .unwrap_or_else(|e| panic!("{id}: check runs: {e}"));
+        assert!(
+            !findings.is_empty(),
+            "{id} is shipped with a fixture that no longer trips it: {findings:?}"
+        );
+        std::fs::remove_dir_all(&scratch).expect("scratch removed");
+    }
 }
 
 pub fn for_rule(rule: &str) -> Option<&'static Fixture> {

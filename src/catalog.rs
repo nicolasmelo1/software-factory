@@ -422,6 +422,18 @@ pub const BUILTIN: &[(&str, &str)] = &[
         include_str!("../catalog/L6/urls-are-decoded-by-the-platform.yaml"),
     ),
     (
+        "L6/branch-reset-loses-commits.yaml",
+        include_str!("../catalog/L6/branch-reset-loses-commits.yaml"),
+    ),
+    (
+        "L6/fold-compares-a-moved-record.yaml",
+        include_str!("../catalog/L6/fold-compares-a-moved-record.yaml"),
+    ),
+    (
+        "L6/empty-fold-agrees-with-everything.yaml",
+        include_str!("../catalog/L6/empty-fold-agrees-with-everything.yaml"),
+    ),
+    (
         "L6/home-variables-are-platform-derived.yaml",
         include_str!("../catalog/L6/home-variables-are-platform-derived.yaml"),
     ),
