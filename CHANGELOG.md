@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.3](https://github.com/nicolasmelo1/software-factory/compare/v0.4.2...v0.4.3) - 2026-11-01
+
+### Added
+
+- a plan is ready before work on it starts ([#69](https://github.com/nicolasmelo1/software-factory/pull/69))
+
 ## [0.4.2](https://github.com/nicolasmelo1/software-factory/compare/v0.4.1...v0.4.2) - 2026-11-01
 
 ### Added
