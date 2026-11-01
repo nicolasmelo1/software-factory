@@ -1,0 +1,2 @@
+def guest():
+    return None

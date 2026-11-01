@@ -65,6 +65,17 @@ pub struct Reach {
     pub must_live_in: usize,
     #[serde(default)]
     pub must_not_live_in: usize,
+    /// A plan declaration's ceilings. Raised or lifted means longer prose passes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_words: Option<usize>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_body_lines: Option<usize>,
+    /// Whether a prose plan with no declaration is refused.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub require_declaration: bool,
+    /// Whether crossings are derived from a mechanisms catalog.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub mechanisms: bool,
 }
 
 impl Reach {
@@ -89,6 +100,10 @@ impl Reach {
             tools: options.tools.len(),
             must_live_in: options.must_live_in.len(),
             must_not_live_in: options.must_not_live_in.len(),
+            max_words: options.max_words,
+            max_body_lines: options.max_body_lines,
+            require_declaration: options.require_declaration,
+            mechanisms: options.mechanisms.is_some(),
         }
     }
 
@@ -115,6 +130,36 @@ impl Reach {
             if let Some(message) = dimension.weakening(self, previous) {
                 found.push(message);
             }
+        }
+        found.extend(self.declaration_weakenings(previous));
+        found
+    }
+
+    /// A declaration's ceilings, unlike `max`, are weakened by removal too:
+    /// a ceiling that was there and is gone lets any length through.
+    fn declaration_weakenings(&self, previous: &Reach) -> Vec<String> {
+        let mut found = Vec::new();
+        for (name, now, was) in [
+            ("max_words", self.max_words, previous.max_words),
+            (
+                "max_body_lines",
+                self.max_body_lines,
+                previous.max_body_lines,
+            ),
+        ] {
+            match (was, now) {
+                (Some(was), Some(now)) if now > was => {
+                    found.push(format!("{name} raised from {was} to {now}"))
+                }
+                (Some(was), None) => found.push(format!("{name} of {was} lifted")),
+                _ => {}
+            }
+        }
+        if previous.require_declaration && !self.require_declaration {
+            found.push("a prose plan with no declaration is no longer refused".to_string());
+        }
+        if previous.mechanisms && !self.mechanisms {
+            found.push("crossings are no longer derived from a mechanisms catalog".to_string());
         }
         found
     }
@@ -342,6 +387,10 @@ mod direction {
             tools: 4,
             must_live_in: 1,
             must_not_live_in: 2,
+            max_words: Some(40),
+            max_body_lines: Some(6),
+            require_declaration: true,
+            mechanisms: true,
         }
     }
 
@@ -425,6 +474,38 @@ mod direction {
                 },
                 "forbids 1 fewer location(s)",
             ),
+            (
+                "max_words raised",
+                Reach {
+                    max_words: Some(80),
+                    ..base()
+                },
+                "max_words raised from 40 to 80",
+            ),
+            (
+                "max_body_lines lifted",
+                Reach {
+                    max_body_lines: None,
+                    ..base()
+                },
+                "max_body_lines of 6 lifted",
+            ),
+            (
+                "require_declaration",
+                Reach {
+                    require_declaration: false,
+                    ..base()
+                },
+                "no declaration is no longer refused",
+            ),
+            (
+                "mechanisms",
+                Reach {
+                    mechanisms: false,
+                    ..base()
+                },
+                "no longer derived from a mechanisms catalog",
+            ),
         ];
         for (name, weaker, expected) in cases {
             let found = weaker.weakenings(&base());
@@ -458,6 +539,10 @@ mod direction {
             tools: 5,
             must_live_in: 0,
             must_not_live_in: 4,
+            max_words: Some(30),
+            max_body_lines: Some(4),
+            require_declaration: true,
+            mechanisms: true,
         };
         assert!(
             stronger.weakenings(&base()).is_empty(),

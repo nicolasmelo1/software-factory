@@ -46,6 +46,19 @@ pub struct Options {
     pub execution_order: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub marker: Option<String>,
+    /// The catalog of mechanisms a plan's `crosses` answers, each with the
+    /// paths it lives in. Read by `L4.PLAN_IS_A_LINKED_DECLARATION`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mechanisms: Option<String>,
+    /// The longest sentence a declaration may carry, in words.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_words: Option<usize>,
+    /// The most lines of prose a declaration may carry under its fences.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_body_lines: Option<usize>,
+    /// Refuse a plan that is prose with no declaration at all.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub require_declaration: bool,
     // evidence
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub forbidden_in_goal: Vec<String>,

@@ -1,0 +1,36 @@
+id: L4.PLAN_IS_A_LINKED_DECLARATION
+layer: L4
+title: A plan is a declaration where every line is tied to another
+severity: medium
+statement: >-
+  A plan written as a YAML frontmatter declaration carries only the keys a
+  declaration has, every criterion names a source it declares and every source
+  is named by a criterion, every crossing is answered with its proof, what
+  refuses it or why it does not apply, and every mechanism its touched files
+  reach is crossed.
+why: >-
+  A plan is read by whoever builds it and by whoever reviews what was built,
+  and both of them read it with a limited budget of attention. Prose grows
+  without an owner: context nobody asked for crowds out the one line that
+  would have changed the code. And the lines that matter most are the ones
+  the plan never wrote, what happens when the new thing meets a mechanism
+  that already exists, so a reviewer finds them one round at a time. A
+  declaration fixes both: a line that names nothing and is named by nothing is
+  cut, and the mechanisms a plan must answer are derived from the files it
+  touches rather than remembered by its author.
+fix: >-
+  Give every criterion a `sources:` list naming the decision, ticket or
+  reference it comes from, and remove a source no criterion cites. Answer each
+  `crosses` entry with `works` and a `proof`, `refused` and the `by` that
+  refuses it, or `n/a` and `why`. When the plan touches files where a
+  mechanism in the catalog lives, add a crossing for it. Move prose past the
+  ceiling into the declaration or delete it.
+ratchet: allowlist
+check:
+  kind: cadence
+  mode: plan_declaration
+defaults:
+  scope:
+    - "plans/*.md"
+  exclude:
+    - "plans/next-steps.md"

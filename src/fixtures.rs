@@ -381,6 +381,44 @@ pub const FIXTURES: &[Fixture] = &[
         )],
     },
     Fixture {
+        rule: "L4.PLAN_IS_A_LINKED_DECLARATION",
+        policy_extra: "        mechanisms: \"docs/mechanisms.yaml\"\n        max_words: 12\n        max_body_lines: 2\n        require_declaration: true\n",
+        extra_rules: "",
+        // One shape per refusal: prose with no declaration, a criterion
+        // naming no source and an orphan source, a key the declaration does
+        // not carry, a crossing with no proof, a touched mechanism never
+        // crossed, a sentence past the word ceiling and prose past the body
+        // ceiling. The control plan is linked and must stay quiet.
+        files: &[
+            (
+                "docs/mechanisms.yaml",
+                "mechanisms:\n  - id: ledger\n    says: every refund lands in the ledger\n    paths: [\"src/ledger/**\"]\n  - id: sessions\n    says: a guest has a session\n    paths: [\"src/sessions/**\"]\n",
+            ),
+            ("src/ledger/post.py", "def post(entry):\n    return entry\n"),
+            ("src/sessions/guest.py", "def guest():\n    return None\n"),
+            (
+                "plans/prose.md",
+                "# Prose\n\nExit condition: checkout serves traffic.\n",
+            ),
+            (
+                "plans/unlinked.md",
+                "---\nsources:\n  - { id: S1, kind: decision }\n  - { id: S2, kind: ticket }\ncriteria:\n  - { id: A1, statement: a guest pays, proof: \"test:tests/pay.py\" }\n  - { id: A2, statement: a refund posts, proof: \"test:tests/refund.py\", sources: [S1] }\nnotes: context nobody owns\nexit: checkout serves traffic\n---\n# Unlinked\n",
+            ),
+            (
+                "plans/uncrossed.md",
+                "---\nsources:\n  - { id: S1, kind: decision }\ntouches: [\"src/ledger/**\", \"src/sessions/guest.py\"]\ncriteria:\n  - { id: A1, statement: a refund posts to the ledger, proof: \"test:tests/refund.py\", sources: [S1] }\ncrosses:\n  - { mechanism: ledger, answer: works }\nexit: refunds post\n---\n# Uncrossed\n",
+            ),
+            (
+                "plans/wordy.md",
+                "---\nsources:\n  - { id: S1, kind: decision }\ncriteria:\n  - { id: A1, statement: a guest who has never signed in before can complete a whole purchase without an account, proof: \"test:tests/pay.py\", sources: [S1] }\nexit: checkout serves traffic\n---\n# Wordy\n\nFirst line of context.\nSecond line of context.\nThird line of context.\n",
+            ),
+            (
+                "plans/linked.md",
+                "---\nsources:\n  - { id: S1, kind: decision, said: refunds post to the ledger }\ntouches: [\"src/ledger/post.py\"]\ncriteria:\n  - { id: A1, statement: a refund posts to the ledger, proof: \"test:tests/refund.py\", sources: [S1] }\ncrosses:\n  - { mechanism: ledger, answer: works, proof: \"test:tests/refund.py\" }\ncut:\n  - partial refunds\nexit: refunds post\n---\n# Linked\n\nRefunds never reached the ledger.\n",
+            ),
+        ],
+    },
+    Fixture {
         rule: "L4.PLAN_PROOF_BUDGET",
         policy_extra: "",
         extra_rules: "",

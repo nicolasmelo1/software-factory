@@ -222,6 +222,14 @@ rules:
       exclude:
         - "plans/next-steps.md"
       max: 60
+  # L4 — A plan is a declaration where every line is tied to another
+  L4.PLAN_IS_A_LINKED_DECLARATION:
+    enabled: true
+    options:
+      mechanisms: "docs/mechanisms.yaml"
+      max_words: 40
+      max_body_lines: 6
+      require_declaration: true
   # L4 — New top-level files are declared before they appear
   L4.ROOT_FILES_ARE_DECLARED:
     enabled: true

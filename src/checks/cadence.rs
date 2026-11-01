@@ -26,6 +26,7 @@ pub fn run(rule: &Rule, opts: &Options, ctx: &Ctx, mode: CadenceMode) -> Result<
         | CadenceMode::PlanCadence
         | CadenceMode::PlanCriteria
         | CadenceMode::PlanProofBudget
+        | CadenceMode::PlanDeclaration
         | CadenceMode::GateCoverage
         | CadenceMode::GatePlanPlacement
         | CadenceMode::ClaimCitations => document_cadence(rule, opts, ctx, mode),
@@ -48,6 +49,7 @@ fn document_cadence(
         CadenceMode::PlanCadence => plan_cadence(rule, opts, ctx),
         CadenceMode::PlanCriteria => plan_criteria(rule, opts, ctx),
         CadenceMode::PlanProofBudget => plan_proof_budget(rule, opts, ctx),
+        CadenceMode::PlanDeclaration => super::plan_declaration::plan_declaration(rule, opts, ctx),
         CadenceMode::GateCoverage => gate_coverage(rule, ctx),
         CadenceMode::GatePlanPlacement => gate_plan_placement(rule, ctx),
         CadenceMode::ClaimCitations => claim_citations(rule, opts, ctx),
@@ -736,7 +738,9 @@ fn plan_cadence(rule: &Rule, opts: &Options, ctx: &Ctx) -> Result<Vec<Finding>> 
         let Ok(body) = std::fs::read_to_string(&file.abs) else {
             continue;
         };
-        if !body.lines().any(|line| exit.is_match(line)) {
+        if !body.lines().any(|line| exit.is_match(line))
+            && !super::plan_declaration::declares_exit(&body)
+        {
             findings.push(
                 Finding::new(
                     &rule.id,
@@ -839,7 +843,7 @@ fn parse_criteria(body: &str) -> Result<Vec<Criterion>> {
     let marker = Regex::new(CRITERION_MARKER)?;
 
     let lines: Vec<&str> = body.lines().collect();
-    let mut criteria = Vec::new();
+    let mut criteria = declared(body, &marker)?;
     let mut index = 0;
     while index < lines.len() {
         let Some(opened) = checkbox.captures(lines[index]) else {
@@ -881,6 +885,32 @@ fn parse_criteria(body: &str) -> Result<Vec<Criterion>> {
         }
     }
     Ok(criteria)
+}
+
+/// The criteria a plan's declaration carries, read with the same marker
+/// grammar a checkbox closes with: `proof: test:PATH` in the frontmatter is
+/// `(proof: test:PATH)` at the end of a checkbox.
+fn declared(body: &str, marker: &Regex) -> Result<Vec<Criterion>> {
+    Ok(super::plan_declaration::declared_criteria(body)
+        .into_iter()
+        .map(|criterion| {
+            let parsed = criterion.proof.as_deref().and_then(|proof| {
+                marker
+                    .captures(&format!("(proof: {proof})"))
+                    .map(|found| (found[1].to_string(), found[2].trim().to_string()))
+            });
+            let (kind, value) = match parsed {
+                Some((kind, value)) => (Some(kind), value),
+                None => (None, String::new()),
+            };
+            Criterion {
+                line: criterion.line,
+                text: criterion.text,
+                kind,
+                value,
+            }
+        })
+        .collect())
 }
 
 /// `L4.PLAN_CRITERION_NAMES_ITS_CHECK`: a criterion with nothing that proves it.
@@ -1536,5 +1566,33 @@ mod claims {
             "only the unfenced one survives"
         );
         assert!(scanned.contains("REAL"), "{scanned}");
+    }
+}
+
+#[cfg(test)]
+mod declared_plans {
+    use super::parse_criteria;
+
+    #[test]
+    fn a_declaration_and_its_checkboxes_are_both_criteria() {
+        let body = "---\ncriteria:\n  - { id: A1, statement: a guest pays, proof: \"test:tests/pay.rs\" }\n  - { id: A2, statement: refunds reconcile }\n  - { id: A3, statement: tax is shown, proof: \"deferred:not designed\" }\nexit: checkout serves traffic\n---\n# Checkout\n\n- [ ] A legacy box. (proof: assertion:checkout.legacy)\n";
+        let criteria = parse_criteria(body).expect("the plan parses");
+        let read: Vec<_> = criteria
+            .iter()
+            .map(|c| (c.line, c.kind.clone(), c.value.clone()))
+            .collect();
+        assert_eq!(
+            read,
+            vec![
+                (3, Some("test".to_string()), "tests/pay.rs".to_string()),
+                (4, None, String::new()),
+                (5, Some("deferred".to_string()), "not designed".to_string()),
+                (
+                    10,
+                    Some("assertion".to_string()),
+                    "checkout.legacy".to_string()
+                ),
+            ]
+        );
     }
 }

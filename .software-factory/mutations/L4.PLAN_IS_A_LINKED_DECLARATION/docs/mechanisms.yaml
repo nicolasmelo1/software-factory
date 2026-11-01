@@ -1,0 +1,7 @@
+mechanisms:
+  - id: ledger
+    says: every refund lands in the ledger
+    paths: ["src/ledger/**"]
+  - id: sessions
+    says: a guest has a session
+    paths: ["src/sessions/**"]

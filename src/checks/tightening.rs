@@ -197,6 +197,47 @@ fn rule_findings(
             ));
         }
     }
+    findings.extend(declaration_findings(rule, id, &was, &now));
+    findings
+}
+
+/// What a plan declaration's options lose: a ceiling raised or removed, a
+/// declaration no longer required, crossings no longer derived.
+fn declaration_findings(rule: &Rule, id: &str, was: &Size, now: &Size) -> Vec<Finding> {
+    let mut findings = Vec::new();
+    for (name, was_max, now_max) in [
+        ("max_words", was.max_words, now.max_words),
+        ("max_body_lines", was.max_body_lines, now.max_body_lines),
+    ] {
+        let Some(was_max) = was_max else { continue };
+        if now_max.is_none_or(|now_max| now_max > was_max) {
+            findings.push(weakened(
+                rule,
+                &format!("raised:{id}:{name}"),
+                format!("{id} had its {name} ceiling raised or removed"),
+                was_max.to_string(),
+                now_max.map_or("none".to_string(), |n| n.to_string()),
+            ));
+        }
+    }
+    if was.require_declaration && !now.require_declaration {
+        findings.push(weakened(
+            rule,
+            &format!("undeclared-allowed:{id}"),
+            format!("{id} no longer refuses a plan with no declaration"),
+            "require_declaration: true".to_string(),
+            "require_declaration: false".to_string(),
+        ));
+    }
+    if was.mechanisms.is_some() && now.mechanisms.is_none() {
+        findings.push(weakened(
+            rule,
+            &format!("uncatalogued:{id}"),
+            format!("{id} no longer derives crossings from a mechanisms catalog"),
+            was.mechanisms.clone().unwrap_or_default(),
+            "none".to_string(),
+        ));
+    }
     findings
 }
 
@@ -273,6 +314,10 @@ struct Size {
     max: Option<usize>,
     forbidden_in_goal: usize,
     forbidden_actors: usize,
+    max_words: Option<usize>,
+    max_body_lines: Option<usize>,
+    require_declaration: bool,
+    mechanisms: Option<String>,
 }
 
 /// The counts that decide direction, computed on the options a rule will
@@ -301,6 +346,10 @@ fn effective_size(
         max: options.max,
         forbidden_in_goal: options.forbidden_in_goal.len(),
         forbidden_actors: options.forbidden_actors.len(),
+        max_words: options.max_words,
+        max_body_lines: options.max_body_lines,
+        require_declaration: options.require_declaration,
+        mechanisms: options.mechanisms,
     }
 }
 
@@ -383,6 +432,40 @@ mod tests {
             size.max,
             Some(60),
             "the default budget survives a null override"
+        );
+    }
+
+    #[test]
+    fn loosening_a_plan_declaration_is_a_weakening() {
+        let catalog = Catalog::builtin().expect("the shipped catalog loads");
+        let rule = catalog
+            .get("L2.POLICY_ONLY_TIGHTENS")
+            .expect("the rule ships");
+        let previous: RuleSetting = serde_yaml::from_str(
+            "enabled: true\noptions:\n  mechanisms: docs/mechanisms.yaml\n  max_words: 40\n  max_body_lines: 6\n  require_declaration: true\n",
+        )
+        .expect("the previous setting parses");
+        let current: RuleSetting =
+            serde_yaml::from_str("enabled: true\noptions:\n  max_words: 80\n")
+                .expect("the current setting parses");
+        let id = "L4.PLAN_IS_A_LINKED_DECLARATION";
+        let mut keys: Vec<_> = rule_findings(rule, &catalog, id, &previous, &current)
+            .into_iter()
+            .map(|finding| finding.key)
+            .collect();
+        keys.sort();
+        assert_eq!(
+            keys,
+            vec![
+                format!("raised:{id}:max_body_lines"),
+                format!("raised:{id}:max_words"),
+                format!("uncatalogued:{id}"),
+                format!("undeclared-allowed:{id}"),
+            ]
+        );
+        assert!(
+            rule_findings(rule, &catalog, id, &current, &previous).is_empty(),
+            "tightening every declaration option is silent"
         );
     }
 
