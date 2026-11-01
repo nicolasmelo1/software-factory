@@ -11,6 +11,7 @@ use crate::finding::Finding;
 use crate::policy::Options;
 use crate::scan;
 use anyhow::Result;
+use regex::Regex;
 use serde_yaml::{Mapping, Value};
 use std::collections::BTreeSet;
 
@@ -177,22 +178,45 @@ struct Mechanism {
 fn mechanisms(ctx: &Ctx, path: &str) -> Result<Vec<Mechanism>, String> {
     let text = std::fs::read_to_string(ctx.root.join(path))
         .map_err(|e| format!("the mechanisms catalog `{path}` cannot be read: {e}"))?;
-    let value: Value = serde_yaml::from_str(&text)
+    parse_mechanisms(&text, path)
+}
+
+/// Every entry is held to its shape: a catalog that drops a malformed entry
+/// silently drops the crossing obligation it was there to create.
+fn parse_mechanisms(text: &str, path: &str) -> Result<Vec<Mechanism>, String> {
+    let value: Value = serde_yaml::from_str(text)
         .map_err(|e| format!("the mechanisms catalog `{path}` is not valid YAML: {e}"))?;
     let Some(Value::Sequence(items)) = value.get("mechanisms") else {
         return Err(format!(
             "the mechanisms catalog `{path}` has no `mechanisms:` list"
         ));
     };
-    Ok(items
-        .iter()
-        .filter_map(|item| {
-            Some(Mechanism {
-                id: string_at(item, "id")?,
-                paths: strings(item.get("paths")),
-            })
-        })
-        .collect())
+    let mut seen = BTreeSet::new();
+    let mut out = Vec::new();
+    for (index, item) in items.iter().enumerate() {
+        let at = format!("the mechanisms catalog `{path}`, entry {}", index + 1);
+        let id = string_at(item, "id").ok_or_else(|| format!("{at} has no `id`"))?;
+        if !seen.insert(id.clone()) {
+            return Err(format!("{at} repeats the id `{id}`"));
+        }
+        let Some(Value::Sequence(globs)) = item.get("paths") else {
+            return Err(format!("{at} (`{id}`) has no `paths:` list"));
+        };
+        let mut paths = Vec::new();
+        for glob in globs {
+            let Value::String(glob) = glob else {
+                return Err(format!("{at} (`{id}`) has a path that is not a string"));
+            };
+            scan::globs(std::slice::from_ref(glob))
+                .map_err(|e| format!("{at} (`{id}`) has an invalid glob `{glob}`: {e}"))?;
+            paths.push(glob.clone());
+        }
+        if paths.is_empty() {
+            return Err(format!("{at} (`{id}`) lists no paths"));
+        }
+        out.push(Mechanism { id, paths });
+    }
+    Ok(out)
 }
 
 fn strings(value: Option<&Value>) -> Vec<String> {
@@ -226,8 +250,12 @@ impl Problems {
 
 /// `L4.PLAN_IS_A_LINKED_DECLARATION`.
 pub fn plan_declaration(rule: &Rule, opts: &Options, ctx: &Ctx) -> Result<Vec<Finding>> {
-    let catalog = opts.mechanisms.as_ref().map(|path| mechanisms(ctx, path));
+    let plans = scan::select(ctx.files, &opts.scope, &opts.exclude)?;
     let mut findings = Vec::new();
+    if plans.is_empty() {
+        return Ok(findings);
+    }
+    let catalog = opts.mechanisms.as_ref().map(|path| mechanisms(ctx, path));
     if let Some(Err(why)) = &catalog {
         findings.push(
             Finding::new(
@@ -241,7 +269,7 @@ pub fn plan_declaration(rule: &Rule, opts: &Options, ctx: &Ctx) -> Result<Vec<Fi
         );
     }
     let catalog = catalog.and_then(Result::ok);
-    for file in scan::select(ctx.files, &opts.scope, &opts.exclude)? {
+    for file in plans {
         let Ok(text) = std::fs::read_to_string(&file.abs) else {
             continue;
         };
@@ -249,7 +277,7 @@ pub fn plan_declaration(rule: &Rule, opts: &Options, ctx: &Ctx) -> Result<Vec<Fi
             rel: file.rel.clone(),
             found: Vec::new(),
         };
-        judge(&text, opts, ctx, catalog.as_deref(), &mut problems);
+        judge(&text, opts, ctx.files, catalog.as_deref(), &mut problems);
         for (key, line, message, expected) in problems.found {
             findings.push(
                 Finding::new(
@@ -266,7 +294,13 @@ pub fn plan_declaration(rule: &Rule, opts: &Options, ctx: &Ctx) -> Result<Vec<Fi
     Ok(findings)
 }
 
-fn judge(text: &str, opts: &Options, ctx: &Ctx, catalog: Option<&[Mechanism]>, out: &mut Problems) {
+fn judge(
+    text: &str,
+    opts: &Options,
+    files: &[scan::SourceFile],
+    catalog: Option<&[Mechanism]>,
+    out: &mut Problems,
+) {
     let (front, map) = match declaration(text) {
         None => {
             if opts.require_declaration {
@@ -292,7 +326,7 @@ fn judge(text: &str, opts: &Options, ctx: &Ctx, catalog: Option<&[Mechanism]>, o
     };
     closed_keys(&front, &map, out);
     links(&front, &map, out);
-    crossings(&front, &map, ctx, catalog, out);
+    crossings(&front, &map, files, catalog, out);
     if let Some(max) = opts.max_words {
         word_ceiling(&front, &Value::Mapping(map.clone()), None, max, out);
     }
@@ -418,7 +452,7 @@ fn links(front: &Frontmatter, map: &Mapping, out: &mut Problems) {
 fn crossings(
     front: &Frontmatter,
     map: &Mapping,
-    ctx: &Ctx,
+    files: &[scan::SourceFile],
     catalog: Option<&[Mechanism]>,
     out: &mut Problems,
 ) {
@@ -435,7 +469,7 @@ fn crossings(
     if let Some(known) = catalog {
         uncrossed(
             front,
-            &touched_paths(ctx, &strings(map.get("touches"))),
+            &touched_paths(files, &strings(map.get("touches"))),
             known,
             &answered,
             out,
@@ -489,19 +523,13 @@ fn answered_crossing(
 
 fn uncrossed(
     front: &Frontmatter,
-    touched: &[String],
+    touched: &Touched,
     known: &[Mechanism],
     answered: &BTreeSet<String>,
     out: &mut Problems,
 ) {
-    for mechanism in known
-        .iter()
-        .filter(|m| !answered.contains(&m.id) && !m.paths.is_empty())
-    {
-        let Ok(set) = scan::globs(&mechanism.paths) else {
-            continue;
-        };
-        if let Some(path) = touched.iter().find(|p| set.is_match(p)) {
+    for mechanism in known.iter().filter(|m| !answered.contains(&m.id)) {
+        if let Some(path) = touched.reaches(mechanism) {
             out.push(
                 &format!("uncrossed:{}", mechanism.id),
                 front.first_line,
@@ -515,21 +543,69 @@ fn uncrossed(
     }
 }
 
-/// The repository files a plan's `touches` reach, plus any literal path it
-/// names that does not exist yet: a plan that adds a file still touches it.
-fn touched_paths(ctx: &Ctx, touches: &[String]) -> Vec<String> {
-    let mut paths = BTreeSet::new();
-    for pattern in touches {
-        if let Ok(set) = scan::globs(std::slice::from_ref(pattern)) {
-            for file in ctx.files.iter().filter(|f| set.is_match(&f.rel)) {
-                paths.insert(file.rel.clone());
-            }
+/// What a plan's `touches` reach: the repository files its globs match, any
+/// literal path it names that does not exist yet (a plan that adds a file
+/// still touches it), and the globs that match nothing yet.
+struct Touched {
+    paths: Vec<String>,
+    unmatched: Vec<String>,
+}
+
+impl Touched {
+    /// The touched path, or the not-yet-matching glob, that lands where the
+    /// mechanism lives. A glob that matches no file yet reaches a mechanism
+    /// when either glob matches a concrete path drawn from the other, so
+    /// `src/ledger/**` reaches a mechanism at `src/ledger/**` before the
+    /// directory exists, and `packages/server/**` does not reach
+    /// `packages/*/workflow.mmd`.
+    fn reaches(&self, mechanism: &Mechanism) -> Option<String> {
+        let lives = scan::globs(&mechanism.paths).ok()?;
+        if let Some(path) = self.paths.iter().find(|p| lives.is_match(p)) {
+            return Some(path.clone());
         }
+        self.unmatched
+            .iter()
+            .find(|glob| {
+                let touched = scan::globs(std::slice::from_ref(*glob));
+                lives.is_match(concrete(glob))
+                    || touched
+                        .is_ok_and(|t| mechanism.paths.iter().any(|m| t.is_match(concrete(m))))
+            })
+            .cloned()
+    }
+}
+
+/// One path a glob matches: a brace set becomes its first alternative, a
+/// character class and every run of wildcards a plain name.
+fn concrete(glob: &str) -> String {
+    let braces = Regex::new(r"\{([^,}]*)[^}]*\}").expect("a fixed pattern compiles");
+    let classes = Regex::new(r"\[[^\]]*\]").expect("a fixed pattern compiles");
+    let wildcards = Regex::new(r"[*?]+").expect("a fixed pattern compiles");
+    let glob = braces.replace_all(glob, "$1");
+    let glob = classes.replace_all(&glob, "x");
+    wildcards.replace_all(&glob, "x").into_owned()
+}
+
+fn touched_paths(files: &[scan::SourceFile], touches: &[String]) -> Touched {
+    let mut paths = BTreeSet::new();
+    let mut unmatched = Vec::new();
+    for pattern in touches {
         if !pattern.contains(['*', '?', '[', '{']) {
             paths.insert(pattern.clone());
+            continue;
         }
+        let matched: Vec<_> = scan::globs(std::slice::from_ref(pattern))
+            .map(|set| files.iter().filter(|f| set.is_match(&f.rel)).collect())
+            .unwrap_or_default();
+        if matched.is_empty() {
+            unmatched.push(pattern.clone());
+        }
+        paths.extend(matched.into_iter().map(|f| f.rel.clone()));
     }
-    paths.into_iter().collect()
+    Touched {
+        paths: paths.into_iter().collect(),
+        unmatched,
+    }
 }
 
 fn word_ceiling(
@@ -539,7 +615,7 @@ fn word_ceiling(
     max: usize,
     out: &mut Problems,
 ) {
-    if key.is_some_and(|k| NOT_PROSE.contains(&k)) {
+    if key.is_some_and(|k| NOT_PROSE.contains(&k)) && holds_no_prose(value) {
         return;
     }
     match value {
@@ -565,6 +641,18 @@ fn word_ceiling(
             }
         }
         _ => {}
+    }
+}
+
+/// A scalar, or a list of scalars: an identifier, a path, an id list. A list
+/// of entries (top-level `sources`) is traversed, so its `said` is held too.
+fn holds_no_prose(value: &Value) -> bool {
+    match value {
+        Value::Sequence(items) => items
+            .iter()
+            .all(|item| !matches!(item, Value::Mapping(_) | Value::Sequence(_))),
+        Value::Mapping(_) => false,
+        _ => true,
     }
 }
 
@@ -609,6 +697,151 @@ mod tests {
         assert_eq!(criteria[1].line, 6);
         assert_eq!(criteria[1].proof, None);
         assert!(declares_exit(text));
+    }
+
+    /// The mutation fixture, read refusal by refusal. `sf verify` only asks
+    /// that the rule fires somewhere in it; this asks that each plan fails
+    /// for exactly its own reason and that the linked control stays quiet.
+    #[test]
+    fn the_fixture_trips_each_refusal_and_spares_the_linked_plan() {
+        let fixture = crate::fixtures::FIXTURES
+            .iter()
+            .find(|f| f.rule == "L4.PLAN_IS_A_LINKED_DECLARATION")
+            .expect("the rule has a fixture");
+        let dedented: String = fixture
+            .policy_extra
+            .lines()
+            .map(str::trim_start)
+            .collect::<Vec<_>>()
+            .join("\n");
+        let opts: Options = serde_yaml::from_str(&dedented).expect("the fixture's options parse");
+        let files: Vec<scan::SourceFile> = fixture
+            .files
+            .iter()
+            .map(|(rel, _)| scan::SourceFile {
+                rel: rel.to_string(),
+                abs: std::path::PathBuf::from(rel),
+            })
+            .collect();
+        let (_, catalog) = fixture
+            .files
+            .iter()
+            .find(|(rel, _)| *rel == "docs/mechanisms.yaml")
+            .expect("the fixture carries a catalog");
+        let catalog =
+            parse_mechanisms(catalog, "docs/mechanisms.yaml").expect("the catalog is valid");
+        let keys = |plan: &str| {
+            let (_, text) = fixture
+                .files
+                .iter()
+                .find(|(rel, _)| *rel == plan)
+                .expect("the plan is in the fixture");
+            let mut problems = Problems {
+                rel: plan.to_string(),
+                found: Vec::new(),
+            };
+            judge(text, &opts, &files, Some(&catalog), &mut problems);
+            let mut keys: Vec<String> = problems.found.into_iter().map(|(key, ..)| key).collect();
+            keys.sort();
+            keys
+        };
+        assert_eq!(keys("plans/prose.md"), vec!["undeclared"]);
+        assert_eq!(
+            keys("plans/unlinked.md"),
+            vec!["orphan:S2", "sourceless:A1", "unknown-key:notes"]
+        );
+        assert_eq!(
+            keys("plans/uncrossed.md"),
+            vec!["crossing-unbacked:ledger", "uncrossed:sessions"]
+        );
+        assert_eq!(keys("plans/wordy.md").len(), 2);
+        assert!(
+            keys("plans/wordy.md")
+                .iter()
+                .any(|k| k.starts_with("wordy:"))
+        );
+        assert!(keys("plans/wordy.md").contains(&"body".to_string()));
+        assert_eq!(keys("plans/linked.md"), Vec::<String>::new());
+    }
+
+    #[test]
+    fn a_malformed_catalog_entry_is_refused_rather_than_dropped() {
+        for (catalog, says) in [
+            ("mechanisms:\n  - paths: [\"src/**\"]\n", "has no `id`"),
+            ("mechanisms:\n  - id: ledger\n", "has no `paths:` list"),
+            (
+                "mechanisms:\n  - id: ledger\n    paths: []\n",
+                "lists no paths",
+            ),
+            (
+                "mechanisms:\n  - id: ledger\n    paths: [\"src/[\"]\n",
+                "invalid glob",
+            ),
+            (
+                "mechanisms:\n  - { id: a, paths: [x] }\n  - { id: a, paths: [y] }\n",
+                "repeats the id",
+            ),
+        ] {
+            let error = parse_mechanisms(catalog, "m.yaml")
+                .err()
+                .unwrap_or_default();
+            assert!(
+                error.contains(says),
+                "{catalog:?} should say {says:?}, said {error:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_glob_that_matches_nothing_yet_still_reaches_its_mechanism() {
+        let touched = touched_paths(&[], &["src/ledger/**".to_string()]);
+        let ledger = Mechanism {
+            id: "ledger".into(),
+            paths: vec!["src/ledger/**".into()],
+        };
+        let other = Mechanism {
+            id: "sessions".into(),
+            paths: vec!["src/sessions/**".into()],
+        };
+        assert_eq!(touched.reaches(&ledger), Some("src/ledger/**".to_string()));
+        assert_eq!(concrete("src/{a,b}/[ab]*/**/x.ts"), "src/a/xx/x/x.ts");
+        assert_eq!(touched.reaches(&other), None);
+        let diagram = Mechanism {
+            id: "diagram".into(),
+            paths: vec!["packages/*/workflow.mmd".into()],
+        };
+        let server = touched_paths(&[], &["packages/server/**".to_string()]);
+        assert_eq!(
+            server.reaches(&diagram),
+            None,
+            "a sibling directory under a wildcard is not reached"
+        );
+        let broad = touched_paths(&[], &["src/**".to_string()]);
+        assert_eq!(
+            broad.reaches(&ledger),
+            Some("src/**".to_string()),
+            "a wider glob reaches what it covers"
+        );
+    }
+
+    #[test]
+    fn a_source_sentence_is_held_to_the_word_ceiling() {
+        let text = "---\nsources:\n  - { id: S1, kind: decision, said: \"one two three four five six\" }\ncriteria:\n  - { id: A1, statement: ok, sources: [S1] }\nexit: done\n---\n";
+        let opts = Options {
+            max_words: Some(5),
+            ..Options::default()
+        };
+        let mut problems = Problems {
+            rel: "p.md".into(),
+            found: Vec::new(),
+        };
+        judge(text, &opts, &[], None, &mut problems);
+        assert!(
+            problems
+                .found
+                .iter()
+                .any(|(key, ..)| key.starts_with("wordy:one_two"))
+        );
     }
 
     #[test]

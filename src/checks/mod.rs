@@ -224,6 +224,13 @@ fn cadence_inapplicable_under_overlay(mode: CadenceMode) -> Option<&'static str>
         CadenceMode::PlanCadence => {
             "plans and their execution order live in the repository being checked"
         }
+        // A declaration's crossings are derived from a mechanisms catalog the
+        // policy names by path. From outside, that path would be read in the
+        // target, which never agreed to the governing repository's catalog,
+        // and a target with no catalog would be told it is broken.
+        CadenceMode::PlanDeclaration => {
+            "a plan's declaration answers a mechanisms catalog that lives beside the plans, not beside the policy"
+        }
         // A gate's criteria document lives beside the gate's evidence, in
         // the repository that declares the gate — which, for an overlay, is
         // the overlay's own repository, not the target.
@@ -237,7 +244,6 @@ fn cadence_inapplicable_under_overlay(mode: CadenceMode) -> Option<&'static str>
         CadenceMode::DocLinks
         | CadenceMode::PlanCriteria
         | CadenceMode::PlanProofBudget
-        | CadenceMode::PlanDeclaration
         | CadenceMode::ClaimCitations
         | CadenceMode::GatePlanPlacement
         | CadenceMode::InertRules
@@ -423,6 +429,7 @@ mod overlay {
                 | "L5.EVERY_CHECK_HAS_A_MUTATION_TEST"
                 | "L4.ROOT_FILES_ARE_DECLARED"
                 | "L4.PLAN_DECLARES_EXIT_CONDITION"
+                | "L4.PLAN_IS_A_LINKED_DECLARATION"
                 | "L3.GATE_COVERS_THE_PLAN"
             );
             assert_eq!(
