@@ -67,6 +67,34 @@ gates:
 Write the manifest skeleton with the runs and required assertions, and leave
 the digests empty. `factory-evidence` fills them.
 
+## When the work needs a plan
+
+Write it as a declaration: YAML frontmatter, a title, at most a few lines of
+why. `L4.PLAN_IS_A_LINKED_DECLARATION` holds the shape.
+
+```yaml
+---
+sources:   [{ id: S1, kind: decision, who: ..., said: "..." }]
+touches:   ["src/checkout/**"]          # files it changes
+untouched: ["src/payments/**"]          # only when one looks like it must change
+criteria:  [{ id: A1, statement: "...", proof: "test:PATH", sources: [S1] }]
+crosses:   [{ mechanism: ledger, answer: works, proof: "test:PATH" }]  # or refused+by, n/a+why
+guarantee: [{ holds: "...", not_against: "..." }]
+failures:  [{ step: "...", when: "...", goes_to: "..." }]
+cut:       ["... : refused at boot"]
+exit:      "the externally visible effect that ends it"
+---
+```
+
+- **Every criterion names a source, every source is named.** An orphan on
+  either side changes nothing that is built: cut it.
+- **Crossings are derived.** With `mechanisms:` set, every mechanism whose
+  `paths` a `touches` entry reaches must be answered.
+- **Prefer refused to supported.** A composition the work does not need is a
+  `cut` line and one check at boot, not a fix found in review.
+- **Delete any line whose absence would change nothing** the builder or the
+  reviewer does.
+
 ## The line you do not cross
 
 You propose policy. **A human merges it.** Never disable a rule, widen a glob,

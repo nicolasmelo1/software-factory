@@ -13,8 +13,9 @@ why: >-
   plans in one ordered document is what stops parallel agents from each
   choosing their own next priority.
 fix: >-
-  Add an `Exit condition:` line naming the observable effect, and put the plan
-  in the execution order — or park it there with the precondition it waits on.
+  Add an `Exit condition:` line naming the observable effect, or an `exit:`
+  key when the plan is a declaration, and put the plan in the execution order
+  — or park it there with the precondition it waits on.
 ratchet: allowlist
 check:
   kind: cadence

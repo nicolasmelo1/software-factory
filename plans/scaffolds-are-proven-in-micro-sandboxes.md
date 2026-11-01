@@ -1,113 +1,43 @@
+---
+sources:
+  - { id: S1, kind: reference, ref: "Rails generators (2005)", said: "settled generation; a generator normally cannot stay honest, and this tool can" }
+  - { id: S2, kind: code, ref: "src/main.rs", said: "sf init scaffolds 'policy, docs, CI, hooks and mutation fixtures'; sf fixtures writes one fixture per enabled rule; sf verify proves each rule fires on its own" }
+  - { id: S3, kind: friction, ref: "automate-my-work", said: "26 rules, all proven; a local rule's fixture is three files (policy.yaml, the rule, one violating source): already a self-contained micro-sandbox" }
+  - { id: S4, kind: code, ref: "templates/", said: "four templates, all rule templates: generate-then-prove is aimed only at rules about rules" }
+  - { id: S5, kind: decision, said: "a scaffold lives in `.software-factory/scaffolds/<name>/` beside `.software-factory/rules/`, in the repository whose conventions it encodes; sf ships the mechanism, never shapes" }
+  - { id: S6, kind: decision, said: "a new rule makes sf verify prove, per scaffold, that its output passes the rules governing those paths and a mutated copy fails them, the L5.NO_INERT_RULE argument" }
+  - { id: S7, kind: decision, said: "rule and scaffold are two statements of one convention; the build fails the moment they disagree, whichever is wrong, which stops generator rot" }
+  - { id: S8, kind: decision, said: "agents are not told via a prompt list (tokens per call, rots): a rule fires on hand-written mismatching code and its `fix` names the scaffold command; discovery is a gate finding" }
+  - { id: S9, kind: decision, said: "a scaffold earns upkeep only where the shape repeats; its shape is a floor, never a ceiling; declining stays possible with a reason recorded; a rule requires the shape only where genuinely required" }
+  - { id: S10, kind: decision, said: "a scaffold nobody chooses is deleted, and the usage record says which" }
+touches:
+  - src/scaffold.rs
+  - src/main.rs
+  - src/verify.rs
+  - src/checks/cadence.rs
+  - src/catalog.rs
+  - catalog/**
+criteria:
+  - { id: A1, statement: "a scaffold definition in `.software-factory/scaffolds/` emits its files into a target repository, and nothing outside the paths it declares", proof: "assertion:scaffold.writes_only_what_it_declares", sources: [S2, S4, S5] }
+  - { id: A2, statement: "`sf verify` refuses a scaffold whose output violates a rule governing the paths it writes, so scaffold and rule cannot drift apart silently", proof: "test:src/scaffold.rs", sources: [S1, S6, S7] }
+  - { id: A3, statement: "`sf verify` refuses a scaffold whose output no rule can reject, on the argument `L5.NO_INERT_RULE` makes about a rule nothing can trip", proof: "test:src/scaffold.rs", sources: [S6] }
+  - { id: A4, statement: "a micro-sandbox generated for a scaffold author runs the real tool against generated output without a checkout of the host repository", proof: "assertion:sandbox.proves_generated_output_standalone", sources: [S3] }
+  - { id: A5, statement: "a rule governing a scaffolded path names the scaffold command in its `fix`, so an agent writing the shape by hand is told what would have written it", proof: "test:src/checks/cadence.rs", sources: [S8] }
+  - { id: A6, statement: "whether declining a scaffold is recorded in the repository or left to the caller is decided before any check ships", proof: "unspecified:a decision about where usage lives, which no check can validate, because the answer changes what the record is for", sources: [S9, S10] }
+crosses:
+  - { mechanism: commands, answer: works, proof: "test:src/checks/cadence.rs (A5): the fix names `sf scaffold`, a real command" }
+  - { mechanism: mutation-fixtures, answer: works, proof: "test:src/scaffold.rs (A2, A3)" }
+  - { mechanism: inertness, answer: works, proof: "test:src/scaffold.rs (A3)" }
+  - { mechanism: plans, answer: n/a, why: "cadence.rs gains a check on rule `fix` prose; plan declaration and ordering are unchanged" }
+  - { mechanism: catalog, answer: works, proof: "test:src/scaffold.rs (A2)" }
+guarantee:
+  - { holds: "a scaffold's output passes the rules governing its paths, and a mutated copy fails them", not_against: "a shape that genuinely does not repeat; declining stays possible" }
+cut:
+  - "shipping shapes, or a catalogue of somebody else's, in sf: refused (S5)"
+  - "listing scaffolds in an agent's prompt: refused (S8)"
+  - "a mandatory scaffold or a shape as ceiling: refused (S9)"
+exit: "`sf scaffold <name>` writes a router, service and query `sf check` passes unedited; `sf verify` goes red when that output violates a governing rule, and when no rule governs its paths; hand-writing one draws a finding naming the command"
+---
 # Scaffolds are proven in micro-sandboxes
 
-Every convention a rule checks is a convention something could have written.
-
-This tool has only ever had the checking half. A rule says a router looks like
-this, a service looks like that, a query lives here. An agent then writes that
-shape from scratch, in full, every time, and the rule confirms it guessed
-right. The shape was known before the agent started. Paying a model to
-rediscover it is the most expensive way to obtain a thing nobody was in doubt
-about.
-
-Rails settled this in 2005. The reason it is worth revisiting is not the
-generator; it is that a generator normally has no way to stay honest, and this
-tool does.
-
-## The half that already exists
-
-`sf init` is described in its own help text as "Scaffold policy, docs, CI,
-hooks and mutation fixtures into a repository". `sf fixtures` writes a mutation
-fixture per enabled rule, and `sf verify` proves each rule fires on its own
-fixture. In `automate-my-work` that mechanism carries 26 rules, all 26 proven,
-and the gate refuses a rule that cannot produce a finding.
-
-A mutation fixture is already a micro-sandbox. The one carrying a local rule
-in `automate-my-work` is three files: a `policy.yaml`, the rule itself, and
-one source file that violates it. Self-contained, minimal, and the single property
-it exists to demonstrate is demonstrated by running the real tool against it.
-
-So the machinery for "generate a small thing, then prove the thing has a
-property" is built, load-bearing, and aimed at exactly one target: rules about
-rules. `templates/` holds four templates today and all four are rule
-templates.
-
-## What generation adds, and why it is safe here
-
-A scaffold definition lives beside the local rules that govern what it emits,
-in `.software-factory/scaffolds/<name>/` next to `.software-factory/rules/`.
-It stays in the repository whose conventions it encodes. This tool ships the
-mechanism and never the shapes: a router in one codebase is not a router in
-another, and a catalogue of somebody else's shapes is the thing nobody wants
-installed.
-
-`sf verify` then grows a second obligation, under a rule this plan adds. For
-every scaffold:
-
-1. what it emits **passes** the rules that govern those paths
-2. a mutated copy of what it emits **fails** them
-
-The second half is the one that matters, and it is the same argument
-`L5.NO_INERT_RULE` makes: output that no rule can reject proves nothing about
-the rules or the scaffold.
-
-**This is what stops generator rot.** A generator is usually a liability
-because the convention moves and the generator keeps emitting last year's
-shape, and nobody finds out until review. Here the rule and the scaffold are
-two statements of one convention, and the build fails the moment they
-disagree. Whichever is wrong, the disagreement itself is the finding.
-
-## The agent does not have to be told
-
-The obvious way to make an agent use a scaffold is to list the scaffolds in
-its prompt. That pays tokens for the list on every call, and the list rots.
-
-The better way is the one already in use everywhere else in this tool: the
-rule fires on hand-written code that does not match the shape, and the
-finding's `fix` names the command that would have produced it. Discovery is a
-gate finding, not a paragraph of instructions. An agent that has never heard
-of scaffolds meets them the first time it writes a router by hand.
-
-## The risk, stated plainly
-
-A scaffold earns its maintenance only where the shape genuinely repeats.
-Rails' generators are also the thing people fight when the shape is nearly
-right, and a mandatory generator producing the wrong shape is worse than no
-generator: the work stalls and the only way out is to argue with a tool.
-
-So the shape a scaffold emits is a floor and never a ceiling. Declining a
-scaffold has to remain possible, with the reason recorded, and a rule may
-require the shape only where it is genuinely required. A scaffold nobody
-chooses is a scaffold to delete, and the usage record is what says which one
-that is.
-
-## Acceptance criteria
-
-- [ ] A scaffold definition in `.software-factory/scaffolds/` emits its files
-      into a target repository, and emits nothing outside the paths it
-      declares
-      (proof: assertion:scaffold.writes_only_what_it_declares)
-- [ ] `sf verify` refuses a scaffold whose output violates a rule that
-      governs the paths it writes to, so a scaffold and a rule cannot drift
-      apart silently
-      (proof: test:src/scaffold.rs)
-- [ ] `sf verify` refuses a scaffold whose output no rule can reject, on the
-      same argument `L5.NO_INERT_RULE` makes about a rule nothing can trip
-      (proof: test:src/scaffold.rs)
-- [ ] A micro-sandbox generated for a scaffold author runs the real tool
-      against generated output without a checkout of the host repository
-      (proof: assertion:sandbox.proves_generated_output_standalone)
-- [ ] A rule that governs a scaffolded path names the scaffold command in its
-      `fix`, so an agent writing the shape by hand is told what would have
-      written it
-      (proof: test:src/checks/cadence.rs)
-- [ ] Whether declining a scaffold is recorded in the repository or left to
-      the caller is decided before any check ships
-      (proof: unspecified:a decision about where usage lives, which no check
-      can validate, because the answer changes what the record is for)
-
-**Exit condition:** a repository declares a scaffold, `sf scaffold <name>`
-writes a router, a service and a query that `sf check` passes with no
-hand-editing, `sf verify` goes red when that scaffold's output is changed to
-violate a rule that governs it and red again when every rule over those paths
-is removed, and an agent that writes one of those shapes by hand receives a
-finding naming the command it should have run.
+Every convention a rule checks is one something could have written, yet agents rewrite known shapes from scratch and the rule merely confirms the guess. A generator usually rots; here the rule and the scaffold prove each other.

@@ -359,7 +359,7 @@ Each acceptance criterion written as a checkbox in a plan closes with a proof ma
 
 **Why.** A plan states its criteria in prose and the gate enforces a list of checks, and nothing joins the two. That gap does not need anybody to be dishonest to become expensive: a criterion is promised, the gate never covered it, the plan records the gap on some line in the middle of a long document, and the only way to learn a phase's real status is to re-read the phase. Naming the check inside the criterion makes the join mechanical, and forces the decision at the moment of writing rather than at the moment someone asks. The two debt kinds are the load-bearing half — `deferred` for a criterion that is not built and `unspecified` for one no check has been designed for are both legitimate, and declaring them is what turns an admission into something greppable.
 
-**Fix.** Append the marker naming what proves the criterion. If nothing proves it yet, say which: `deferred:` when the criterion is not built, `unspecified:` when no check has been designed for it. Both take a reason, and both are a supported answer — an unmarked criterion is not.
+**Fix.** Append the marker naming what proves the criterion, or give a declared criterion a `proof:` key in the same grammar. If nothing proves it yet, say which: `deferred:` when the criterion is not built, `unspecified:` when no check has been designed for it. Both take a reason, and both are a supported answer — an unmarked criterion is not.
 
 ### L4.PLAN_DECLARES_EXIT_CONDITION
 
@@ -369,7 +369,17 @@ Each document in the plans directory contains an explicit exit condition, and is
 
 **Why.** A plan without an exit condition cannot be finished, only abandoned — and an agent handed one will declare completion at whatever point the code compiles. The exit condition should name an externally visible effect, not a merge: the merge is the thing you can produce without the effect ever happening. Listing plans in one ordered document is what stops parallel agents from each choosing their own next priority.
 
-**Fix.** Add an `Exit condition:` line naming the observable effect, and put the plan in the execution order — or park it there with the precondition it waits on.
+**Fix.** Add an `Exit condition:` line naming the observable effect, or an `exit:` key when the plan is a declaration, and put the plan in the execution order — or park it there with the precondition it waits on.
+
+### L4.PLAN_IS_A_LINKED_DECLARATION
+
+**A plan is a declaration where every line is tied to another**
+
+A plan written as a YAML frontmatter declaration carries only the keys a declaration has, every criterion names a source it declares and every source is named by a criterion, every crossing is answered with its proof, what refuses it or why it does not apply, and every mechanism its touched files reach is crossed.
+
+**Why.** A plan is read by whoever builds it and by whoever reviews what was built, and both of them read it with a limited budget of attention. Prose grows without an owner: context nobody asked for crowds out the one line that would have changed the code. And the lines that matter most are the ones the plan never wrote, what happens when the new thing meets a mechanism that already exists, so a reviewer finds them one round at a time. A declaration fixes both: a line that names nothing and is named by nothing is cut, and the mechanisms a plan must answer are derived from the files it touches rather than remembered by its author.
+
+**Fix.** Give every criterion a `sources:` list naming the decision, ticket or reference it comes from, and remove a source no criterion cites. Answer each `crosses` entry with `works` and a `proof`, `refused` and the `by` that refuses it, or `n/a` and `why`. When the plan touches files where a mechanism in the catalog lives, add a crossing for it. Move prose past the ceiling into the declaration or delete it.
 
 ### L4.PLAN_PROOF_BUDGET
 

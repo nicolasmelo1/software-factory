@@ -146,6 +146,9 @@ pub enum CadenceMode {
     PlanCriteria,
     /// Every plan has at least one criterion and stays within its debt budget.
     PlanProofBudget,
+    /// A plan's declaration is closed, linked, and answers every mechanism
+    /// the files it touches reach.
+    PlanDeclaration,
     /// Every check a plan's criteria name is one its gate actually requires.
     GateCoverage,
     /// A gate's criteria document does not sit inside the queue of undone
@@ -348,6 +351,10 @@ pub const BUILTIN: &[(&str, &str)] = &[
     (
         "L4/plan-proof-budget.yaml",
         include_str!("../catalog/L4/plan-proof-budget.yaml"),
+    ),
+    (
+        "L4/plan-is-a-linked-declaration.yaml",
+        include_str!("../catalog/L4/plan-is-a-linked-declaration.yaml"),
     ),
     (
         "L4/claim-cites-its-evidence.yaml",

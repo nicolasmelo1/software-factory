@@ -9,6 +9,7 @@ pub mod evidence;
 pub mod forwarder;
 pub mod lock;
 pub mod nested;
+pub mod plan_declaration;
 pub mod runtime_pin;
 pub mod shape;
 pub mod text_pattern;
@@ -236,6 +237,7 @@ fn cadence_inapplicable_under_overlay(mode: CadenceMode) -> Option<&'static str>
         CadenceMode::DocLinks
         | CadenceMode::PlanCriteria
         | CadenceMode::PlanProofBudget
+        | CadenceMode::PlanDeclaration
         | CadenceMode::ClaimCitations
         | CadenceMode::GatePlanPlacement
         | CadenceMode::InertRules

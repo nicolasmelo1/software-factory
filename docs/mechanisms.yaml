@@ -1,0 +1,53 @@
+# The mechanisms a change in sf can cross. A plan whose `touches` reach a
+# mechanism's paths answers it under `crosses`: works (and its proof), refused
+# (and what refuses it), or n/a (and why). Grown from review findings, not
+# from a guess at what might matter.
+mechanisms:
+  - id: catalog
+    says: a rule ships in catalog/, is registered in BUILTIN, and its id is a public contract
+    paths: ["catalog/**", "src/catalog.rs"]
+  - id: policy-merge
+    says: a policy instance's options merge one level over the rule's defaults
+    paths: ["src/policy.rs"]
+  - id: mutation-fixtures
+    says: every enabled rule has a fixture that trips it in every language it claims
+    paths: ["src/fixtures.rs", "src/verify.rs", ".software-factory/mutations/**"]
+  - id: inertness
+    says: a rule that can never fire here reports as inert, not green
+    paths: ["src/checks/cadence.rs", "src/checks/mod.rs"]
+  - id: overlay
+    says: a policy run from outside the target skips what only the target holds, and says so
+    paths: ["src/checks/mod.rs"]
+  - id: tightening
+    says: a policy or catalog change that loosens reach is refused against its baseline
+    paths: ["src/checks/tightening.rs", "src/checks/catalog_tightening.rs", "src/fingerprint.rs"]
+  - id: locks-and-ratchet
+    says: digests and frozen violations are rewritten only by sf lock and sf ratchet
+    paths: ["src/checks/lock.rs", "src/ratchet.rs", "src/digest.rs", "src/escapes.rs"]
+  - id: evidence
+    says: a gate's evidence is sealed, and stale when what activates it moved
+    paths: ["src/checks/evidence.rs", "src/manifest.rs"]
+  - id: languages
+    says: a structural rule reads code through tree-sitter, one query per language it claims
+    paths: ["src/lang.rs", "src/checks/shape.rs", "src/checks/nested.rs", "src/checks/complexity.rs", "src/checks/comment_block.rs", "src/checks/forwarder.rs"]
+  - id: plans
+    says: plans in the queue are declared, linked, proven and ordered
+    paths: ["src/checks/cadence.rs", "src/checks/plan_declaration.rs"]
+  - id: generated-docs
+    says: README tables and rules.md sections are derived from the catalog, and checked
+    paths: ["src/docs.rs", "docs/rules.md", "README.md"]
+  - id: init-and-interview
+    says: sf init writes a policy from interview answers and templates, never from judgement
+    paths: ["src/init.rs", "src/interview.rs", "interview/**", "templates/**"]
+  - id: skills
+    says: skills are embedded in the binary and registered in src/skills.rs
+    paths: ["skills/**", "src/skills.rs"]
+  - id: commands
+    says: a command rule runs only with --allow-commands, and prose names only real commands
+    paths: ["src/checks/command.rs", "src/main.rs"]
+  - id: toolchain
+    says: hazard tools and runtime pins are read from what the repository actually runs
+    paths: ["src/checks/toolchain.rs", "src/checks/runtime_pin.rs"]
+  - id: release
+    says: the version lives in Cargo.toml and everything else derives from it
+    paths: ["Cargo.toml", "Cargo.lock", "release-plz.toml", "CHANGELOG.md"]

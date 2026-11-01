@@ -18,7 +18,8 @@ why: >-
   `unspecified` for one no check has been designed for are both legitimate, and
   declaring them is what turns an admission into something greppable.
 fix: >-
-  Append the marker naming what proves the criterion. If nothing proves it yet,
+  Append the marker naming what proves the criterion, or give a declared
+  criterion a `proof:` key in the same grammar. If nothing proves it yet,
   say which: `deferred:` when the criterion is not built, `unspecified:` when no
   check has been designed for it. Both take a reason, and both are a supported
   answer — an unmarked criterion is not.
