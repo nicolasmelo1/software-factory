@@ -18,6 +18,7 @@ use std::collections::BTreeSet;
 /// The keys a declaration may carry. Closed on purpose: a free key is where
 /// the context nobody owns grows back.
 pub const DECLARATION_KEYS: &[&str] = &[
+    "base",
     "sources",
     "criteria",
     "touches",
@@ -48,6 +49,8 @@ const NOT_PROSE: &[&str] = &[
     "untouched",
     "who",
     "when",
+    "base",
+    "symbol",
 ];
 
 /// A declaration split off the top of a plan.
