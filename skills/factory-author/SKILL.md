@@ -94,6 +94,12 @@ exit:      "the externally visible effect that ends it"
   `cut` line and one check at boot, not a fix found in review.
 - **Delete any line whose absence would change nothing** the builder or the
   reviewer does.
+- **Facts about the code are pinned, not trusted.** A source cites a file in
+  `ref:` and names what it means in `symbol:`, never a line number. Before work
+  on a plan starts, run `sf ready <plan>`: it reports what no longer exists and
+  what changed since the plan's `base:`. Fix or re-read those lines, then
+  `sf ready <plan> --stamp` writes `base:` at HEAD. It is not a pull request
+  gate: a plan may drift until somebody is about to build it.
 
 ## The line you do not cross
 

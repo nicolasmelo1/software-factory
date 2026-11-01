@@ -19,6 +19,7 @@ mod lang;
 mod manifest;
 mod policy;
 mod ratchet;
+mod ready;
 mod report;
 mod scan;
 mod skills;
@@ -166,6 +167,15 @@ enum Cmd {
     },
     /// Recompute the digests in a gate's evidence manifest.
     Seal { gate: String },
+    /// Say whether a plan still matches the code, before work on it starts.
+    Ready {
+        /// The plan, relative to the repository root.
+        plan: String,
+        /// After re-reading what changed, pin the plan's facts to HEAD by
+        /// writing `base:`. Refused while a fact is broken.
+        #[arg(long)]
+        stamp: bool,
+    },
     /// Prove every enabled rule fires on its mutation fixture.
     Verify {
         /// Prove one rule only.
@@ -321,6 +331,7 @@ fn dispatch_writing(command: Cmd, root: PathBuf) -> Result<i32> {
         Cmd::Fixtures => cmd_fixtures(root),
         Cmd::Docs { check } => cmd_docs(root, check),
         Cmd::Seal { gate } => cmd_seal(root, gate),
+        Cmd::Ready { plan, stamp } => cmd_ready(root, plan, stamp),
         Cmd::Skills { dir, project, user } => cmd_skills(root, dir, project, user),
         // Every read-only command is handled above.
         _ => unreachable!("read-only command routed to the writing dispatcher"),
@@ -903,6 +914,47 @@ fn cmd_docs(root: PathBuf, check: bool) -> Result<i32> {
             println!("updated {}", path.display());
         }
         Ok(EXIT_OK)
+    }
+}
+
+fn cmd_ready(root: PathBuf, plan: String, stamp: bool) -> Result<i32> {
+    let mut found = ready::judge(&root, &plan)?;
+    if stamp {
+        if !found.broken.is_empty() {
+            print_readiness(&plan, &found);
+            eprintln!(
+                "sf: not stamped — fix the broken facts first; a stamp says they were re-read"
+            );
+            return Ok(finding::EXIT_FINDINGS);
+        }
+        let head = ready::stamp(&root, &plan)?;
+        println!("stamped {plan} — base {}", &head[..12]);
+        found = ready::judge(&root, &plan)?;
+    }
+    print_readiness(&plan, &found);
+    Ok(if found.ready() {
+        EXIT_OK
+    } else {
+        finding::EXIT_FINDINGS
+    })
+}
+
+fn print_readiness(plan: &str, found: &ready::Readiness) {
+    for (mark, lines) in [
+        ("✗", &found.broken),
+        ("~", &found.drifted),
+        ("·", &found.notes),
+    ] {
+        for line in lines {
+            println!("  {mark} {line}");
+        }
+    }
+    if found.ready() {
+        println!("✓ {plan} is ready: every fact it cites holds at HEAD");
+    } else if found.broken.is_empty() {
+        println!("~ {plan}: re-read what drifted, then `sf ready {plan} --stamp`");
+    } else {
+        println!("✗ {plan} cites facts that no longer hold: fix those lines, then stamp");
     }
 }
 

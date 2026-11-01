@@ -34,6 +34,7 @@ tables below.
 | [`sf interview`](#sf-interview) | Print the decision tree an interview walks, and what each answer does |
 | [`sf lock`](#sf-lock) | Rewrite the hash locks from what is on disk |
 | [`sf ratchet`](#sf-ratchet) | Freeze today's violations so a repository can adopt rules it breaks |
+| [`sf ready`](#sf-ready) | Say whether a plan still matches the code, before work on it starts |
 | [`sf seal`](#sf-seal) | Recompute the digests in a gate's evidence manifest |
 | [`sf skills`](#sf-skills) | Install the agent skills that drive this tool |
 | [`sf verify`](#sf-verify) | Prove every enabled rule fires on its mutation fixture |
@@ -153,6 +154,18 @@ sf ratchet [options]
 | Flag | What it does | Default |
 | :-- | :-- | :-- |
 | `--months <MONTHS>` | Months until the frozen entries must be reviewed | `6` |
+
+### `sf ready`
+
+Say whether a plan still matches the code, before work on it starts
+
+```sh
+sf ready <PLAN> [options]
+```
+
+| Flag | What it does | Default |
+| :-- | :-- | :-- |
+| `--stamp` | After re-reading what changed, pin the plan's facts to HEAD by writing `base:`. | off |
 
 ### `sf seal`
 
