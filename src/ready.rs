@@ -46,13 +46,12 @@ pub fn judge(root: &Path, plan: &str) -> Result<Readiness> {
     for touched in strings(map.get("touches")) {
         judge_touch(&git, base.as_deref(), &touched, &mut out, &mut cited);
     }
-    for criterion in sequence(&map, "criteria") {
-        let id = string(criterion.get("id")).unwrap_or_default();
-        if let Some(path) = string(criterion.get("proof"))
-            .as_deref()
-            .and_then(|p| p.strip_prefix("test:"))
-        {
-            judge_test(&git, base.as_deref(), &id, path.trim(), &mut out);
+    for (key, name) in [("criteria", "id"), ("crosses", "mechanism")] {
+        for entry in sequence(&map, key) {
+            let id = string(entry.get(name)).unwrap_or_default();
+            for path in tests_in(&string(entry.get("proof")).unwrap_or_default()) {
+                judge_test(&git, base.as_deref(), &id, &path, &mut out);
+            }
         }
     }
     judge_base(&git, base.as_deref(), &cited, &mut out);
@@ -73,7 +72,7 @@ fn judge_sources(
         }
         if let Some(reference) = string(source.get("ref")) {
             judge_reference(git, base, &id, &reference, out, cited);
-            judge_symbols(git.root, &id, &reference, source.get("symbol"), out);
+            judge_symbols(git, &id, &reference, source.get("symbol"), out);
         }
     }
 }
@@ -91,7 +90,8 @@ pub fn stamp(root: &Path, plan: &str) -> Result<String> {
         .map(|i| i + 1)
         .context("the plan's declaration is not closed")?;
     let line = format!("base: {head}\n");
-    match lines[1..close].iter().position(|l| l.starts_with("base:")) {
+    let key = regex::Regex::new(r#"^["']?base["']?\s*:"#).expect("a fixed pattern compiles");
+    match lines[1..close].iter().position(|l| key.is_match(l)) {
         Some(at) => lines[at + 1] = &line,
         None => lines.insert(1, &line),
     }
@@ -131,13 +131,43 @@ fn judge_reference(
             "{id} points at {reference}: a line number goes stale with the next edit above it; name the symbol in `symbol:` instead"
         ));
     }
-    if git.root.join(path).exists() {
+    if git.exists("HEAD", path) {
         cited
             .entry(path.to_string())
             .or_default()
             .push(id.to_string());
     } else {
         out.broken.push(gone(id, path, base, git));
+    }
+}
+
+/// The `test:` paths a proof names, each apart from the annotation beside it.
+/// A `deferred:` or `unspecified:` proof names a test the work will write.
+fn tests_in(proof: &str) -> Vec<String> {
+    let proof = proof.trim();
+    if proof.starts_with("deferred:") || proof.starts_with("unspecified:") {
+        return Vec::new();
+    }
+    let test =
+        regex::Regex::new(r"(?:^|[\s,;(])test:([^\s,;)]+)").expect("a fixed pattern compiles");
+    test.captures_iter(proof)
+        .map(|c| c[1].to_string())
+        .collect()
+}
+
+/// Where a `ref` lives: a `<rev>:<path>` into history, or a path at HEAD.
+fn located(reference: &str) -> (&str, &str) {
+    match reference.split_once(':') {
+        Some((rev, path))
+            if !path.is_empty()
+                && !path
+                    .chars()
+                    .all(|c| c.is_ascii_digit() || c == '-' || c == ',') =>
+        {
+            (rev, path)
+        }
+        Some((path, _line)) => ("HEAD", path),
+        None => ("HEAD", reference),
     }
 }
 
@@ -155,14 +185,14 @@ fn judge_said(id: &str, said: &str, out: &mut Readiness) {
 }
 
 fn judge_symbols(
-    root: &Path,
+    git: &Git,
     id: &str,
     reference: &str,
     symbols: Option<&Value>,
     out: &mut Readiness,
 ) {
-    let path = reference.split(':').next().unwrap_or(reference);
-    let Ok(code) = std::fs::read_to_string(root.join(path)) else {
+    let (rev, path) = located(reference);
+    let Some(code) = git.read(rev, path) else {
         return;
     };
     for symbol in strings(symbols) {
@@ -172,8 +202,9 @@ fn judge_symbols(
             !before.is_some_and(is_word) && !after.is_some_and(is_word)
         });
         if !found {
-            out.broken
-                .push(format!("{id} names `{symbol}`, which {path} no longer has"));
+            out.broken.push(format!(
+                "{id} names `{symbol}`, which {path} at {rev} does not have"
+            ));
         }
     }
 }
@@ -197,7 +228,7 @@ fn judge_touch(
             .push("touches".to_string());
         return;
     }
-    if git.root.join(path).exists() {
+    if git.exists("HEAD", path) {
         cited
             .entry(path.to_string())
             .or_default()
@@ -211,7 +242,7 @@ fn judge_touch(
 }
 
 fn judge_test(git: &Git, base: Option<&str>, id: &str, path: &str, out: &mut Readiness) {
-    if git.root.join(path).exists() {
+    if git.exists("HEAD", path) {
         return;
     }
     if base.is_some_and(|base| git.exists(base, path)) {
@@ -239,12 +270,15 @@ fn judge_base(
             .push(format!("base {base} is not a commit this repository has"));
         return;
     }
-    for path in git.changed_since(base, cited.keys()) {
+    for path in git.changed_since(base) {
         let by: Vec<&String> = cited
             .iter()
             .filter(|(cite, _)| covers(cite, &path))
             .flat_map(|(_, ids)| ids)
             .collect();
+        if by.is_empty() {
+            continue;
+        }
         out.drifted.push(format!(
             "{path} changed since base {}; re-read what cites it: {}",
             &base[..base.len().min(12)],
@@ -304,26 +338,15 @@ impl Git<'_> {
             .is_some()
     }
 
-    fn changed_since<'p>(
-        &self,
-        base: &str,
-        cited: impl Iterator<Item = &'p String>,
-    ) -> Vec<String> {
-        let specs: Vec<String> = cited
-            .map(|cite| {
-                if cite.contains(['*', '?', '[', '{']) {
-                    format!(":(glob){cite}")
-                } else {
-                    cite.clone()
-                }
-            })
-            .collect();
-        if specs.is_empty() {
-            return Vec::new();
-        }
-        let mut args = vec!["diff", "--name-only", base, "HEAD", "--"];
-        args.extend(specs.iter().map(String::as_str));
-        self.run(&args)
+    fn read(&self, rev: &str, path: &str) -> Option<String> {
+        self.run(&["show", &format!("{rev}:{path}")])
+    }
+
+    /// Every file changed between `base` and HEAD, unfiltered: the plan's
+    /// own glob matcher selects from it, so a brace set means here what it
+    /// means everywhere else a declaration is read.
+    fn changed_since(&self, base: &str) -> Vec<String> {
+        self.run(&["diff", "--name-only", base, "HEAD"])
             .map(|out| out.lines().map(str::to_string).collect())
             .unwrap_or_default()
     }
@@ -498,6 +521,108 @@ mod tests {
     }
 
     #[test]
+    fn stamping_replaces_a_quoted_base_rather_than_adding_a_second() {
+        let root = repo("quoted");
+        let plan = PLAN.replacen("---\n", "---\n\"base\": 0000000\n", 1);
+        commit(
+            &root,
+            &[
+                ("src/ledger.rs", "pub fn post() {}\n"),
+                ("plan.md", plan.as_str()),
+            ],
+        );
+        stamp(&root, "plan.md").expect("the plan is stamped");
+        let text = std::fs::read_to_string(root.join("plan.md")).expect("the plan reads");
+        assert_eq!(text.matches("base").count(), 1, "{text}");
+        assert!(judge(&root, "plan.md").expect("the plan is judged").ready());
+    }
+
+    #[test]
+    fn a_crossing_or_annotated_proof_whose_test_is_gone_is_broken() {
+        let root = repo("proofs");
+        let plan = PLAN
+            .replace("proof: \"test:tests/refund.rs\"", "proof: \"test:tests/refund.rs; the refund half\"")
+            .replace("exit: refunds post", "crosses:\n  - { mechanism: ledger, answer: works, proof: \"test:tests/ledger.rs\" }\nexit: refunds post");
+        commit(
+            &root,
+            &[
+                ("src/ledger.rs", "pub fn post() {}\n"),
+                ("tests/refund.rs", "#[test] fn r() {}\n"),
+                ("tests/ledger.rs", "#[test] fn l() {}\n"),
+                ("plan.md", plan.as_str()),
+            ],
+        );
+        stamp(&root, "plan.md").expect("the plan is stamped");
+        git(&root, &["rm", "-q", "tests/refund.rs", "tests/ledger.rs"]);
+        git(&root, &["commit", "-q", "-m", "drop the tests"]);
+        let found = judge(&root, "plan.md").expect("the plan is judged");
+        assert!(
+            found
+                .broken
+                .iter()
+                .any(|b| b.starts_with("A1 cites tests/refund.rs, which existed at base")),
+            "{found:?}"
+        );
+        assert!(
+            found
+                .broken
+                .iter()
+                .any(|b| b.starts_with("ledger cites tests/ledger.rs, which existed at base")),
+            "{found:?}"
+        );
+    }
+
+    #[test]
+    fn facts_are_read_from_head_not_from_an_uncommitted_edit() {
+        let root = repo("dirty");
+        let plan = PLAN.replace("symbol: post", "symbol: [post, void]");
+        commit(
+            &root,
+            &[
+                ("src/ledger.rs", "pub fn post() {}\n"),
+                ("plan.md", plan.as_str()),
+            ],
+        );
+        std::fs::write(
+            root.join("src/ledger.rs"),
+            "pub fn post() {}\npub fn void() {}\n",
+        )
+        .expect("an edit");
+        let found = judge(&root, "plan.md").expect("the plan is judged");
+        assert!(
+            found.broken.iter().any(|b| b.contains("names `void`")),
+            "{found:?}"
+        );
+    }
+
+    #[test]
+    fn a_brace_set_in_touches_sees_a_change_to_either_file() {
+        let root = repo("braces");
+        let plan = PLAN.replace(
+            "touches: [src/ledger.rs, src/refund.rs]",
+            "touches: [\"src/{ledger,books}.rs\"]",
+        );
+        commit(
+            &root,
+            &[
+                ("src/ledger.rs", "pub fn post() {}\n"),
+                ("src/books.rs", "\n"),
+                ("plan.md", plan.as_str()),
+            ],
+        );
+        stamp(&root, "plan.md").expect("the plan is stamped");
+        commit(&root, &[("src/books.rs", "pub fn record() {}\n")]);
+        let found = judge(&root, "plan.md").expect("the plan is judged");
+        assert!(
+            found
+                .drifted
+                .iter()
+                .any(|d| d.starts_with("src/books.rs changed since base")),
+            "{found:?}"
+        );
+    }
+
+    #[test]
     fn a_reference_into_history_is_read_from_git() {
         let root = repo("history");
         commit(&root, &[("src/old.rs", "pub fn old() {}\n")]);
@@ -516,5 +641,16 @@ mod tests {
         );
         let found = judge(&root, "plan.md").expect("the plan is judged");
         assert!(found.broken.is_empty(), "{found:?}");
+
+        let wrong = plan.replace(
+            &format!("ref: \"{first}:src/old.rs\""),
+            &format!("ref: \"{first}:src/old.rs\", symbol: young"),
+        );
+        commit(&root, &[("plan.md", wrong.as_str())]);
+        let found = judge(&root, "plan.md").expect("the plan is judged");
+        assert!(
+            found.broken.iter().any(|b| b.contains("names `young`")),
+            "{found:?}"
+        );
     }
 }
