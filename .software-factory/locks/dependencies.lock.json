@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "files": {
-    "Cargo.lock": "10b0a08efb063d70ed527628e057c9fb18cf69fd3ab785825c0088511a60fa59",
-    "Cargo.toml": "61f354ca9bd88a2fc9db1687e597bf4260c74941be2206806888bd18900f8eed"
+    "Cargo.lock": "ca6b3edc97a37310b41b4fa6ae8d3ffe86ed6fce6570698d4892873ad5c7fb0d",
+    "Cargo.toml": "56c883a58cafb8867f3f37a1b1e738796e395729fffe0b015c8e3921767e98fa"
   }
 }
