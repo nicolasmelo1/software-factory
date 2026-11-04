@@ -34,7 +34,6 @@ use policy::{Policy, RULES_DIR};
 use ratchet::Ratchet;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 /// Findings plus all report context from either a vendored or overlay policy.
 type CheckResults = (
@@ -250,22 +249,11 @@ fn overlay_provenance(dir: &Path) -> Result<checks::Overlay> {
     })
 }
 
+/// What `--changed <base>` names: every path the tree changed since `base`,
+/// read NUL-delimited so a path git would quote arrives as the path itself.
+/// A git failure stops the run; it is never read as an empty change.
 fn changed_paths(root: &Path, base: &str) -> Result<Vec<String>> {
-    let output = Command::new("git")
-        .arg("-C")
-        .arg(root)
-        .args(["diff", "--name-only", base])
-        .output()?;
-    anyhow::ensure!(
-        output.status.success(),
-        "git diff against {base} failed: {}",
-        String::from_utf8_lossy(&output.stderr).trim()
-    );
-    Ok(String::from_utf8_lossy(&output.stdout)
-        .lines()
-        .map(str::to_string)
-        .filter(|l| !l.is_empty())
-        .collect())
+    checks::plan_declaration::changed_since(root, base).map_err(anyhow::Error::msg)
 }
 
 fn main() {

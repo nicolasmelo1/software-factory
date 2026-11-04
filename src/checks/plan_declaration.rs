@@ -335,7 +335,8 @@ fn changed_or_reported(rule: &Rule, ctx: &Ctx, findings: &mut Vec<Finding>) -> O
 }
 
 /// A delivered plan is judged only while the change that delivers or edits
-/// it is under review, and only if it is still a declaration.
+/// it is under review, and only if it still opens with a declaration, one
+/// that parses or not.
 fn delivered_in_flight(
     delivered: &[&scan::SourceFile],
     changed: Option<&[String]>,
@@ -350,7 +351,11 @@ fn delivered_in_flight(
         .filter(|file| !scoped.iter().any(|(rel, _)| *rel == file.rel))
         .filter_map(|file| {
             let text = std::fs::read_to_string(&file.abs).ok()?;
-            matches!(declaration(&text), Some(Ok(_))).then(|| (file.rel.clone(), text))
+            // Unparsable is still a declaration: it is judged, and refused,
+            // rather than dropped with the work it carries.
+            declaration(&text)
+                .is_some()
+                .then(|| (file.rel.clone(), text))
         })
         .collect()
 }
@@ -408,13 +413,20 @@ fn work_changed(
         return Ok(None);
     };
     let base = git(root, &["merge-base", "HEAD", branch])?;
-    let listed = git(root, &["diff", "--name-only", "-z", base.trim(), "--"])?;
-    Ok(Some(sorted(
-        listed
-            .split('\0')
-            .filter(|path| !path.is_empty())
-            .map(str::to_string),
-    )))
+    Ok(Some(sorted(changed_since(root, base.trim())?.into_iter())))
+}
+
+/// Every path the tree changed since `base`, committed or not, as git lists
+/// them: NUL-delimited, so a path git would quote on a line arrives as the
+/// path itself. `--changed` reads through here too, so both producers of a
+/// changed set agree on what a path is. A git failure is an error.
+pub fn changed_since(root: &Path, base: &str) -> Result<Vec<String>, String> {
+    let listed = git(root, &["diff", "--name-only", "-z", base, "--"])?;
+    Ok(listed
+        .split('\0')
+        .filter(|path| !path.is_empty())
+        .map(str::to_string)
+        .collect())
 }
 
 /// Run git against the repository at `root` and nothing else: a hook exports
@@ -1620,6 +1632,11 @@ mod tests {
     /// `L4.PLAN_IS_A_LINKED_DECLARATION` over a repository on disk, as
     /// `sf check` runs it with no `--changed`.
     fn rule_over(dir: &Path) -> Vec<Finding> {
+        rule_over_changed(dir, None)
+    }
+
+    /// The same, with the changed set `--changed` handed the run.
+    fn rule_over_changed(dir: &Path, changed: Option<Vec<String>>) -> Vec<Finding> {
         let policy = crate::policy::Policy::load(dir).expect("the policy loads");
         let catalog = crate::catalog::Catalog::builtin().expect("the catalog loads");
         let files = scan::walk(dir, &policy).expect("the repository scans");
@@ -1630,7 +1647,7 @@ mod tests {
             catalog: &catalog,
             files: &files,
             ratchet: &ratchet,
-            changed: None,
+            changed,
             base: None,
             today: crate::clock::today(),
             allow_commands: false,
@@ -1641,6 +1658,90 @@ mod tests {
             .expect("the rule ships");
         let opts = crate::checks::options_for(rule, &policy).expect("the options merge");
         plan_declaration(rule, &opts, &ctx).expect("the rule runs")
+    }
+
+    #[test]
+    fn changed_reads_a_non_ascii_path_as_the_path_itself() {
+        let dir = scratch("changed-non-ascii");
+        run_git(&dir, &["init", "-q", "-b", "main"]);
+        write(
+            &dir,
+            ".software-factory/policy.yaml",
+            "version: 1\nproject:\n  name: t\n  languages: []\nrules:\n  L4.PLAN_IS_A_LINKED_DECLARATION:\n    enabled: true\n",
+        );
+        write(&dir, "src/módulo.py", "x = 1\n");
+        run_git(&dir, &["add", "-A"]);
+        run_git(&dir, &["commit", "-q", "-m", "base"]);
+        write(&dir, "plans/ação.md", &plan("[\"src/módulo.py\"]", ""));
+        write(&dir, "src/módulo.py", "x = 2\n");
+        run_git(&dir, &["add", "-A"]);
+        // Through the producer `sf check --changed main` uses, not a list
+        // typed in: line mode would hand back `"plans/a\303\247\303\243o.md"`.
+        let changed = crate::changed_paths(&dir, "main").expect("git reads the change");
+        assert_eq!(
+            changed,
+            vec!["plans/ação.md".to_string(), "src/módulo.py".to_string()],
+            "the paths arrive exact, not git-quoted"
+        );
+        let keys: Vec<String> = rule_over_changed(&dir, Some(changed))
+            .into_iter()
+            .map(|finding| finding.key)
+            .collect();
+        assert!(
+            !keys.iter().any(|key| key.starts_with("untouched:")),
+            "the non-ASCII plan is in flight and declares the non-ASCII source: {keys:?}"
+        );
+        // Without the plan in the change, the source is the change's own:
+        // the plan is not in flight, so nothing is read against the diff.
+        let only_source = vec!["src/módulo.py".to_string()];
+        assert!(
+            rule_over_changed(&dir, Some(only_source))
+                .iter()
+                .all(|finding| !finding.key.starts_with("untouched:")),
+            "a plan not in flight owes nothing"
+        );
+        assert!(
+            crate::changed_paths(&dir, "no-such-ref")
+                .err()
+                .is_some_and(|why| why
+                    .to_string()
+                    .contains("git diff --name-only -z no-such-ref")),
+            "a reference git cannot resolve is an error naming the command, never an empty change"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn an_unparsable_delivered_note_is_refused_and_its_work_does_not_pass() {
+        let dir = scratch("unparsable-delivered");
+        write(
+            &dir,
+            ".software-factory/policy.yaml",
+            "version: 1\nproject:\n  name: t\n  languages: []\nrules:\n  L4.PLAN_IS_A_LINKED_DECLARATION:\n    enabled: true\n",
+        );
+        write(
+            &dir,
+            "docs/design/broken.md",
+            "---\ntouches: [\"src/ledger/**\"\ncriteria: [\n---\n# Broken\n",
+        );
+        write(&dir, "src/ledger/post.py", "def post(): pass\n");
+        let changed = vec![
+            "docs/design/broken.md".to_string(),
+            "src/ledger/post.py".to_string(),
+        ];
+        let keys: Vec<String> = rule_over_changed(&dir, Some(changed))
+            .into_iter()
+            .map(|finding| finding.key)
+            .collect();
+        assert_eq!(
+            keys,
+            vec![
+                "untouched:src/ledger/post.py:docs/design/broken.md".to_string(),
+                "unparsable:docs/design/broken.md".to_string(),
+            ],
+            "the delivered note is in flight though it does not parse: it is refused, and the source it carried is owed rather than passed"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
