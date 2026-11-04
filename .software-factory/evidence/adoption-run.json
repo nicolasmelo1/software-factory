@@ -7,12 +7,12 @@
     "commit": "57ba76a2a45d0573ed8f1c1e4a9d11dda9c6ab11",
     "tracked_files": 482
   },
-  "sf": "sf 0.4.1 (catalog 2e8bcfb619f2, 42 rules)",
+  "sf": "sf 0.4.3 (catalog 488c1825434c, 44 rules)",
   "observed": {
-    "rules_enabled_by_init": 15,
+    "rules_enabled_by_init": 17,
     "violations_frozen_at_init": 323,
-    "verify": "15/15 enabled rules proven to fire",
-    "check_on_baseline": "✓ 15 rules, no findings (558 frozen by the ratchet)",
+    "verify": "17/17 enabled rules proven to fire",
+    "check_on_baseline": "✓ 17 rules, no findings (558 frozen by the ratchet)",
     "check_after_one_new_violation": "3 findings across 3 rules (558 frozen by the ratchet)"
   },
   "assertions": [

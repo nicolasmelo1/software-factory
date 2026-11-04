@@ -21,14 +21,14 @@ use crate::finding::Severity;
 use crate::policy::{Options, Policy};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 pub const CATALOG_LOCK_PATH: &str = ".software-factory/catalog.lock.json";
 const SCHEMA_VERSION: u32 = 1;
 
-/// The countable reach of one rule. Every field is a number or an ordinal
-/// precisely so that "did this get weaker" has an answer a check can give.
+/// The comparable reach of one rule: numbers, ordinals and glob sets, so
+/// that "did this get weaker" has an answer a check can give.
 /// Prose is absent on purpose: a rewritten `why` is not a behaviour change,
 /// and treating it as one would train everybody to re-lock on noise.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
@@ -76,11 +76,28 @@ pub struct Reach {
     /// Whether crossings are derived from a mechanisms catalog.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub mechanisms: bool,
+    /// A plan declaration's `incidental` globs: changed files no plan has to
+    /// declare. Any glob gained is a widening. `None` is a lock written
+    /// before this was recorded, which this model has nothing to say about.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub incidental: Option<BTreeSet<String>>,
+    /// A plan declaration's `delivered` globs: where an in-flight delivered
+    /// plan is read. Any glob lost is a narrowing. `None` as above.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub delivered: Option<BTreeSet<String>>,
 }
 
 impl Reach {
     pub fn of(rule: &Rule) -> Reach {
         let options: Options = serde_yaml::from_value(rule.defaults.clone()).unwrap_or_default();
+        // Only a plan declaration reads `incidental` and `delivered`; every
+        // other rule would record two empty sets that mean nothing.
+        let declares_plans = matches!(
+            rule.check,
+            CheckKind::Cadence {
+                mode: crate::catalog::CadenceMode::PlanDeclaration
+            }
+        );
         Reach {
             severity: rule.severity,
             scope: options.scope.len(),
@@ -104,6 +121,8 @@ impl Reach {
             max_body_lines: options.max_body_lines,
             require_declaration: options.require_declaration,
             mechanisms: options.mechanisms.is_some(),
+            incidental: declares_plans.then(|| options.incidental.iter().cloned().collect()),
+            delivered: declares_plans.then(|| options.delivered.iter().cloned().collect()),
         }
     }
 
@@ -132,6 +151,7 @@ impl Reach {
             }
         }
         found.extend(self.declaration_weakenings(previous));
+        found.extend(self.glob_weakenings(previous));
         found
     }
 
@@ -163,6 +183,32 @@ impl Reach {
         }
         found
     }
+
+    /// `incidental` and `delivered` as sets: a replaced glob keeps the count
+    /// and moves the coverage, and whether one glob covers another is not
+    /// something this model can establish. So any glob `incidental` gains or
+    /// `delivered` loses is reported, even beside one moving the other way.
+    fn glob_weakenings(&self, previous: &Reach) -> Vec<String> {
+        let mut found = Vec::new();
+        let none = BTreeSet::new();
+        if let Some(was) = &previous.incidental {
+            let gained = joined(self.incidental.as_ref().unwrap_or(&none).difference(was));
+            if !gained.is_empty() {
+                found.push(format!("incidental gained {gained}"));
+            }
+        }
+        if let Some(was) = &previous.delivered {
+            let lost = joined(was.difference(self.delivered.as_ref().unwrap_or(&none)));
+            if !lost.is_empty() {
+                found.push(format!("delivered plans no longer read under {lost}"));
+            }
+        }
+        found
+    }
+}
+
+fn joined<'a>(globs: impl Iterator<Item = &'a String>) -> String {
+    globs.map(String::as_str).collect::<Vec<_>>().join(", ")
 }
 
 /// Which direction of movement makes a rule weaker.
@@ -391,7 +437,13 @@ mod direction {
             max_body_lines: Some(6),
             require_declaration: true,
             mechanisms: true,
+            incidental: Some(globs(&["src/generated/**"])),
+            delivered: Some(globs(&["docs/design/*.md"])),
         }
+    }
+
+    fn globs(patterns: &[&str]) -> BTreeSet<String> {
+        patterns.iter().map(|p| p.to_string()).collect()
     }
 
     /// Every field, mutated in the weakening direction, one at a time. The
@@ -506,6 +558,30 @@ mod direction {
                 },
                 "no longer derived from a mechanisms catalog",
             ),
+            (
+                "incidental replaced, count unchanged",
+                Reach {
+                    incidental: Some(globs(&["src/**"])),
+                    ..base()
+                },
+                "incidental gained src/**",
+            ),
+            (
+                "delivered replaced, count unchanged",
+                Reach {
+                    delivered: Some(globs(&["docs/design/archive/*.md"])),
+                    ..base()
+                },
+                "delivered plans no longer read under docs/design/*.md",
+            ),
+            (
+                "delivered dropped",
+                Reach {
+                    delivered: None,
+                    ..base()
+                },
+                "delivered plans no longer read under docs/design/*.md",
+            ),
         ];
         for (name, weaker, expected) in cases {
             let found = weaker.weakenings(&base());
@@ -543,6 +619,8 @@ mod direction {
             max_body_lines: Some(4),
             require_declaration: true,
             mechanisms: true,
+            incidental: Some(BTreeSet::new()),
+            delivered: Some(globs(&["docs/design/*.md", "docs/notes/*.md"])),
         };
         assert!(
             stronger.weakenings(&base()).is_empty(),
@@ -584,6 +662,39 @@ mod direction {
         assert!(
             no_max.weakenings(&base()).is_empty(),
             "losing the ceiling field is not something this model claims to judge"
+        );
+    }
+
+    /// A lock written before `incidental` and `delivered` were recorded has
+    /// nothing to compare them with: the rule it locked had no diff check to
+    /// exempt anything from, so the first upgrade that records them is not
+    /// read as a widening. The shipped declaration rule records both.
+    #[test]
+    fn an_unrecorded_glob_set_is_not_a_widened_one() {
+        let unrecorded = Reach {
+            incidental: None,
+            delivered: None,
+            ..base()
+        };
+        assert!(base().weakenings(&unrecorded).is_empty());
+        let lock: Reach =
+            serde_json::from_str(r#"{"severity":"medium"}"#).expect("an old lock reads");
+        assert_eq!((lock.incidental, lock.delivered), (None, None));
+        let catalog = Catalog::builtin().expect("the shipped catalog loads");
+        let reach = Reach::of(
+            catalog
+                .get("L4.PLAN_IS_A_LINKED_DECLARATION")
+                .expect("the rule ships"),
+        );
+        assert_eq!(
+            reach.incidental,
+            Some(globs(&[".software-factory/**", "plans/next-steps.md"]))
+        );
+        assert_eq!(reach.delivered, Some(globs(&["docs/design/*.md"])));
+        assert_eq!(
+            Reach::of(catalog.get("L4.PLAN_PROOF_BUDGET").expect("the rule ships")).incidental,
+            None,
+            "a rule that reads no incidental globs records none"
         );
     }
 

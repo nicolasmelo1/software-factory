@@ -7,7 +7,11 @@ statement: >-
   declaration has, every criterion names a source it declares and every source
   is named by a criterion, every crossing is answered with its proof, what
   refuses it or why it does not apply, and every mechanism its touched files
-  reach is crossed.
+  reach is crossed. When the run knows what the work changed, from
+  `--changed` or from `project.default_branch`, a plan whose own file is in
+  that change is in flight: every changed file has to be in an in-flight
+  plan's `touches`, match the rule's `incidental` globs, or be named under
+  its `deviations`, and every mechanism a changed file reaches is crossed.
 why: >-
   A plan is read by whoever builds it and by whoever reviews what was built,
   and both of them read it with a limited budget of attention. Prose grows
@@ -17,14 +21,23 @@ why: >-
   that already exists, so a reviewer finds them one round at a time. A
   declaration fixes both: a line that names nothing and is named by nothing is
   cut, and the mechanisms a plan must answer are derived from the files it
-  touches rather than remembered by its author.
+  touches rather than remembered by its author. Derived from the touches
+  alone, they are still remembered: a file the work changed without the plan
+  declaring it reaches its mechanism unseen, and review finds it instead. So
+  the change itself is read, deterministically, from local refs and the
+  tree, and a pre-commit hook goes red on the same findings CI would.
 fix: >-
   Give every criterion a `sources:` list naming the decision, ticket or
   reference it comes from, and remove a source no criterion cites. Answer each
   `crosses` entry with `works` and a `proof`, `refused` and the `by` that
   refuses it, or `n/a` and `why`. When the plan touches files where a
   mechanism in the catalog lives, add a crossing for it. Move prose past the
-  ceiling into the declaration or delete it.
+  ceiling into the declaration or delete it. For `untouched:<path>`, add the
+  file to the plan's `touches`, list it under the rule's `incidental` if no
+  plan should ever have to name it, or name it under `deviations` if the
+  work outgrew the plan; then answer any `uncrossed` mechanism it reaches.
+  For `changed-set`, give `sf check` a `--changed` ref git can resolve, or
+  set `project.default_branch` to a branch this clone has.
 ratchet: allowlist
 check:
   kind: cadence
@@ -34,3 +47,13 @@ defaults:
     - "plans/*.md"
   exclude:
     - "plans/next-steps.md"
+  # Changed files no plan has to declare. The in-flight plans' own files
+  # and any file in the plan scope are incidental on top of these. A policy
+  # that sets this list replaces it, so it re-lists what it keeps.
+  incidental:
+    - ".software-factory/**"
+    - "plans/next-steps.md"
+  # Where a delivered plan lives: one changed there that still opens with a
+  # declaration is in flight and judged like a plan in scope.
+  delivered:
+    - "docs/design/*.md"

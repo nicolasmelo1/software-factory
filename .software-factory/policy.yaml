@@ -6,6 +6,11 @@ project:
   name: software-factory
   languages: [rust]
   exclude: []
+  # The branch work merges into. `sf check` with no `--changed`, which is
+  # what the pre-commit hook runs, reads the work's diff against its
+  # merge-base with this branch, so L4.PLAN_IS_A_LINKED_DECLARATION holds an
+  # in-flight plan to what the change actually edits before it is pushed.
+  default_branch: main
 
 docs:
   scan:

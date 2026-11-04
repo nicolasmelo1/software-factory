@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "sf_version": "0.4.3",
-  "catalog_digest": "4697e0e6bf61432040afceb263a2647fb1e2a9c029d82052c288c0be133418da",
+  "catalog_digest": "488c1825434c699d6499b4be7b5d2a10ef13da162a76b291094bd3e95bccd78b",
   "rules": {
     "L0.EXCEPTIONS_HAVE_ONE_HOME": {
       "severity": "high",
@@ -256,7 +256,14 @@
       "languages": 0,
       "tools": 0,
       "must_live_in": 0,
-      "must_not_live_in": 0
+      "must_not_live_in": 0,
+      "incidental": [
+        ".software-factory/**",
+        "plans/next-steps.md"
+      ],
+      "delivered": [
+        "docs/design/*.md"
+      ]
     },
     "L4.PLAN_PROOF_BUDGET": {
       "severity": "medium",

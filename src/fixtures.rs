@@ -389,6 +389,12 @@ pub const FIXTURES: &[Fixture] = &[
         // not carry, a crossing with no proof, a touched mechanism never
         // crossed, a sentence past the word ceiling and prose past the body
         // ceiling. The control plan is linked and must stay quiet.
+        //
+        // `plans/drifted.md` is linked too, and quiet here: `sf verify` runs a
+        // fixture with no changed set. Read against a change that also edits
+        // `src/sessions/guest.py`, which it never declared, it is
+        // `untouched` and `uncrossed:sessions`; the unit test in
+        // `checks::plan_declaration` reads it that way, and repairs it.
         files: &[
             (
                 "docs/mechanisms.yaml",
@@ -411,6 +417,10 @@ pub const FIXTURES: &[Fixture] = &[
             (
                 "plans/wordy.md",
                 "---\nsources:\n  - { id: S1, kind: decision }\ncriteria:\n  - { id: A1, statement: a guest who has never signed in before can complete a whole purchase without an account, proof: \"test:tests/pay.py\", sources: [S1] }\nexit: checkout serves traffic\n---\n# Wordy\n\nFirst line of context.\nSecond line of context.\nThird line of context.\n",
+            ),
+            (
+                "plans/drifted.md",
+                "---\nsources:\n  - { id: S1, kind: decision }\ntouches: [\"src/ledger/post.py\"]\ncriteria:\n  - { id: A1, statement: a refund posts to the ledger, proof: \"test:tests/refund.py\", sources: [S1] }\ncrosses:\n  - { mechanism: ledger, answer: works, proof: \"test:tests/refund.py\" }\nexit: refunds post\n---\n# Drifted\n",
             ),
             (
                 "plans/linked.md",
