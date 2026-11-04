@@ -50,6 +50,7 @@ cut:
   - "checking plans not in flight against the diff: refused, a stamped plan's base drifts behind main and would fire on everybody's work (S7)"
   - "a separate rule id: the linked declaration still names what this checks (S2)"
 deviations:
+  - "from review: the changed set is read with --no-renames, so a move owes both the path it left and the one it reached"
   - "from review: a frontmatter that opens with --- and never closes is unparsable, not absent, so a delivered note that lost its closing fence stays in flight"
   - "from review: ~, + and @ continue a path a deviation names, so a backup's name does not account for the original"
   - "A1 cites the property `a_prefix_covers` rather than `test:`; the plan said `test:` only so its own commit stayed green before the falsifier existed"

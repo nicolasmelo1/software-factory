@@ -434,7 +434,12 @@ fn work_changed(
 /// path itself. `--changed` reads through here too, so both producers of a
 /// changed set agree on what a path is. A git failure is an error.
 pub fn changed_since(root: &Path, base: &str) -> Result<Vec<String>, String> {
-    let listed = git(root, &["diff", "--name-only", "-z", base, "--"])?;
+    // Without --no-renames a move lists only its destination, and the path
+    // the work emptied would never owe scope or a crossing.
+    let listed = git(
+        root,
+        &["diff", "--no-renames", "--name-only", "-z", base, "--"],
+    )?;
     Ok(listed
         .split('\0')
         .filter(|path| !path.is_empty())
@@ -1677,6 +1682,51 @@ mod tests {
     }
 
     #[test]
+    fn a_move_owes_both_the_path_it_left_and_the_one_it_reached() {
+        let dir = scratch("changed-rename");
+        run_git(&dir, &["init", "-q", "-b", "main"]);
+        run_git(&dir, &["config", "diff.renames", "true"]);
+        write(
+            &dir,
+            ".software-factory/policy.yaml",
+            "version: 1\nproject:\n  name: t\n  languages: []\nrules:\n  L4.PLAN_IS_A_LINKED_DECLARATION:\n    enabled: true\n",
+        );
+        write(
+            &dir,
+            "src/sessions/guest.py",
+            "def guest():\n    return 'a guest, kept long enough to be found again'\n",
+        );
+        run_git(&dir, &["add", "-A"]);
+        run_git(&dir, &["commit", "-q", "-m", "base"]);
+        std::fs::create_dir_all(dir.join("src/ledger")).expect("the destination exists");
+        run_git(
+            &dir,
+            &["mv", "src/sessions/guest.py", "src/ledger/guest.py"],
+        );
+        write(&dir, "plans/p.md", &plan("[\"src/ledger/guest.py\"]", ""));
+        run_git(&dir, &["add", "-A"]);
+        let changed = crate::changed_paths(&dir, "main").expect("git reads the change");
+        assert_eq!(
+            changed,
+            vec![
+                "plans/p.md".to_string(),
+                "src/ledger/guest.py".to_string(),
+                "src/sessions/guest.py".to_string(),
+            ],
+            "a move is both of its paths, whatever diff.renames says"
+        );
+        let keys: Vec<String> = rule_over_changed(&dir, Some(changed))
+            .into_iter()
+            .map(|finding| finding.key)
+            .collect();
+        assert!(
+            keys.contains(&"untouched:src/sessions/guest.py:plans/p.md".to_string()),
+            "the path the move left is owed by the plan that declared only where it went: {keys:?}"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     fn changed_reads_a_non_ascii_path_as_the_path_itself() {
         let dir = scratch("changed-non-ascii");
         run_git(&dir, &["init", "-q", "-b", "main"]);
@@ -1721,7 +1771,7 @@ mod tests {
                 .err()
                 .is_some_and(|why| why
                     .to_string()
-                    .contains("git diff --name-only -z no-such-ref")),
+                    .contains("git diff --no-renames --name-only -z no-such-ref")),
             "a reference git cannot resolve is an error naming the command, never an empty change"
         );
         let _ = std::fs::remove_dir_all(&dir);
