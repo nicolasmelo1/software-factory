@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.4](https://github.com/nicolasmelo1/software-factory/compare/v0.4.3...v0.4.4) - 2026-11-04
+
+### Added
+
+- *(L4)* a crossing is read from the diff ([#75](https://github.com/nicolasmelo1/software-factory/pull/75))
+- *(L5)* a property is a proof with a falsifier ([#73](https://github.com/nicolasmelo1/software-factory/pull/73))
+
+### Other
+
+- *(plans)* a seal refuses a stale report ([#71](https://github.com/nicolasmelo1/software-factory/pull/71))
+
 ## [0.4.3](https://github.com/nicolasmelo1/software-factory/compare/v0.4.2...v0.4.3) - 2026-11-01
 
 ### Added
