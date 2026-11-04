@@ -1,4 +1,5 @@
 ---
+base: 8004eddeef34a460abc21e41923ba928e6088c77
 sources:
   - { id: S1, kind: review, said: "seven Copilot findings across five pull requests reached a mechanism their plan never answered: #73 left src/checks/mod.rs out of touches, so overlay went unanswered; #72, #67 and #68 likewise" }
   - { id: S2, kind: code, ref: "src/checks/plan_declaration.rs", symbol: [crossings, uncrossed, touched_paths], said: "the mechanisms a plan answers are derived only from its declared touches, never from what the work changed, so a file changed outside touches escapes crossings and scope" }
