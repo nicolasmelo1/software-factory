@@ -16,6 +16,7 @@ use crate::finding::Finding;
 use crate::policy::{Options, POLICY_PATH, Policy, RATCHET_PATH};
 use crate::ratchet::Ratchet;
 use anyhow::Result;
+use std::collections::BTreeSet;
 use std::process::Command;
 
 /// The previous policy and ratchet, from git or from a checked-in baseline.
@@ -263,25 +264,43 @@ fn declaration_findings(rule: &Rule, id: &str, was: &Size, now: &Size) -> Vec<Fi
             "require_declaration: false".to_string(),
         ));
     }
-    if now.incidental > was.incidental {
+    // Pattern sets, not counts: a replacement keeps the count and can still
+    // move coverage, and whether one glob covers another is not something
+    // this comparison can establish. Any pattern gained by `incidental` or
+    // lost by `delivered` is reported; only removals from the first and
+    // additions to the second are known to be safe.
+    let gained: Vec<&str> = now
+        .incidental
+        .difference(&was.incidental)
+        .map(String::as_str)
+        .collect();
+    if !gained.is_empty() {
         findings.push(weakened(
             rule,
             &format!("incidental-widened:{id}"),
             format!(
-                "{id} lets {} more glob(s) of changed files go undeclared",
-                now.incidental - was.incidental
+                "{id} lets changed files under {} go undeclared",
+                gained.join(", ")
             ),
-            format!("{} incidental glob(s)", was.incidental),
-            format!("{} incidental glob(s)", now.incidental),
+            listed(&was.incidental),
+            listed(&now.incidental),
         ));
     }
-    if now.delivered < was.delivered {
+    let lost: Vec<&str> = was
+        .delivered
+        .difference(&now.delivered)
+        .map(String::as_str)
+        .collect();
+    if !lost.is_empty() {
         findings.push(weakened(
             rule,
             &format!("delivered-narrowed:{id}"),
-            format!("{id} reads delivered plans in fewer places"),
-            format!("{} delivered glob(s)", was.delivered),
-            format!("{} delivered glob(s)", now.delivered),
+            format!(
+                "{id} no longer reads delivered plans under {}",
+                lost.join(", ")
+            ),
+            listed(&was.delivered),
+            listed(&now.delivered),
         ));
     }
     if was.mechanisms.is_some() && now.mechanisms.is_none() {
@@ -294,6 +313,14 @@ fn declaration_findings(rule: &Rule, id: &str, was: &Size, now: &Size) -> Vec<Fi
         ));
     }
     findings
+}
+
+/// A glob set as a person reads it in a finding.
+fn listed(globs: &BTreeSet<String>) -> String {
+    if globs.is_empty() {
+        return "no globs".to_string();
+    }
+    globs.iter().cloned().collect::<Vec<_>>().join(", ")
 }
 
 fn ratchet_findings(
@@ -373,8 +400,9 @@ struct Size {
     max_body_lines: Option<usize>,
     require_declaration: bool,
     mechanisms: Option<String>,
-    incidental: usize,
-    delivered: usize,
+    /// Pattern sets rather than counts: see `declaration_findings`.
+    incidental: BTreeSet<String>,
+    delivered: BTreeSet<String>,
 }
 
 /// The counts that decide direction, computed on the options a rule will
@@ -408,8 +436,8 @@ fn effective_size(
         max_body_lines: options.max_body_lines,
         require_declaration: options.require_declaration,
         mechanisms: options.mechanisms,
-        incidental: options.incidental.len(),
-        delivered: options.delivered.len(),
+        incidental: options.incidental.into_iter().collect(),
+        delivered: options.delivered.into_iter().collect(),
     }
 }
 
@@ -583,6 +611,62 @@ mod tests {
         assert!(
             keys(&current, &previous).is_empty(),
             "back to the catalog default is a tightening"
+        );
+    }
+
+    #[test]
+    fn a_replaced_incidental_or_delivered_glob_is_judged_by_pattern_not_count() {
+        let catalog = Catalog::builtin().expect("the shipped catalog loads");
+        let rule = catalog
+            .get("L2.POLICY_ONLY_TIGHTENS")
+            .expect("the rule ships");
+        let id = "L4.PLAN_IS_A_LINKED_DECLARATION";
+        let keys = |was: &str, now: &str| {
+            let was: RuleSetting = serde_yaml::from_str(was).expect("parses");
+            let now: RuleSetting = serde_yaml::from_str(now).expect("parses");
+            let mut keys: Vec<_> =
+                rule_findings(rule, &catalog, crate::policy::merge, id, &was, &now)
+                    .into_iter()
+                    .map(|finding| finding.key)
+                    .collect();
+            keys.sort();
+            keys
+        };
+        let generated = "enabled: true\noptions:\n  incidental: [\"src/generated/**\"]\n";
+        let everything = "enabled: true\noptions:\n  incidental: [\"src/**\"]\n";
+        assert_eq!(
+            keys(generated, everything),
+            vec![format!("incidental-widened:{id}")],
+            "one glob for one, the count unchanged: the new one is a widening"
+        );
+        assert_eq!(
+            keys(everything, generated),
+            vec![format!("incidental-widened:{id}")],
+            "a replacement whose direction cannot be established is reported either way"
+        );
+        assert!(
+            keys(
+                "enabled: true\noptions:\n  incidental: [\"src/generated/**\", \"build/**\"]\n",
+                generated
+            )
+            .is_empty(),
+            "only removing incidental globs is a tightening"
+        );
+
+        let current = "enabled: true\noptions:\n  delivered: [\"docs/design/*.md\"]\n";
+        let archive = "enabled: true\noptions:\n  delivered: [\"docs/design/archive/*.md\"]\n";
+        assert_eq!(
+            keys(current, archive),
+            vec![format!("delivered-narrowed:{id}")],
+            "one glob for one, the count unchanged: the lost one is a narrowing"
+        );
+        assert!(
+            keys(
+                current,
+                "enabled: true\noptions:\n  delivered: [\"docs/design/*.md\", \"docs/notes/*.md\"]\n"
+            )
+            .is_empty(),
+            "only adding delivered globs is a tightening"
         );
     }
 

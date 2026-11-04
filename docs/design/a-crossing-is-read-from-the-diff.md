@@ -63,6 +63,7 @@ deviations:
   - "the row left the execution order on delivery, so plans/next-steps.md and the row numbers cited in a-seal-refuses-a-stale-report.md are back as they were"
   - "from review: `--changed` read git's quoted lines, so src/main.rs `changed_paths` now reads `git diff --name-only -z` through the same reader as default_branch, and a non-ASCII path arrives exact"
   - "from review: a changed delivered note whose declaration does not parse is in flight and refused as `unparsable`, rather than dropped with the work it carries"
+  - "from review: `L2.POLICY_ONLY_TIGHTENS` compares `incidental` and `delivered` as sets, so any glob `incidental` gains or `delivered` loses is reported, a same-count replacement included"
 exit: "in this repository and in amy, a change editing a file its plan never declared, or reaching a mechanism through one, goes red at the pre-commit hook before the push, and CI gives the same findings"
 ---
 # A crossing is read from the diff
