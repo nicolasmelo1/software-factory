@@ -1,5 +1,5 @@
 ---
-base: 6914586d0c97e6185c798717b364f6d7c3c914ae
+base: b97d1a3d915740ff25279f78b9bc629839678665
 sources:
   - { id: S1, kind: friction, said: "a consuming repository re-sealed four gates over reports produced before its last build; `sf seal` succeeded, `L3.GATE_HAS_FRESH_EVIDENCE` went green, and none of that evidence had seen the code it certified" }
   - { id: S2, kind: code, ref: "src/checks/evidence.rs", said: "`seal` recomputes `implementation_sha256` from the activation paths and each `report_sha256` from the file on disk; nothing asks which implementation a report was produced against" }
