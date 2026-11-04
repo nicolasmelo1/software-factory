@@ -190,6 +190,16 @@ write down why. This one is not hypothetical. It was written after this tool's
 own scaffolding wrote an empty scope over a critical lock, and nothing noticed
 until the lock file failed to appear.
 
+The same obligation reaches one level out, to the proofs a plan cites. A plan's
+rules are mostly statements over every input, and `test:` can only say an
+example was checked. `(proof: property:PATH#FALSIFIER)` cites a property-based
+test and names the implementation mutation it must reject;
+`L5.EVERY_PROPERTY_HAS_A_FALSIFIER` runs it both ways — passing as the code is,
+failing with the falsifier planted — because a generator that never reaches the
+case passes forever and reads exactly like a property that holds. It is called
+a property, not a law: surviving a planted mutation is evidence about a
+generator nobody audits, not a proof over every input.
+
 ### L6 — Hazard: the defect classes this repository hunts
 
 The other layers are about whether code has the right shape and provenance.

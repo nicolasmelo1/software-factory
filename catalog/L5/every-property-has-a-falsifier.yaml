@@ -1,0 +1,36 @@
+id: L5.EVERY_PROPERTY_HAS_A_FALSIFIER
+layer: L5
+title: Every property a plan cites is proven able to fail
+severity: high
+statement: >-
+  A criterion proven by `(proof: property:PATH#FALSIFIER)` names a falsifier
+  that the file at PATH carries, and the rule's `run` command passes with
+  nothing planted and fails with `SF_FALSIFIER` set to that falsifier.
+why: >-
+  A plan's rules are mostly statements over every input — an explicit zero
+  survives a merge, a retry with no evidence is refused, a migration run twice
+  changes nothing — and three examples do not check a statement. A
+  property-based test does, and it is also the easiest proof to make vacuous:
+  a generator that never reaches the case passes forever and reads exactly
+  like a property that holds. So `property:` cannot be a renamed `test:`; it
+  carries the obligation `L5.EVERY_CHECK_HAS_A_MUTATION_TEST` puts on a rule,
+  one level out. The falsifier is the implementation mutation the property
+  must reject, named where the plan cites it, and the rule runs both
+  directions the way `sf verify` does: passing as the code is, failing with
+  the mutation planted. Both, because a command that always fails rejects
+  every falsifier. What it does not hold against is written down rather than
+  implied: surviving a planted mutation proves the generator reaches that
+  case, not every case, and nobody audits a generator's distribution.
+fix: >-
+  Name the mutation after `#` and write it in the property file, planted only
+  when `SF_FALSIFIER` names it; point this rule's `run` at the command that
+  runs the property at `SF_PROPERTY`, and run `sf check --allow-commands`. A
+  property that passes with its falsifier planted has a generator that never
+  reaches the case: widen the generator, do not soften the falsifier.
+ratchet: none
+check:
+  kind: cadence
+  mode: property_falsifiers
+defaults:
+  scope:
+    - "plans/*.md"

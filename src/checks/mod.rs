@@ -10,6 +10,7 @@ pub mod forwarder;
 pub mod lock;
 pub mod nested;
 pub mod plan_declaration;
+pub mod properties;
 pub mod runtime_pin;
 pub mod shape;
 pub mod text_pattern;
@@ -239,7 +240,8 @@ fn cadence_inapplicable_under_overlay(mode: CadenceMode) -> Option<&'static str>
         }
         // Documentation links, plan criteria markers, proof budgets and
         // claim citations are statements about documents the target does
-        // hold; they read the same wherever the policy lives. InertRules
+        // hold; they read the same wherever the policy lives, and a cited
+        // property runs beside the plan and the code it is about. InertRules
         // composes (see [`inert_rules`]) rather than joins this set.
         CadenceMode::DocLinks
         | CadenceMode::PlanCriteria
@@ -247,7 +249,8 @@ fn cadence_inapplicable_under_overlay(mode: CadenceMode) -> Option<&'static str>
         | CadenceMode::ClaimCitations
         | CadenceMode::GatePlanPlacement
         | CadenceMode::InertRules
-        | CadenceMode::RuleCommands => return None,
+        | CadenceMode::RuleCommands
+        | CadenceMode::PropertyFalsifiers => return None,
     };
     Some(reason)
 }

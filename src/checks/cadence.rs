@@ -30,6 +30,8 @@ pub fn run(rule: &Rule, opts: &Options, ctx: &Ctx, mode: CadenceMode) -> Result<
         | CadenceMode::GateCoverage
         | CadenceMode::GatePlanPlacement
         | CadenceMode::ClaimCitations => document_cadence(rule, opts, ctx, mode),
+        // A proof a plan cites, run rather than read: its own module.
+        CadenceMode::PropertyFalsifiers => super::properties::run(rule, opts, ctx),
         CadenceMode::MutationCoverage | CadenceMode::InertRules | CadenceMode::RuleCommands => {
             meta_cadence(rule, ctx, mode)
         }
@@ -806,25 +808,31 @@ fn mutation_coverage(rule: &Rule, ctx: &Ctx) -> Result<Vec<Finding>> {
 /// a sentence would name a proof for a clause rather than for the criterion.
 const CRITERION_MARKER: &str = r"\(proof:\s*([a-z_]+)\s*:\s*([^)]*)\)\s*$";
 
-/// `assertion` and `test` name something that runs. `deferred` says the
-/// criterion is not built and `unspecified` says no check has been designed for
-/// it — both are legitimate to declare and both are debt, which is the point:
-/// the admission becomes a line someone can grep instead of a sentence buried
-/// in a long document.
-const PROOF_KINDS: &[&str] = &["assertion", "test", "deferred", "unspecified"];
+/// `assertion` and `test` name something that runs; `property` names a
+/// statement over every input and the falsifier it must reject (see
+/// `checks::properties`). `deferred` (not built) and `unspecified` (no check
+/// designed) are legitimate to declare and are debt, which is the point: the
+/// admission becomes a line someone can grep instead of a buried sentence.
+const PROOF_KINDS: &[&str] = &["assertion", "test", "property", "deferred", "unspecified"];
 
-struct Criterion {
-    line: usize,
-    text: String,
-    kind: Option<String>,
-    value: String,
+/// The markers a criterion may close with, as the refusal names them.
+const PROOF_VOCABULARY: &str = "a trailing (proof: assertion:ID | test:PATH | \
+     property:PATH#FALSIFIER | deferred:REASON | unspecified:REASON)";
+
+pub(super) struct Criterion {
+    pub(super) line: usize,
+    pub(super) text: String,
+    pub(super) kind: Option<String>,
+    pub(super) value: String,
 }
 
 impl Criterion {
-    /// A marker that parsed, named a known kind, and carried a value.
+    /// A marker that parsed, named a known kind, and carried a value. A
+    /// `property` carries two: the path and the falsifier after `#`.
     fn is_complete(&self) -> bool {
-        match &self.kind {
-            Some(kind) => PROOF_KINDS.contains(&kind.as_str()) && !self.value.is_empty(),
+        match self.kind.as_deref() {
+            Some("property") => super::properties::split(&self.value).is_some(),
+            Some(kind) => PROOF_KINDS.contains(&kind) && !self.value.is_empty(),
             None => false,
         }
     }
@@ -837,7 +845,7 @@ impl Criterion {
 /// spell the surrounding heading four different ways — "Acceptance criteria",
 /// "Acceptance gates", "Gates", "Rollout/acceptance additions" — and a rule that
 /// matches heading names is a rule about prose style.
-fn parse_criteria(body: &str) -> Result<Vec<Criterion>> {
+pub(super) fn parse_criteria(body: &str) -> Result<Vec<Criterion>> {
     let checkbox = Regex::new(r"^\s*-\s\[[ xX]\]\s*(.*)$")?;
     let continuation = Regex::new(r"^\s+\S")?;
     let marker = Regex::new(CRITERION_MARKER)?;
@@ -934,6 +942,11 @@ fn plan_criteria(rule: &Rule, opts: &Options, ctx: &Ctx) -> Result<Vec<Finding>>
                 Some(kind) if !PROOF_KINDS.contains(&kind.as_str()) => {
                     format!("names unknown proof kind `{kind}`")
                 }
+                Some(kind) if kind == "property" && !criterion.value.is_empty() => {
+                    "carries a `property` marker missing its path or its falsifier: \
+                     write `property:PATH#FALSIFIER`, the mutation the property must reject"
+                        .to_string()
+                }
                 Some(kind) => format!("carries a `{kind}` marker with no value"),
             };
             findings.push(
@@ -944,10 +957,7 @@ fn plan_criteria(rule: &Rule, opts: &Options, ctx: &Ctx) -> Result<Vec<Finding>>
                     format!("unproven:{}:{}", file.rel, criterion.line),
                     format!("this acceptance criterion {detail}"),
                 )
-                .expected(
-                    "a trailing (proof: assertion:ID | test:PATH | deferred:REASON \
-                     | unspecified:REASON)",
-                )
+                .expected(PROOF_VOCABULARY)
                 .actual(criterion.text),
             );
         }
@@ -1057,6 +1067,33 @@ mod proof_budget {
             "a plan under the budget must stay quiet"
         );
     }
+
+    /// A property is checked, so it is not debt: the budget measures what
+    /// nobody worked out how to check. One debt against one property is 50%,
+    /// inside a 60% budget only if the property counts as proven; counted as
+    /// debt the plan would sit at 100%.
+    #[test]
+    fn a_property_counts_as_proven_rather_than_as_debt() {
+        let rule = rule();
+        let plan = "---\ncriteria:\n  - { id: A1, statement: an explicit zero survives the merge, proof: \"property:src/merge.rs#zero_read_as_unset\" }\n  - { id: A2, statement: the report is pretty, proof: \"unspecified:taste\" }\nexit: merges keep zero\n---\n# Merge\n";
+        assert!(
+            plan_proof_budget_findings(&rule, "plans/merge.md", plan, 60)
+                .expect("the plan parses")
+                .is_empty(),
+            "one property and one debt is 50%, under the 60% budget"
+        );
+        let all_debt = plan.replace(
+            "property:src/merge.rs#zero_read_as_unset",
+            "deferred:not built",
+        );
+        assert_eq!(
+            plan_proof_budget_findings(&rule, "plans/merge.md", &all_debt, 60)
+                .expect("the plan parses")[0]
+                .key,
+            "debt-budget:plans/merge.md",
+            "the control: the same plan with the property deferred is over budget"
+        );
+    }
 }
 
 /// `L3.GATE_COVERS_THE_PLAN`: the plan names a proof the gate never asks for,
@@ -1088,9 +1125,12 @@ fn gate_coverage(rule: &Rule, ctx: &Ctx) -> Result<Vec<Finding>> {
         };
         let criteria = parse_criteria(&body)?;
         if gate.required_assertions.is_empty()
-            && !criteria
-                .iter()
-                .any(|criterion| matches!(criterion.kind.as_deref(), Some("assertion" | "test")))
+            && !criteria.iter().any(|criterion| {
+                matches!(
+                    criterion.kind.as_deref(),
+                    Some("assertion" | "test" | "property")
+                )
+            })
         {
             findings.push(
                 Finding::new(
@@ -1102,7 +1142,7 @@ fn gate_coverage(rule: &Rule, ctx: &Ctx) -> Result<Vec<Finding>> {
                         "gate `{name}` requires no assertions and its plan names no undeferred criterion"
                     ),
                 )
-                .expected("a required assertion, or a plan criterion with an assertion or test proof")
+                .expected("a required assertion, or a plan criterion with an assertion, test or property proof")
                 .actual("no required assertions; only deferred, unspecified, or no criteria"),
             );
         }
@@ -1572,6 +1612,93 @@ mod claims {
 #[cfg(test)]
 mod declared_plans {
     use super::parse_criteria;
+    use crate::catalog::Catalog;
+
+    /// `L4.PLAN_CRITERION_NAMES_ITS_CHECK` over one plan written to disk, as
+    /// the (message, expected) of each finding.
+    fn criteria_findings(plan: &str) -> Vec<(String, String)> {
+        let root = crate::checks::runtime_pin::scratch("criteria", &[("plans/p.md", plan)]);
+        let policy: crate::policy::Policy = serde_yaml::from_str(
+            "version: 1\nproject:\n  name: p\n  languages: [rust]\nrules:\n  L4.PLAN_CRITERION_NAMES_ITS_CHECK:\n    enabled: true\n",
+        )
+        .expect("the policy parses");
+        let catalog = Catalog::builtin().expect("the shipped catalog loads");
+        let rule = catalog
+            .get("L4.PLAN_CRITERION_NAMES_ITS_CHECK")
+            .expect("the rule ships");
+        let files = crate::scan::walk(&root, &policy).expect("the scratch walks");
+        let ratchet = crate::ratchet::Ratchet::default();
+        let ctx = crate::checks::Ctx {
+            root: &root,
+            policy: &policy,
+            catalog: &catalog,
+            files: &files,
+            ratchet: &ratchet,
+            changed: None,
+            base: None,
+            today: "2026-01-01".to_string(),
+            allow_commands: false,
+            overlay: None,
+        };
+        let found = crate::checks::run_one(rule, &ctx).expect("the rule runs");
+        let _ = std::fs::remove_dir_all(&root);
+        found
+            .into_iter()
+            .map(|f| (f.message, f.expected.unwrap_or_default()))
+            .collect()
+    }
+
+    #[test]
+    fn a_property_marker_parses_into_its_path_and_falsifier() {
+        let body = "---\ncriteria:\n  - { id: A1, statement: an explicit zero survives, proof: \"property:src/merge.rs#zero_read_as_unset\" }\nexit: zero survives\n---\n# Merge\n\n- [ ] Totals never drop a line. (proof: property:tests/total.py#drops_last_line)\n";
+        let read: Vec<_> = parse_criteria(body)
+            .expect("the plan parses")
+            .into_iter()
+            .map(|c| (c.kind, c.value))
+            .collect();
+        assert_eq!(
+            read,
+            vec![
+                (
+                    Some("property".to_string()),
+                    "src/merge.rs#zero_read_as_unset".to_string()
+                ),
+                (
+                    Some("property".to_string()),
+                    "tests/total.py#drops_last_line".to_string()
+                ),
+            ]
+        );
+        assert!(
+            criteria_findings(body).is_empty(),
+            "a complete property marker is a proof marker"
+        );
+    }
+
+    /// Either half missing is refused, and the refusal names the grammar:
+    /// a property with no falsifier is a renamed `test:`, and one with no
+    /// path names nothing to run.
+    #[test]
+    fn a_property_missing_either_half_is_refused_with_the_vocabulary() {
+        for marker in [
+            "property:src/merge.rs",
+            "property:src/merge.rs#",
+            "property:#zero_read_as_unset",
+        ] {
+            let plan = format!("# Merge\n\n- [ ] An explicit zero survives. (proof: {marker})\n");
+            let found = criteria_findings(&plan);
+            assert_eq!(found.len(), 1, "{marker} should be refused: {found:?}");
+            let (message, expected) = &found[0];
+            assert!(
+                message.contains("property:PATH#FALSIFIER"),
+                "{marker}: the message names the form: {message}"
+            );
+            assert!(
+                expected.contains("property:PATH#FALSIFIER"),
+                "{marker}: the expected form lists the kind: {expected}"
+            );
+        }
+    }
 
     #[test]
     fn a_declaration_and_its_checkboxes_are_both_criteria() {
