@@ -256,7 +256,14 @@
       "languages": 0,
       "tools": 0,
       "must_live_in": 0,
-      "must_not_live_in": 0
+      "must_not_live_in": 0,
+      "incidental": [
+        ".software-factory/**",
+        "plans/next-steps.md"
+      ],
+      "delivered": [
+        "docs/design/*.md"
+      ]
     },
     "L4.PLAN_PROOF_BUDGET": {
       "severity": "medium",

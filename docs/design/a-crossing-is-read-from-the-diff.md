@@ -35,7 +35,7 @@ criteria:
 crosses:
   - { mechanism: plans, answer: works, proof: "test:src/checks/plan_declaration.rs (A1 to A6, A8)" }
   - { mechanism: policy-merge, answer: works, proof: "test:src/checks/tightening.rs (A7), where `incidental` merges one level over its default like every option" }
-  - { mechanism: tightening, answer: works, proof: "test:src/checks/tightening.rs (A7)" }
+  - { mechanism: tightening, answer: works, proof: "test:src/checks/tightening.rs (A7) and test:src/fingerprint.rs, which compare `incidental` and `delivered` as glob sets in the policy and the catalog lock" }
   - { mechanism: commands, answer: works, proof: "test:src/checks/plan_declaration.rs (changed_reads_a_non_ascii_path_as_the_path_itself), which reads `--changed` through src/main.rs `changed_paths`; no command rule or prose sweep moved" }
   - { mechanism: mutation-fixtures, answer: works, proof: "test:src/checks/plan_declaration.rs (A8); sf verify still proves the rule fires" }
   - { mechanism: catalog, answer: works, proof: "test:src/catalog.rs, which loads the rule under its unchanged id with its statement, fix and defaults grown" }
@@ -64,6 +64,7 @@ deviations:
   - "from review: `--changed` read git's quoted lines, so src/main.rs `changed_paths` now reads `git diff --name-only -z` through the same reader as default_branch, and a non-ASCII path arrives exact"
   - "from review: a changed delivered note whose declaration does not parse is in flight and refused as `unparsable`, rather than dropped with the work it carries"
   - "from review: `L2.POLICY_ONLY_TIGHTENS` compares `incidental` and `delivered` as sets, so any glob `incidental` gains or `delivered` loses is reported, a same-count replacement included"
+  - "from review: src/fingerprint.rs records the rule's `incidental` and `delivered` in the catalog lock for `L2.CATALOG_ONLY_TIGHTENS`, with the same set semantics; a lock written before records neither and compares neither"
 exit: "in this repository and in amy, a change editing a file its plan never declared, or reaching a mechanism through one, goes red at the pre-commit hook before the push, and CI gives the same findings"
 ---
 # A crossing is read from the diff
