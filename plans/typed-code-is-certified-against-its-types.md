@@ -1,4 +1,5 @@
 ---
+base: 2d6f9de2b3eb1400b9133e12a0c1d7ebd4e6d3c9
 sources:
   - { id: S1, kind: decision, said: "a TypeScript-only hazard rule: something proves the typed code meets its types, with TScert as the tool; not a rule for every language" }
   - { id: S2, kind: reference, ref: "https://github.com/cristianoc/TScert", said: "TScert accepts a TypeScript function only with a certificate a Lean-proved checker validates; it refuses any and decides nothing from as or !" }
