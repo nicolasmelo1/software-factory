@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "sf_version": "0.4.3",
+  "sf_version": "0.4.4",
   "catalog_digest": "488c1825434c699d6499b4be7b5d2a10ef13da162a76b291094bd3e95bccd78b",
   "rules": {
     "L0.EXCEPTIONS_HAVE_ONE_HOME": {
