@@ -582,10 +582,11 @@ fn is_glob(pattern: &str) -> bool {
 }
 
 /// Whether a deviation names a path literally, as a whole path: `src/a.rs`
-/// is not mentioned by `src/a.rs.bak` or `lib/src/a.rs`. A sentence may end
-/// on it, so a trailing full stop is not part of the path.
+/// is not mentioned by `src/a.rs.bak`, `src/a.rs~` or `lib/src/a.rs`. A
+/// sentence may end on it, so a trailing full stop is not part of the path.
 fn mentions(deviations: &[String], path: &str) -> bool {
-    let part = |c: char| c.is_alphanumeric() || matches!(c, '_' | '-' | '.' | '/');
+    let part =
+        |c: char| c.is_alphanumeric() || matches!(c, '_' | '-' | '.' | '/' | '~' | '+' | '@');
     deviations.iter().any(|deviation| {
         deviation.match_indices(path).any(|(at, _)| {
             let before = deviation[..at].chars().next_back();
@@ -1339,6 +1340,8 @@ mod tests {
         );
         for near in [
             "src/billing/charge.py.bak",
+            "src/billing/charge.py~",
+            "src/billing/charge.py+old",
             "lib/src/billing/charge.py",
             "src/billing/charge.pyc",
         ] {
