@@ -24,14 +24,14 @@ touches:
   - docs/rules.md
   - README.md
 criteria:
-  - { id: A1, statement: "a changed file no in-flight plan's touches, no incidental glob and no deviation covers is `untouched:<path>`; covered by any of them it is not", proof: "test:src/checks/plan_declaration.rs", sources: [S1, S2, S8] }
-  - { id: A2, statement: "a changed file reaching a mechanism no crossing answers is `uncrossed:<id>`, even when only a deviation names it; an incidental file reaches none", proof: "test:src/checks/plan_declaration.rs", sources: [S2, S9, S10] }
-  - { id: A3, statement: "only a plan whose own file is in the changed set, in the plans scope or delivered, is checked against the diff", proof: "test:src/checks/plan_declaration.rs", sources: [S7] }
-  - { id: A4, statement: "--changed wins; else default_branch's merge-base diff, proven in a real git repository; with neither the rule reports what it reported before", proof: "test:src/checks/plan_declaration.rs", sources: [S3, S4, S5, S13] }
-  - { id: A5, statement: "a git failure reading the changed set is a `changed-set` finding naming the command and its error", proof: "test:src/checks/plan_declaration.rs", sources: [S6] }
-  - { id: A6, statement: "one tree's diff findings come out sorted and deduplicated, identical run to run", proof: "test:src/checks/plan_declaration.rs", sources: [S11] }
-  - { id: A7, statement: "`L2.POLICY_ONLY_TIGHTENS` reports a widened `incidental` and a dropped `default_branch`", proof: "test:src/checks/tightening.rs", sources: [S12] }
-  - { id: A8, statement: "the fixture trips `untouched` and `uncrossed` through the diff and its repair clears both", proof: "test:src/checks/plan_declaration.rs", sources: [S8, S10] }
+  - { id: A1, statement: "a changed file no in-flight plan's touches, no incidental glob and no deviation covers is `untouched:<path>`; covered by any of them it is not", proof: "property:src/checks/plan_declaration.rs#a_prefix_covers", sources: [S1, S2, S8], done: true }
+  - { id: A2, statement: "a changed file reaching a mechanism no crossing answers is `uncrossed:<id>`, even when only a deviation names it; an incidental file reaches none", proof: "test:src/checks/plan_declaration.rs", sources: [S2, S9, S10], done: true }
+  - { id: A3, statement: "only a plan whose own file is in the changed set, in the plans scope or delivered, is checked against the diff", proof: "test:src/checks/plan_declaration.rs", sources: [S7], done: true }
+  - { id: A4, statement: "--changed wins; else default_branch's merge-base diff, proven in a real git repository; with neither the rule reports what it reported before", proof: "test:src/checks/plan_declaration.rs", sources: [S3, S4, S5, S13], done: true }
+  - { id: A5, statement: "a git failure reading the changed set is a `changed-set` finding naming the command and its error", proof: "test:src/checks/plan_declaration.rs", sources: [S6], done: true }
+  - { id: A6, statement: "one tree's diff findings come out sorted and deduplicated, identical run to run", proof: "test:src/checks/plan_declaration.rs", sources: [S11], done: true }
+  - { id: A7, statement: "`L2.POLICY_ONLY_TIGHTENS` reports a widened `incidental` and a dropped `default_branch`", proof: "test:src/checks/tightening.rs", sources: [S12], done: true }
+  - { id: A8, statement: "the fixture trips `untouched` and `uncrossed` through the diff and its repair clears both", proof: "test:src/checks/plan_declaration.rs", sources: [S8, S10], done: true }
 crosses:
   - { mechanism: plans, answer: works, proof: "test:src/checks/plan_declaration.rs (A1 to A6, A8)" }
   - { mechanism: policy-merge, answer: works, proof: "test:src/checks/tightening.rs (A7), where `incidental` merges one level over its default like every option" }
@@ -48,8 +48,22 @@ failures:
 cut:
   - "checking plans not in flight against the diff: refused, a stamped plan's base drifts behind main and would fire on everybody's work (S7)"
   - "a separate rule id: the linked declaration still names what this checks (S2)"
+deviations:
+  - "A1 cites the property `a_prefix_covers` rather than `test:`; the plan said `test:` only so its own commit stayed green before the falsifier existed"
+  - "a delivered plan is found through a new `delivered` option, default `docs/design/*.md`: the rule's scope reads only plans/, and S7 needs a delivered note read while in flight"
+  - "every changed file in the plan scope is incidental, not only in-flight ones: a plan the change removed or delivered is not work to declare"
+  - "a changed file is the crossing of the in-flight plan that declares or names it; a file nobody accounts for is every in-flight plan's"
+  - "`L2.POLICY_ONLY_TIGHTENS` also reports a narrowed `delivered`, the same loosening as a widened `incidental`; its property now generates `incidental` too"
+  - "git runs without GIT_DIR, GIT_WORK_TREE and GIT_INDEX_FILE, so a run inside a hook reads the repository at the root and nothing else"
+  - "A8: `sf verify` runs a fixture with no changed set, so it proves the rule fires on the declaration refusals; the diff refusals trip and clear on the same fixture in the unit test"
+  - "adding `default_branch` to `Project` moved src/init.rs, an adoption activation path: the gate was re-run against hono at 57ba76a and re-sealed"
+  - "README.md is in touches and did not change: sf docs regenerated nothing there"
+  - "`uncrossed` says whether the reach came from `touches` or from the diff"
+  - "the row left the execution order on delivery, so plans/next-steps.md and the row numbers cited in a-seal-refuses-a-stale-report.md are back as they were"
 exit: "in this repository and in amy, a change editing a file its plan never declared, or reaching a mechanism through one, goes red at the pre-commit hook before the push, and CI gives the same findings"
 ---
 # A crossing is read from the diff
+
+Delivered. This document was `plans/a-crossing-is-read-from-the-diff.md`, the plan this repository executed for it; it now lives here as the design note, with every criterion checked and what the work found under `deviations:`.
 
 Seven review findings were one finding: the work reached a mechanism its plan never answered, because the crossings a plan owes were read from what it declared rather than from what it changed.
