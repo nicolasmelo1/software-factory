@@ -1,4 +1,5 @@
 ---
+base: 6914586d0c97e6185c798717b364f6d7c3c914ae
 sources:
   - { id: S1, kind: code, ref: "src/checks/cadence.rs", said: "PROOF_KINDS is assertion, test, deferred, unspecified; `test:` says an example was checked, and nothing can say the statement was" }
   - { id: S2, kind: reference, ref: "docs/method.md", said: "every rule is written twice, prose and a failing check; a product's plan rules (no-evidence retry refused, counter honest, reconciliation idempotent) are statements over all inputs proven by three examples" }
