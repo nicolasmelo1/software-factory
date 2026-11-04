@@ -95,13 +95,26 @@ pub fn frontmatter(text: &str) -> Option<Frontmatter> {
 
 /// The parsed declaration, or why it does not parse.
 pub fn declaration(text: &str) -> Option<Result<(Frontmatter, Mapping), String>> {
-    let front = frontmatter(text)?;
+    let Some(front) = frontmatter(text) else {
+        // An opening fence that never closes is a declaration gone wrong,
+        // not the absence of one: refused, rather than dropped with the
+        // work it carries.
+        return opens_a_fence(text)
+            .then(|| Err("the frontmatter opens with `---` and never closes it".to_string()));
+    };
     Some(match serde_yaml::from_str::<Value>(&front.yaml) {
         Ok(Value::Mapping(map)) => Ok((front, map)),
         Ok(Value::Null) => Ok((front, Mapping::new())),
         Ok(_) => Err("the frontmatter is not a mapping".to_string()),
         Err(e) => Err(format!("the frontmatter is not valid YAML: {e}")),
     })
+}
+
+fn opens_a_fence(text: &str) -> bool {
+    let text = text.strip_prefix('\u{feff}').unwrap_or(text);
+    text.split_inclusive('\n')
+        .next()
+        .is_some_and(|line| line.trim_end() == "---")
 }
 
 /// A criterion a declaration carries, as the older plan rules read one.
@@ -1743,6 +1756,39 @@ mod tests {
                 "unparsable:docs/design/broken.md".to_string(),
             ],
             "the delivered note is in flight though it does not parse: it is refused, and the source it carried is owed rather than passed"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_delivered_note_whose_fence_never_closes_stays_in_flight() {
+        let dir = scratch("unclosed-delivered");
+        write(
+            &dir,
+            ".software-factory/policy.yaml",
+            "version: 1\nproject:\n  name: t\n  languages: []\nrules:\n  L4.PLAN_IS_A_LINKED_DECLARATION:\n    enabled: true\n",
+        );
+        write(
+            &dir,
+            "docs/design/open.md",
+            "---\ntouches: [\"src/ledger/**\"]\n# Open\n",
+        );
+        write(&dir, "src/ledger/post.py", "def post(): pass\n");
+        let changed = vec![
+            "docs/design/open.md".to_string(),
+            "src/ledger/post.py".to_string(),
+        ];
+        let keys: Vec<String> = rule_over_changed(&dir, Some(changed))
+            .into_iter()
+            .map(|finding| finding.key)
+            .collect();
+        assert_eq!(
+            keys,
+            vec![
+                "untouched:src/ledger/post.py:docs/design/open.md".to_string(),
+                "unparsable:docs/design/open.md".to_string(),
+            ],
+            "a note that lost its closing fence is refused, and the source it carried is owed"
         );
         let _ = std::fs::remove_dir_all(&dir);
     }
