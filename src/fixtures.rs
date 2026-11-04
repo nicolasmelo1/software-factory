@@ -499,6 +499,37 @@ pub const FIXTURES: &[Fixture] = &[
         )],
     },
     Fixture {
+        rule: "L5.EVERY_PROPERTY_HAS_A_FALSIFIER",
+        // The property is a shell script so the fixture runs anywhere `sh`
+        // does; a real one is a proptest, Hypothesis or fast-check test
+        // reading the same variable. One plan per refusal, and a control
+        // whose property passes as it is and fails with its falsifier
+        // planted, which must stay quiet. Without `--allow-commands` the
+        // two refusals that need nothing run still trip the rule.
+        policy_extra: "        run: 'sh \"$SF_PROPERTY\"'\n",
+        extra_rules: "",
+        files: &[
+            ("props/total.sh", A_PROPERTY_THAT_CAN_FAIL),
+            ("props/vacuous.sh", A_PROPERTY_THAT_CANNOT_FAIL),
+            (
+                "plans/unnamed.md",
+                "# Unnamed\n\nExit condition: totals keep zero.\n\n- [ ] An explicit zero survives. (proof: property:props/total.sh)\n",
+            ),
+            (
+                "plans/unwritten.md",
+                "# Unwritten\n\nExit condition: totals keep zero.\n\n- [ ] An explicit zero survives. (proof: property:props/total.sh#never_written)\n",
+            ),
+            (
+                "plans/vacuous.md",
+                "# Vacuous\n\nExit condition: totals keep zero.\n\n- [ ] An explicit zero survives. (proof: property:props/vacuous.sh#zero_read_as_unset)\n",
+            ),
+            (
+                "plans/proven.md",
+                "# Proven\n\nExit condition: totals keep zero.\n\n- [ ] An explicit zero survives. (proof: property:props/total.sh#zero_read_as_unset)\n",
+            ),
+        ],
+    },
+    Fixture {
         rule: "L2.FACTORY_CONFIG_IS_LOCKED",
         policy_extra: "",
         extra_rules: "",
@@ -771,6 +802,21 @@ Mark a promise like this:\n\n\
 <!-- claim: SOME_ID proven-by: some-gate -->\n\
 ```\n";
 
+/// A property that holds as the code is and is broken by the mutation it
+/// names: `zero_read_as_unset` planted, it fails.
+const A_PROPERTY_THAT_CAN_FAIL: &str = "\
+# total() keeps an explicit zero, over every generated line list.\n\
+case \"${SF_FALSIFIER:-}\" in\n\
+  zero_read_as_unset) exit 1 ;;\n\
+esac\n\
+exit 0\n";
+
+/// The same claim with a generator that never reaches the case: it names
+/// `zero_read_as_unset` and passes whether or not it is planted.
+const A_PROPERTY_THAT_CANNOT_FAIL: &str = "\
+# total() keeps an explicit zero; zero_read_as_unset is never generated.\n\
+exit 0\n";
+
 /// A believable CI file that tests and lints and hunts none of the hazards.
 const CI_WITHOUT_HAZARD_TOOLS: &str = "name: ci\non: [push]\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - run: pytest\n      - run: npm test\n      - run: go test ./...\n      - run: cargo test\n";
 
@@ -988,5 +1034,104 @@ mod runtime_pins {
         );
         assert_eq!(found.len(), 1, "{found:?}");
         assert_eq!(found[0].key, ".tool-versions:python");
+    }
+}
+
+#[cfg(test)]
+mod property_fixture {
+    use super::{A_PROPERTY_THAT_CAN_FAIL, fixture_policy, for_rule};
+    use crate::catalog::Catalog;
+    use crate::checks::{Ctx, run_one};
+    use crate::policy::{POLICY_PATH, Policy};
+    use crate::ratchet::Ratchet;
+    use std::path::Path;
+
+    const RULE: &str = "L5.EVERY_PROPERTY_HAS_A_FALSIFIER";
+
+    /// The fixture written out the way `sf fixtures` writes it.
+    fn written() -> std::path::PathBuf {
+        let fixture = for_rule(RULE).expect("the rule has a fixture");
+        let policy = fixture_policy(fixture);
+        let mut files: Vec<(&str, &str)> = fixture.files.to_vec();
+        files.push((POLICY_PATH, policy.as_str()));
+        crate::checks::runtime_pin::scratch("property-fixture", &files)
+    }
+
+    /// Each finding as `plan: kind`, sorted.
+    fn findings(root: &Path, allow_commands: bool) -> Vec<String> {
+        let policy = Policy::load(root).expect("the fixture policy loads");
+        let catalog = Catalog::builtin().expect("the shipped catalog loads");
+        let files = crate::scan::walk(root, &policy).expect("the fixture walks");
+        let ratchet = Ratchet::default();
+        let ctx = Ctx {
+            root,
+            policy: &policy,
+            catalog: &catalog,
+            files: &files,
+            ratchet: &ratchet,
+            changed: None,
+            base: None,
+            today: "2026-01-01".to_string(),
+            allow_commands,
+            overlay: None,
+        };
+        let rule = catalog.get(RULE).expect("the rule ships");
+        let mut found: Vec<String> = run_one(rule, &ctx)
+            .expect("the rule runs")
+            .into_iter()
+            .map(|f| {
+                let plan = f.location.split(':').next().unwrap_or_default().to_string();
+                let kind = f.key.split(':').next().unwrap_or_default().to_string();
+                format!("{plan}: {kind}")
+            })
+            .collect();
+        found.sort();
+        found
+    }
+
+    /// The mutation trips the rule plan by plan, for exactly its own reason,
+    /// and the control stays quiet once commands run. Without them, the two
+    /// refusals that need nothing run still fire, so `sf verify` proves the
+    /// rule either way.
+    #[test]
+    fn the_fixture_trips_each_refusal_and_the_repair_clears_it() {
+        let root = written();
+        assert_eq!(
+            findings(&root, true),
+            vec![
+                "plans/unnamed.md: no-falsifier",
+                "plans/unwritten.md: missing-falsifier",
+                "plans/vacuous.md: unfalsified",
+            ]
+        );
+        assert_eq!(
+            findings(&root, false),
+            vec![
+                "plans/proven.md: not-run",
+                "plans/unnamed.md: no-falsifier",
+                "plans/unwritten.md: missing-falsifier",
+                "plans/vacuous.md: not-run",
+            ]
+        );
+
+        // The repair: each plan names a falsifier the property plants, and
+        // the vacuous generator reaches its case.
+        let cite = "property:props/total.sh#zero_read_as_unset";
+        for (plan, broken) in [
+            ("plans/unnamed.md", "property:props/total.sh)"),
+            (
+                "plans/unwritten.md",
+                "property:props/total.sh#never_written)",
+            ),
+        ] {
+            let path = root.join(plan);
+            let text = std::fs::read_to_string(&path).expect("the plan reads");
+            std::fs::write(&path, text.replace(broken, &format!("{cite})")))
+                .expect("the plan is repaired");
+        }
+        std::fs::write(root.join("props/vacuous.sh"), A_PROPERTY_THAT_CAN_FAIL)
+            .expect("the property is repaired");
+        assert_eq!(findings(&root, true), Vec::<String>::new());
+        let _ = std::fs::remove_dir_all(&root);
     }
 }

@@ -20,7 +20,7 @@ helper adoption groups sibling functions by what they consume; guard agreement
 compares callers by what dominates them, and neither exit condition proves the
 other.
 
-Rows 16 to 18 follow the split of #63, which adds a rule that asks a model
+Rows 15 to 17 follow the split of #63, which adds a rule that asks a model
 whether a gate's report supports a claim. They start once that rule and its
 backend protocol have landed. A verdict becomes sealed evidence first, because
 the other two are checks over it; the judge is proven to fail next, because a
@@ -55,15 +55,13 @@ suite comes last, because it needs both to have something to prove end to end.
 
 | 13 | [Calls to one capability share the guard](calls-to-one-capability-share-the-guard.md) | Callers of one resolvable capability cannot silently disagree about the guard that enables it, a point fix does not hide the next unguarded path, and unsupported control flow is counted rather than called safe. |
 
-| 14 | [A property is a proof with a falsifier](a-property-is-a-proof-with-a-falsifier.md) | A plan cites a statement rather than an example, the citation names the mutation that statement rejects, and removing that mutation turns the plan's own gate red. |
+| 14 | [A hazard tool is proven to fail](a-hazard-tool-is-proven-to-fail.md) | A repository whose performance guard cannot fail is told so by `sf verify`, with the command it ran and the exit code it got, and every other hazard tool it declares is proved to go red on a defect planted under it. |
 
-| 15 | [A hazard tool is proven to fail](a-hazard-tool-is-proven-to-fail.md) | A repository whose performance guard cannot fail is told so by `sf verify`, with the command it ran and the exit code it got, and every other hazard tool it declares is proved to go red on a defect planted under it. |
+| 15 | [A verdict is evidence](a-verdict-is-evidence.md) | A repository with marked claims runs `sf judge` once, commits the sealed verdicts, and from then on `sf check` is deterministic and offline for this rule, and goes red the moment a claim sentence or the report it cites changes without being judged again. |
 
-| 16 | [A verdict is evidence](a-verdict-is-evidence.md) | A repository with marked claims runs `sf judge` once, commits the sealed verdicts, and from then on `sf check` is deterministic and offline for this rule, and goes red the moment a claim sentence or the report it cites changes without being judged again. |
+| 16 | [A judge is proven to fail](a-judge-is-proven-to-fail.md) | A repository whose judge approves everything is told so by `sf verify` before any claim is judged, and relaxing what the judge accepts is a policy change the L2 rules refuse rather than a string edit `sf lock` absorbs. |
 
-| 17 | [A judge is proven to fail](a-judge-is-proven-to-fail.md) | A repository whose judge approves everything is told so by `sf verify` before any claim is judged, and relaxing what the judge accepts is a policy change the L2 rules refuse rather than a string edit `sf lock` absorbs. |
-
-| 18 | [Any typed decision model can judge](any-typed-decision-model-can-judge.md) | This repository's own tests prove the rule end to end with no account, no key and no tokens spent, and switching a consumer from Jev to a local model is a change to one backend command with no change to the question file or the sealed verdict format. |
+| 17 | [Any typed decision model can judge](any-typed-decision-model-can-judge.md) | This repository's own tests prove the rule end to end with no account, no key and no tokens spent, and switching a consumer from Jev to a local model is a change to one backend command with no change to the question file or the sealed verdict format. |
 
 ## Parked
 

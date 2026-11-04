@@ -355,11 +355,11 @@ Each enabled rule is referenced at least once from documentation by its id, and 
 
 **Every acceptance criterion names the check that proves it**
 
-Each acceptance criterion written as a checkbox in a plan closes with a proof marker — `(proof: assertion:ID)`, `(proof: test:PATH)`, `(proof: deferred:REASON)` or `(proof: unspecified:REASON)`.
+Each acceptance criterion written as a checkbox in a plan closes with a proof marker — `(proof: assertion:ID)`, `(proof: test:PATH)`, `(proof: property:PATH#FALSIFIER)`, `(proof: deferred:REASON)` or `(proof: unspecified:REASON)`.
 
 **Why.** A plan states its criteria in prose and the gate enforces a list of checks, and nothing joins the two. That gap does not need anybody to be dishonest to become expensive: a criterion is promised, the gate never covered it, the plan records the gap on some line in the middle of a long document, and the only way to learn a phase's real status is to re-read the phase. Naming the check inside the criterion makes the join mechanical, and forces the decision at the moment of writing rather than at the moment someone asks. The two debt kinds are the load-bearing half — `deferred` for a criterion that is not built and `unspecified` for one no check has been designed for are both legitimate, and declaring them is what turns an admission into something greppable.
 
-**Fix.** Append the marker naming what proves the criterion, or give a declared criterion a `proof:` key in the same grammar. If nothing proves it yet, say which: `deferred:` when the criterion is not built, `unspecified:` when no check has been designed for it. Both take a reason, and both are a supported answer — an unmarked criterion is not.
+**Fix.** Append the marker naming what proves the criterion, or give a declared criterion a `proof:` key in the same grammar. A statement over every input is a `property:`, and it names after `#` the mutation it must reject. If nothing proves it yet, say which: `deferred:` when the criterion is not built, `unspecified:` when no check has been designed for it. Both take a reason, and both are a supported answer — an unmarked criterion is not.
 
 ### L4.PLAN_DECLARES_EXIT_CONDITION
 
@@ -422,6 +422,16 @@ For each enabled rule there is a mutation fixture that violates it, and `sf veri
 **Why.** Without this layer every other layer is theatre. A check with a typo in its query, a glob that matches nothing, or a scope that excludes the whole source tree passes silently forever and reads exactly like a check that works — a green build proves nothing about a rule that never ran. The mutation is the only thing that distinguishes enforcement from decoration.
 
 **Fix.** Write the smallest file that violates the rule under the mutations directory and run `sf verify`. If the rule does not fire on it, the rule is broken — fix the rule, not the fixture.
+
+### L5.EVERY_PROPERTY_HAS_A_FALSIFIER
+
+**Every property a plan cites is proven able to fail**
+
+A criterion proven by `(proof: property:PATH#FALSIFIER)` names a falsifier that the file at PATH carries, and the rule's `run` command passes with nothing planted and fails with `SF_FALSIFIER` set to that falsifier.
+
+**Why.** A plan's rules are mostly statements over every input — an explicit zero survives a merge, a retry with no evidence is refused, a migration run twice changes nothing — and three examples do not check a statement. A property-based test does, and it is also the easiest proof to make vacuous: a generator that never reaches the case passes forever and reads exactly like a property that holds. So `property:` cannot be a renamed `test:`; it carries the obligation `L5.EVERY_CHECK_HAS_A_MUTATION_TEST` puts on a rule, one level out. The falsifier is the implementation mutation the property must reject, named where the plan cites it, and the rule runs both directions the way `sf verify` does: passing as the code is, failing with the mutation planted. Both, because a command that always fails rejects every falsifier. What it does not hold against is written down rather than implied: surviving a planted mutation proves the generator reaches that case, not every case, and nobody audits a generator's distribution.
+
+**Fix.** Name the mutation after `#` and write it in the property file, planted only when `SF_FALSIFIER` names it; point this rule's `run` at the command that runs the property at `SF_PROPERTY`, and run `sf check --allow-commands`. A property that passes with its falsifier planted has a generator that never reaches the case: widen the generator, do not soften the falsifier.
 
 ### L5.NO_INERT_RULE
 

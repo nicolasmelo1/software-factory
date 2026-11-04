@@ -95,9 +95,14 @@ fn policy_findings(rule: &Rule, ctx: &Ctx, before: &Policy) -> Vec<Finding> {
                 "the rule still present".to_string(),
                 "removed".to_string(),
             )),
-            Some(current) => {
-                findings.extend(rule_findings(rule, ctx.catalog, id, previous, current))
-            }
+            Some(current) => findings.extend(rule_findings(
+                rule,
+                ctx.catalog,
+                crate::policy::merge,
+                id,
+                previous,
+                current,
+            )),
         }
     }
     for (name, previous) in &before.gates {
@@ -124,10 +129,17 @@ fn policy_findings(rule: &Rule, ctx: &Ctx, before: &Policy) -> Vec<Finding> {
     findings
 }
 
+/// How an instance's options fall through to the catalog default. Passed in
+/// rather than called by name so the property in this file's tests can
+/// compare through a merge with a defect planted, which is how it shows it
+/// can fail.
+type Merge = fn(&serde_yaml::Value, &serde_yaml::Value) -> serde_yaml::Value;
+
 /// One rule, compared with the version being replaced.
 fn rule_findings(
     rule: &Rule,
     catalog: &crate::catalog::Catalog,
+    merge: Merge,
     id: &str,
     previous: &crate::policy::RuleSetting,
     current: &crate::policy::RuleSetting,
@@ -143,8 +155,8 @@ fn rule_findings(
         ));
     }
     let (was, now) = (
-        effective_size(catalog, id, &previous.options),
-        effective_size(catalog, id, &current.options),
+        effective_size(catalog, merge, id, &previous.options),
+        effective_size(catalog, merge, id, &current.options),
     );
     if now.excludes > was.excludes {
         findings.push(weakened(
@@ -331,6 +343,7 @@ struct Size {
 /// grew by none.
 fn effective_size(
     catalog: &crate::catalog::Catalog,
+    merge: Merge,
     id: &str,
     options: &serde_yaml::Value,
 ) -> Size {
@@ -338,7 +351,7 @@ fn effective_size(
         .get(crate::policy::base_rule_id(id))
         .map(|r| r.defaults.clone())
         .unwrap_or(serde_yaml::Value::Null);
-    let merged = crate::policy::merge(&defaults, options);
+    let merged = merge(&defaults, options);
     let options: Options = serde_yaml::from_value(merged).unwrap_or_default();
     Size {
         excludes: options.exclude.len(),
@@ -371,6 +384,7 @@ mod tests {
             rule_findings(
                 catalog.get("L2.POLICY_ONLY_TIGHTENS").expect("ships"),
                 &catalog,
+                crate::policy::merge,
                 "L4.PLAN_PROOF_BUDGET",
                 &previous,
                 &current,
@@ -391,6 +405,7 @@ mod tests {
             rule_findings(
                 catalog.get("L2.POLICY_ONLY_TIGHTENS").expect("ships"),
                 &catalog,
+                crate::policy::merge,
                 "L4.PLAN_PROOF_BUDGET",
                 &previous,
                 &current,
@@ -411,6 +426,7 @@ mod tests {
             rule_findings(
                 catalog.get("L2.POLICY_ONLY_TIGHTENS").expect("ships"),
                 &catalog,
+                crate::policy::merge,
                 "L4.PLAN_PROOF_BUDGET",
                 &previous,
                 &current,
@@ -423,7 +439,12 @@ mod tests {
     #[test]
     fn effective_size_merges_over_the_catalog_default() {
         let catalog = Catalog::builtin().expect("the shipped catalog loads");
-        let size = effective_size(&catalog, "L4.PLAN_PROOF_BUDGET", &serde_yaml::Value::Null);
+        let size = effective_size(
+            &catalog,
+            crate::policy::merge,
+            "L4.PLAN_PROOF_BUDGET",
+            &serde_yaml::Value::Null,
+        );
         assert_eq!(
             size.excludes, 1,
             "the default exclude survives a null override"
@@ -449,10 +470,17 @@ mod tests {
             serde_yaml::from_str("enabled: true\noptions:\n  max_words: 80\n")
                 .expect("the current setting parses");
         let id = "L4.PLAN_IS_A_LINKED_DECLARATION";
-        let mut keys: Vec<_> = rule_findings(rule, &catalog, id, &previous, &current)
-            .into_iter()
-            .map(|finding| finding.key)
-            .collect();
+        let mut keys: Vec<_> = rule_findings(
+            rule,
+            &catalog,
+            crate::policy::merge,
+            id,
+            &previous,
+            &current,
+        )
+        .into_iter()
+        .map(|finding| finding.key)
+        .collect();
         keys.sort();
         assert_eq!(
             keys,
@@ -464,7 +492,15 @@ mod tests {
             ]
         );
         assert!(
-            rule_findings(rule, &catalog, id, &current, &previous).is_empty(),
+            rule_findings(
+                rule,
+                &catalog,
+                crate::policy::merge,
+                id,
+                &current,
+                &previous
+            )
+            .is_empty(),
             "tightening every declaration option is silent"
         );
     }
@@ -487,6 +523,7 @@ mod tests {
         let keys: Vec<_> = rule_findings(
             rule,
             &catalog,
+            crate::policy::merge,
             "L3.GATE_HAS_FRESH_EVIDENCE",
             &previous,
             &current,
@@ -520,5 +557,219 @@ mod tests {
             !previously_enabled(&before, "L1.INDIRECTION_EARNS_ITS_NAME"),
             "a rule absent from the baseline is newly enabled too"
         );
+    }
+}
+
+/// `L2.POLICY_ONLY_TIGHTENS` over every starting value rather than three: a
+/// weakening move is reported and its inverse is silent, whatever explicit
+/// value the policy started from — including the `0`, `false` and empty list
+/// a merge is most likely to read as unset.
+///
+/// Its falsifier is `falsy_read_as_unset`: a merge that treats an explicit
+/// zero, `false` or empty override as absent, so the catalog default shows
+/// through. Planted when `SF_FALSIFIER` names it, which is how
+/// `L5.EVERY_PROPERTY_HAS_A_FALSIFIER` proves this property can fail.
+#[cfg(test)]
+mod property {
+    use super::{Merge, rule_findings};
+    use crate::catalog::Catalog;
+    use crate::policy::RuleSetting;
+    use proptest::prelude::*;
+    use proptest::test_runner::Config;
+    use serde_yaml::{Mapping, Value};
+
+    /// Loaded once: the catalog compiles every query it ships, and a case
+    /// that reloads it spends its time there rather than on the property.
+    static CATALOG: std::sync::LazyLock<Catalog> =
+        std::sync::LazyLock::new(|| Catalog::builtin().expect("the shipped catalog loads"));
+
+    /// The planted defect, the one config merges keep shipping: an override
+    /// that is false, zero or empty reads as "not set".
+    fn falsy_read_as_unset(base: &Value, over: &Value) -> Value {
+        let Value::Mapping(over) = over else {
+            return crate::policy::merge(base, over);
+        };
+        let set: Mapping = over
+            .iter()
+            .filter(|(_, value)| match value {
+                Value::Bool(b) => *b,
+                Value::Number(n) => n.as_u64() != Some(0),
+                Value::Sequence(items) => !items.is_empty(),
+                Value::String(s) => !s.is_empty(),
+                _ => true,
+            })
+            .map(|(key, value)| (key.clone(), value.clone()))
+            .collect();
+        crate::policy::merge(base, &Value::Mapping(set))
+    }
+
+    /// The merge under test: the real one, unless a falsifier is planted.
+    fn merge() -> Merge {
+        match std::env::var(crate::checks::properties::FALSIFIER_VAR).as_deref() {
+            Ok("falsy_read_as_unset") => falsy_read_as_unset,
+            _ => crate::policy::merge,
+        }
+    }
+
+    /// One rule instance's explicit options: every value the comparison
+    /// reads, each stated rather than left to the default.
+    #[derive(Debug, Clone)]
+    struct Setting {
+        enabled: bool,
+        max: u64,
+        exclude: Vec<String>,
+        scope: Vec<String>,
+        max_words: u64,
+        max_body_lines: u64,
+        require_declaration: bool,
+        forbidden_in_goal: Vec<String>,
+    }
+
+    impl Setting {
+        fn rule_setting(&self) -> RuleSetting {
+            let options = serde_yaml::to_value(serde_json::json!({
+                "max": self.max,
+                "exclude": self.exclude,
+                "scope": self.scope,
+                "max_words": self.max_words,
+                "max_body_lines": self.max_body_lines,
+                "require_declaration": self.require_declaration,
+                "forbidden_in_goal": self.forbidden_in_goal,
+            }))
+            .expect("options serialise");
+            RuleSetting {
+                enabled: self.enabled,
+                options,
+                when: None,
+            }
+        }
+    }
+
+    /// One move in the direction the rule refuses.
+    #[derive(Debug, Clone, Copy)]
+    enum Weakening {
+        Disable,
+        Exclude,
+        RaiseMax(u64),
+        NarrowScope,
+        RaiseMaxWords(u64),
+        RaiseMaxBodyLines(u64),
+        StopRequiringDeclaration,
+        AdmitGoal,
+    }
+
+    impl Weakening {
+        /// The setting after the move, or `None` where the move has nothing
+        /// to take away.
+        fn apply(self, before: &Setting) -> Option<Setting> {
+            let mut after = before.clone();
+            match self {
+                Weakening::Disable => after.enabled = false,
+                Weakening::Exclude => after.exclude.push("weakened/**".to_string()),
+                Weakening::RaiseMax(by) => after.max += by,
+                Weakening::NarrowScope => {
+                    after.scope.pop()?;
+                }
+                Weakening::RaiseMaxWords(by) => after.max_words += by,
+                Weakening::RaiseMaxBodyLines(by) => after.max_body_lines += by,
+                Weakening::StopRequiringDeclaration if before.require_declaration => {
+                    after.require_declaration = false
+                }
+                Weakening::StopRequiringDeclaration => return None,
+                Weakening::AdmitGoal => {
+                    after.forbidden_in_goal.pop()?;
+                }
+            }
+            Some(after)
+        }
+    }
+
+    /// Zero and empty half the time: the boundary is where merges lose a
+    /// value, so the generator is pointed at it rather than hoping.
+    fn count() -> impl Strategy<Value = u64> {
+        prop_oneof![Just(0u64), 1u64..80]
+    }
+
+    fn globs(prefix: &'static str) -> impl Strategy<Value = Vec<String>> {
+        prop_oneof![
+            Just(Vec::new()),
+            prop::collection::vec((0u8..9).prop_map(move |n| format!("{prefix}{n}/**")), 1..4),
+        ]
+    }
+
+    fn setting() -> impl Strategy<Value = Setting> {
+        (
+            count(),
+            globs("excluded"),
+            globs("scoped"),
+            count(),
+            count(),
+            any::<bool>(),
+            globs("/goal"),
+        )
+            .prop_map(
+                |(max, exclude, scope, max_words, max_body_lines, require, goal)| Setting {
+                    enabled: true,
+                    max,
+                    exclude,
+                    scope,
+                    max_words,
+                    max_body_lines,
+                    require_declaration: require,
+                    forbidden_in_goal: goal,
+                },
+            )
+    }
+
+    fn weakening() -> impl Strategy<Value = Weakening> {
+        prop_oneof![
+            Just(Weakening::Disable),
+            Just(Weakening::Exclude),
+            (1u64..5).prop_map(Weakening::RaiseMax),
+            Just(Weakening::NarrowScope),
+            (1u64..5).prop_map(Weakening::RaiseMaxWords),
+            (1u64..5).prop_map(Weakening::RaiseMaxBodyLines),
+            Just(Weakening::StopRequiringDeclaration),
+            Just(Weakening::AdmitGoal),
+        ]
+    }
+
+    /// Rules whose catalog defaults differ: a ceiling and a scope, a ceiling
+    /// alone, and none, so a default showing through is visible.
+    fn rule_id() -> impl Strategy<Value = &'static str> {
+        prop_oneof![
+            Just("L4.PLAN_PROOF_BUDGET"),
+            Just("L1.COMPLEXITY_CEILING"),
+            Just("L4.PLAN_IS_A_LINKED_DECLARATION"),
+            Just("L3.GATE_HAS_FRESH_EVIDENCE"),
+        ]
+    }
+
+    proptest! {
+        // No regression file: a falsifier run is meant to fail, and must not
+        // write into the tree it is checking.
+        #![proptest_config(Config { cases: 512, failure_persistence: None, ..Config::default() })]
+
+        #[test]
+        fn a_weakening_is_reported_and_its_inverse_is_silent(
+            id in rule_id(),
+            before in setting(),
+            weakening in weakening(),
+        ) {
+            let Some(after) = weakening.apply(&before) else {
+                return Err(TestCaseError::reject("nothing to take away"));
+            };
+            let catalog = &*CATALOG;
+            let rule = catalog.get("L2.POLICY_ONLY_TIGHTENS").expect("the rule ships");
+            let (was, now) = (before.rule_setting(), after.rule_setting());
+            prop_assert!(
+                !rule_findings(rule, catalog, merge(), id, &was, &now).is_empty(),
+                "{weakening:?} on {id} from {before:?} passed silently"
+            );
+            prop_assert!(
+                rule_findings(rule, catalog, merge(), id, &now, &was).is_empty(),
+                "undoing {weakening:?} on {id} was reported as a weakening"
+            );
+        }
     }
 }

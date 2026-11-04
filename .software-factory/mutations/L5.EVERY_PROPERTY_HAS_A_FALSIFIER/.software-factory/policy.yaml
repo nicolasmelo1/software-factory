@@ -1,0 +1,13 @@
+# Generated mutation fixture for L5.EVERY_PROPERTY_HAS_A_FALSIFIER. It is supposed to fail.
+version: 1
+project:
+  name: mutation-L5.EVERY_PROPERTY_HAS_A_FALSIFIER
+  languages: [python, typescript, go, rust, ruby]
+docs:
+  scan: ["docs/**/*.md"]
+gates: {}
+rules:
+  L5.EVERY_PROPERTY_HAS_A_FALSIFIER:
+    enabled: true
+    options:
+        run: 'sh "$SF_PROPERTY"'
