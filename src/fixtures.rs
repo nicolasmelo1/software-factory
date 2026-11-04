@@ -1029,4 +1029,26 @@ mod type_soundness_fixture {
             );
         }
     }
+
+    /// The repair the rule's fix prescribes clears it: the invocation it
+    /// documents names one of the tools the checker looks for. A fix whose
+    /// own example the checker cannot see leaves a repository that followed
+    /// it red.
+    #[test]
+    fn the_invocation_the_fix_documents_clears_it() {
+        let catalog = Catalog::builtin().expect("the built-in catalog loads");
+        let rule = &catalog.rules["L6.TYPE_SOUNDNESS_IS_CERTIFIED"];
+        let options: Options =
+            serde_yaml::from_value(rule.defaults.clone()).expect("the defaults parse");
+        let documented = "make -C TScert check FILE=src/money.ts PROJECT=.";
+        assert!(rule.fix.contains("make -C TScert check FILE="));
+
+        let repaired = format!("{CI_WITHOUT_HAZARD_TOOLS}      - run: {documented}\n");
+        assert!(
+            options.tools["typescript"]
+                .iter()
+                .any(|tool| repaired.contains(tool.as_str())),
+            "the documented invocation is invisible to the checker"
+        );
+    }
 }

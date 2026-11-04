@@ -575,7 +575,7 @@ mod type_soundness {
 
         assert_eq!(options.tools.keys().collect::<Vec<_>>(), vec!["typescript"]);
         assert!(options.tools["typescript"].contains(&"pipeline/verify-source.mts".to_string()));
-        assert!(rule.fix.contains("make check FILE="));
+        assert!(rule.fix.contains("make -C TScert check FILE="));
         assert!(rule.fix.contains("exits non-zero"));
         assert!(rule.fix.contains("make census"));
         assert!(rule.fix.contains("do not vendor"));
