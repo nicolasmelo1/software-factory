@@ -12,7 +12,6 @@ use crate::finding::{Finding, Severity};
 use crate::policy::Options;
 use crate::scan;
 use anyhow::Result;
-use regex::Regex;
 use std::collections::BTreeMap;
 use std::path::Path;
 use std::process::Command;
@@ -30,6 +29,21 @@ pub fn split(value: &str) -> Option<(&str, &str)> {
     let (path, falsifier) = (path.trim(), falsifier.trim());
     let word = !falsifier.is_empty() && !falsifier.contains(char::is_whitespace);
     (!path.is_empty() && word).then_some((path, falsifier))
+}
+
+/// Whether `text` carries `name` as a whole token: not inside a longer
+/// identifier on either side.
+///
+/// A regex word boundary cannot close after a name ending in punctuation
+/// (`drops_last_line!` before a quote), and `split` accepts any name without
+/// whitespace, so the edges are checked by hand instead: the characters
+/// beside an occurrence must not continue an identifier.
+fn names_token(text: &str, name: &str) -> bool {
+    let continues = |c: Option<char>| c.is_some_and(|c| c.is_alphanumeric() || c == '_');
+    text.match_indices(name).any(|(at, _)| {
+        !continues(text[..at].chars().next_back())
+            && !continues(text[at + name.len()..].chars().next())
+    })
 }
 
 /// One property a plan cites, at the first criterion that cites it.
@@ -95,9 +109,7 @@ fn named(root: &Path, value: &str) -> Result<(String, String), Refusal> {
             format!("the property at `{path}`"),
         ));
     };
-    let word = Regex::new(&format!(r"\b{}\b", regex::escape(falsifier)))
-        .expect("an escaped word compiles");
-    if !word.is_match(&text) {
+    if !names_token(&text, falsifier) {
         return Err((
             "missing-falsifier",
             format!(
@@ -209,7 +221,7 @@ fn run_once(root: &Path, command: &str, path: &str, falsifier: Option<&str>) -> 
 
 #[cfg(test)]
 mod tests {
-    use super::split;
+    use super::{names_token, split};
     use crate::catalog::Catalog;
     use crate::checks::{Ctx, run_one};
     use crate::policy::Policy;
@@ -283,6 +295,23 @@ mod tests {
         for refused in ["src/merge.rs", "src/merge.rs#", "#zero", "a.rs#two words"] {
             assert_eq!(split(refused), None, "{refused}");
         }
+    }
+
+    /// A name is matched as a whole token, punctuation included, and never
+    /// inside a longer identifier.
+    #[test]
+    fn a_falsifier_is_found_as_a_whole_token() {
+        assert!(names_token(
+            "case \"$SF_FALSIFIER\" in\n  drops_last_line!) exit 1 ;;",
+            "drops_last_line!"
+        ));
+        assert!(names_token(
+            "  zero_read_as_unset) exit 1 ;;",
+            "zero_read_as_unset"
+        ));
+        assert!(!names_token("  zero_read_as_unset) exit 1 ;;", "zero"));
+        assert!(!names_token("  unset_zero) exit 1 ;;", "zero"));
+        assert!(!names_token("nothing here", "zero"));
     }
 
     /// A2: the named falsifier has to exist. Absent from the property file,
