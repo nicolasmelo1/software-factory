@@ -20,9 +20,9 @@ touches:
   - docs/rules.md
   - README.md
 criteria:
-  - { id: A1, statement: "a toolchain rule in catalog/L6/type-soundness-is-certified.yaml whose only tools are TypeScript's, and whose fix names the TScert command that exits non-zero on an unverified file and says it is invoked, never vendored", proof: "test:src/catalog.rs", sources: [S1, S2, S3, S4, S5, S7] }
-  - { id: A2, statement: "its mutation fixture, a CI that runs no certifier, trips it for typescript and for no other language", proof: "test:src/fixtures.rs", sources: [S4] }
-  - { id: A3, statement: "this repository switches it off with the reason written in docs/rules.md, and sf verify stays green", proof: "unspecified:sf verify and sf check over this repository", sources: [S6] }
+  - { id: A1, statement: "a toolchain rule in catalog/L6/type-soundness-is-certified.yaml whose only tools are TypeScript's, and whose fix names the TScert command that exits non-zero on an unverified file and says it is invoked, never vendored", proof: "test:src/catalog.rs", sources: [S1, S2, S3, S4, S5, S7], done: true }
+  - { id: A2, statement: "its mutation fixture, a CI that runs no certifier, trips it for typescript and for no other language", proof: "test:src/fixtures.rs", sources: [S4], done: true }
+  - { id: A3, statement: "this repository switches it off with the reason written in docs/rules.md, and sf verify stays green", proof: "unspecified:sf verify reports every enabled rule proven to fire and sf check is green over this repository, with the rule off in policy.yaml and its reason in docs/rules.md", sources: [S6], done: true }
 crosses:
   - { mechanism: catalog, answer: works, proof: "test:src/catalog.rs; registered in BUILTIN" }
   - { mechanism: mutation-fixtures, answer: works, proof: "test:src/fixtures.rs" }
@@ -38,9 +38,14 @@ cut:
   - "a rule for languages other than TypeScript: TScert is TypeScript's (S1)"
   - "vendoring or installing TScert: invoked by the repository's own CI only (S3)"
   - "enabling it by default or through the interview: opt-in (S6)"
+deviations:
+  - "sf docs also regenerated docs/concepts/hunting-defect-classes.md and docs/concepts/the-seven-layers.md, whose tables are derived from the catalog"
+  - "the fixture, materialized under .software-factory/mutations, was also run by hand: one finding, for typescript; a CI step running make -C TScert check clears it"
 exit: "a TypeScript repository that enables the rule is red until its CI runs TScert's check, and this repository says in writing why it is off here"
 ---
 # Typed code is certified against its types
+
+Delivered. This document was `plans/typed-code-is-certified-against-its-types.md`; the rule it argued for ships as `L6.TYPE_SOUNDNESS_IS_CERTIFIED`, off here in writing.
 
 TypeScript's checker is unsound by design, and an agent reaches for `as` and `!`
 exactly where the shape was unclear. TScert accepts a function only with a

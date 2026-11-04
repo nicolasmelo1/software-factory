@@ -59,8 +59,6 @@ suite comes last, because it needs both to have something to prove end to end.
 
 | 17 | [Any typed decision model can judge](any-typed-decision-model-can-judge.md) | This repository's own tests prove the rule end to end with no account, no key and no tokens spent, and switching a consumer from Jev to a local model is a change to one backend command with no change to the question file or the sealed verdict format. |
 
-| 18 | [Typed code is certified against its types](typed-code-is-certified-against-its-types.md) | A TypeScript repository that enables the type-soundness hazard rule is red until its CI runs TScert's check, and this repository says in writing why it is off here. |
-
 ## Parked
 
 Nothing is parked. Rule packs waited on version-conditional activation, which

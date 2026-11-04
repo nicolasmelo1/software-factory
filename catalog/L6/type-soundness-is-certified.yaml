@@ -1,0 +1,39 @@
+id: L6.TYPE_SOUNDNESS_IS_CERTIFIED
+layer: L6
+title: Something proves the typed code meets its types
+severity: medium
+statement: >-
+  The TypeScript files this repository declares certified are run through a
+  certifier somewhere the repository actually executes, and the build fails
+  when one of them stops verifying.
+why: >-
+  TypeScript's checker is unsound on purpose: `any`, `as`, `!`, unchecked
+  index reads and covariant arrays all let a program that passes `tsc` read
+  `undefined` where its type says `string`. Agents reach for exactly those
+  forms at the moment a shape was unclear, because a cast is a smaller diff
+  than the decision it skips, and a green `tsc` then reports the guess as a
+  fact. A certifier takes nothing on trust: it accepts a function only with a
+  proof, so a cast decides nothing and the guess comes back as a refusal with
+  a location. It covers a subset of the language and needs its own toolchain,
+  which is why this rule is enabled by choice, for the files where a wrong
+  value costs most.
+fix: >-
+  Run TScert (github.com/cristianoc/TScert) from CI at a pinned release:
+  `make check FILE=<file> PROJECT=<dir>` for each file you declare certified,
+  which exits non-zero when the file does not verify. Do not guard with
+  `make census`, which records what it found and exits zero either way. Clone
+  and invoke it; its licence forbids using its code to train or improve
+  machine-learning systems, so do not vendor it into an agent's tooling.
+ratchet: allowlist
+check:
+  kind: toolchain
+defaults:
+  scope:
+    - ".github/workflows/**"
+    - ".gitlab-ci.yml"
+    - "Makefile"
+    - "justfile"
+    - "Taskfile.yml"
+    - "package.json"
+  tools:
+    typescript: ["pipeline/verify-source.mts", "TScert check", "tscert check"]

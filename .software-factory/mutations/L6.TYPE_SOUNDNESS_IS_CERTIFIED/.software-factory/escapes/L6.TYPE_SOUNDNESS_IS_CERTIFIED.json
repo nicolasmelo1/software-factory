@@ -1,0 +1,12 @@
+{
+  "typescript": {
+    "attempts": [
+      "794d86876b3a310e657d97096b4f2e94437a51a0a910222574fa86f632d872ac"
+    ],
+    "snapshot": {
+      ".software-factory/policy.yaml": "# Generated mutation fixture for L6.TYPE_SOUNDNESS_IS_CERTIFIED. It is supposed to fail.\nversion: 1\nproject:\n  name: mutation-L6.TYPE_SOUNDNESS_IS_CERTIFIED\n  languages: [python, typescript, go, rust, ruby]\ndocs:\n  scan: [\"docs/**/*.md\"]\ngates: {}\nrules:\n  L6.TYPE_SOUNDNESS_IS_CERTIFIED:\n    enabled: true\n"
+    },
+    "escapes": [],
+    "surfaced": 0
+  }
+}

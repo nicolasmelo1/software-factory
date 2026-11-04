@@ -586,6 +586,12 @@ pub const FIXTURES: &[Fixture] = &[
         files: &[(".github/workflows/ci.yml", CI_WITHOUT_HAZARD_TOOLS)],
     },
     Fixture {
+        rule: "L6.TYPE_SOUNDNESS_IS_CERTIFIED",
+        policy_extra: "",
+        extra_rules: "",
+        files: &[(".github/workflows/ci.yml", CI_WITHOUT_HAZARD_TOOLS)],
+    },
+    Fixture {
         rule: "L6.URLS_ARE_DECODED_BY_THE_PLATFORM",
         policy_extra: "",
         extra_rules: "",
@@ -988,5 +994,39 @@ mod runtime_pins {
         );
         assert_eq!(found.len(), 1, "{found:?}");
         assert_eq!(found[0].key, ".tool-versions:python");
+    }
+}
+
+#[cfg(test)]
+mod type_soundness_fixture {
+    use super::{CI_WITHOUT_HAZARD_TOOLS, for_rule};
+    use crate::catalog::Catalog;
+    use crate::policy::Options;
+
+    /// The fixture's CI runs every language's tests and no certifier, so the
+    /// rule trips for TypeScript; it claims no other language, so nothing
+    /// else can trip. `sf verify` proves the first half against the real
+    /// checker; this pins the second, which a tool added for another
+    /// language would quietly break.
+    #[test]
+    fn a_ci_that_runs_no_certifier_trips_it_for_typescript_alone() {
+        let fixture = for_rule("L6.TYPE_SOUNDNESS_IS_CERTIFIED").expect("the fixture exists");
+        assert_eq!(
+            fixture.files,
+            &[(".github/workflows/ci.yml", CI_WITHOUT_HAZARD_TOOLS)]
+        );
+
+        let catalog = Catalog::builtin().expect("the built-in catalog loads");
+        let rule = &catalog.rules["L6.TYPE_SOUNDNESS_IS_CERTIFIED"];
+        let options: Options =
+            serde_yaml::from_value(rule.defaults.clone()).expect("the defaults parse");
+
+        assert_eq!(options.tools.len(), 1);
+        for tool in &options.tools["typescript"] {
+            assert!(
+                !CI_WITHOUT_HAZARD_TOOLS.contains(tool.as_str()),
+                "{tool} is in the fixture"
+            );
+        }
     }
 }

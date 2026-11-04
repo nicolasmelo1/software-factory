@@ -417,6 +417,10 @@ pub const BUILTIN: &[(&str, &str)] = &[
         include_str!("../catalog/L6/performance-regression-is-guarded.yaml"),
     ),
     (
+        "L6/type-soundness-is-certified.yaml",
+        include_str!("../catalog/L6/type-soundness-is-certified.yaml"),
+    ),
+    (
         "L6/no-blocking-call-while-holding-a-lock.yaml",
         include_str!("../catalog/L6/no-blocking-call-while-holding-a-lock.yaml"),
     ),
@@ -545,5 +549,35 @@ mod completeness {
              files on disk with no BUILTIN entry: {unregistered:?}\n\
              BUILTIN entries with no file on disk: {missing:?}"
         );
+    }
+}
+
+#[cfg(test)]
+mod type_soundness {
+    use super::Catalog;
+    use crate::policy::Options;
+
+    /// The certifier reads TypeScript and nothing else, so the rule claims
+    /// no other language: a Rust or Python repository that enabled it would
+    /// be told nothing, which `L5.NO_INERT_RULE` reports rather than a green
+    /// pass. And the fix names the command that exits non-zero on a file
+    /// that does not verify, not the census, which exits zero whatever it
+    /// found.
+    #[test]
+    fn it_is_typescript_s_alone_and_its_fix_names_a_command_that_fails() {
+        let catalog = Catalog::builtin().expect("the built-in catalog loads");
+        let rule = catalog
+            .rules
+            .get("L6.TYPE_SOUNDNESS_IS_CERTIFIED")
+            .expect("the rule ships");
+        let options: Options =
+            serde_yaml::from_value(rule.defaults.clone()).expect("the defaults parse");
+
+        assert_eq!(options.tools.keys().collect::<Vec<_>>(), vec!["typescript"]);
+        assert!(options.tools["typescript"].contains(&"pipeline/verify-source.mts".to_string()));
+        assert!(rule.fix.contains("make check FILE="));
+        assert!(rule.fix.contains("exits non-zero"));
+        assert!(rule.fix.contains("make census"));
+        assert!(rule.fix.contains("do not vendor"));
     }
 }

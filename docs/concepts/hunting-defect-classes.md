@@ -16,6 +16,7 @@ in your CI or task runner.
 | Something scans the code for known-insecure patterns | gosec, semgrep, staticcheck, codeql | bandit, semgrep, codeql | brakeman, semgrep, codeql | cargo-geiger, cargo clippy, clippy, semgrep | semgrep, eslint-plugin-security, codeql |
 | Something would notice the code getting slower | go test -bench, benchstat, -bench | pytest-benchmark, asv, richbench | no tool listed | criterion, cargo bench, divan | vitest bench, benchmark.js, tinybench, hyperfine |
 | Something scans for committed secrets | detect-secrets, gitleaks, trufflehog | detect-secrets, gitleaks, trufflehog | detect-secrets, gitleaks, trufflehog | detect-secrets, gitleaks, trufflehog | detect-secrets, gitleaks, trufflehog |
+| Something proves the typed code meets its types | no tool listed | no tool listed | no tool listed | no tool listed | pipeline/verify-source.mts, TScert check, tscert check |
 | Something scans the CI workflows themselves | zizmor, poutine, octoscan | zizmor, poutine, octoscan | zizmor, poutine, octoscan | zizmor, poutine, octoscan | zizmor, poutine, octoscan |
 
 <!-- sf:end hazard-tools -->

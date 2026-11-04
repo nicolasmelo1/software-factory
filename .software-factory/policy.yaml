@@ -275,6 +275,12 @@ rules:
   # L6 — Something scans the CI workflows themselves
   L6.WORKFLOWS_ARE_SCANNED:
     enabled: true
+  # L6 — Something proves the typed code meets its types
+  L6.TYPE_SOUNDNESS_IS_CERTIFIED:
+    # Disabled: the rule's only tool is TypeScript's, and this repository is
+    # Rust — there is no typed TypeScript here for a certifier to read. It
+    # earns its keep in the TypeScript repositories that opt into it.
+    enabled: false
   # L6 — A file URL is converted by the platform's own decoder
   L6.URLS_ARE_DECODED_BY_THE_PLATFORM:
     # Disabled: this repository is Rust, and the rule's vocabulary is
