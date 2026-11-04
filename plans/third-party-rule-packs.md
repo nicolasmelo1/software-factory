@@ -14,7 +14,7 @@ touches:
   - src/verify.rs
 criteria:
   - { id: A1, statement: "a pack is catalog-shaped rule YAML plus one mutation fixture per rule, with no new format to learn", proof: "deferred:the catalog format is fixed, the packaging around it is not designed yet", sources: [S1, S2, S3, S4] }
-  - { id: A2, statement: "`sf pack add` runs `sf verify` over the pack and writes nothing if any rule fails to fire", proof: "deferred:depends on the install path, not designed yet", sources: [S5, S7] }
+  - { id: A2, statement: "`sf pack add` runs `sf verify` over the pack and writes nothing if any rule fails to fire", proof: "deferred:property:src/pack.rs#writes_each_rule_as_it_verifies", sources: [S5, S7] }
   - { id: A3, statement: "installed pack rules carry a `when` naming the dependency and version they describe", proof: "deferred:the pack format carries no `when` field yet", sources: [S8] }
   - { id: A4, statement: "no pack is fetched or evaluated at check time", proof: "unspecified:an absence, enforced by review of the diff that adds the subcommand", sources: [S4, S6] }
 crosses:
