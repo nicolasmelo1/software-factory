@@ -657,6 +657,7 @@ fn root_allowlist(root: &Path) -> Result<String> {
             languages: Vec::new(),
             exclude: Vec::new(),
             roots: Vec::new(),
+            default_branch: None,
         },
         rules: Default::default(),
         gates: Default::default(),

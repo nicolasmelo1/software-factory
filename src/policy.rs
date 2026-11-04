@@ -59,6 +59,14 @@ pub struct Options {
     /// Refuse a plan that is prose with no declaration at all.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub require_declaration: bool,
+    /// Files a change may alter without any plan declaring them, as globs.
+    /// The in-flight plans' own files are always incidental on top of these.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub incidental: Vec<String>,
+    /// Where a delivered plan lives. A changed file here that opens with a
+    /// declaration is in flight, and is judged like a plan in `scope`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub delivered: Vec<String>,
     // evidence
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub forbidden_in_goal: Vec<String>,
@@ -339,6 +347,13 @@ pub struct Project {
     /// checkout lives beside this one or somewhere else entirely.
     #[serde(default)]
     pub roots: Vec<String>,
+    /// The branch work merges into, e.g. `main`. When set, a check that
+    /// needs the work's changed set and was given no `--changed` diffs the
+    /// tree against `git merge-base HEAD <default_branch>`, so a pre-commit
+    /// run reads the same set CI does. Any ref git resolves is accepted; the
+    /// merge-base is only as fresh as that ref is locally.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub default_branch: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]

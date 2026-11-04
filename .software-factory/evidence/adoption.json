@@ -1,14 +1,14 @@
 {
   "schema_version": 1,
   "gate": "adoption",
-  "implementation_sha256": "ca18e7c3bc128c8a519d2f1aba32511777141c06bd92915e192c75b798270f2e",
+  "implementation_sha256": "bfc40df4f6201c68186a473cb23fbf78b8c2bc90cd151b0b8fe12f26962524be",
   "runs": [
     {
       "scenario": "adoption",
       "status": "passed",
       "actor": "Claude (agent), running .software-factory/evidence/adoption-scenario.sh against a scratch checkout of the public hono repository at 57ba76a, for Nicolas Melo",
       "report": ".software-factory/evidence/adoption-run.json",
-      "report_sha256": "ef4ee91f4c7684b7c3b078e674d64cdbfc9fd934393e58ea4d42bafffc77db81",
+      "report_sha256": "daea055aa57377837c67f19edd99b85ca67578b873dcc654071232e530d03a51",
       "required_assertions": []
     }
   ]

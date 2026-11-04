@@ -105,6 +105,7 @@ fn policy_findings(rule: &Rule, ctx: &Ctx, before: &Policy) -> Vec<Finding> {
             )),
         }
     }
+    findings.extend(project_findings(rule, before, ctx.policy));
     for (name, previous) in &before.gates {
         match ctx.policy.gates.get(name) {
             None => findings.push(weakened(
@@ -125,6 +126,27 @@ fn policy_findings(rule: &Rule, ctx: &Ctx, before: &Policy) -> Vec<Finding> {
             }
             Some(_) => {}
         }
+    }
+    findings
+}
+
+/// What the policy's `project` loses: a default branch dropped means a run
+/// without `--changed` stops reading the work's diff, and a plan's changed
+/// files go back to being whatever its author remembered.
+fn project_findings(rule: &Rule, before: &Policy, now: &Policy) -> Vec<Finding> {
+    let mut findings = Vec::new();
+    if let Some(branch) = &before.project.default_branch
+        && now.project.default_branch.is_none()
+    {
+        findings.push(weakened(
+            rule,
+            "default-branch-removed",
+            format!(
+                "`project.default_branch` was removed, so a run without `--changed` no longer reads the work's diff against `{branch}`"
+            ),
+            format!("default_branch: {branch}"),
+            "none".to_string(),
+        ));
     }
     findings
 }
@@ -241,6 +263,27 @@ fn declaration_findings(rule: &Rule, id: &str, was: &Size, now: &Size) -> Vec<Fi
             "require_declaration: false".to_string(),
         ));
     }
+    if now.incidental > was.incidental {
+        findings.push(weakened(
+            rule,
+            &format!("incidental-widened:{id}"),
+            format!(
+                "{id} lets {} more glob(s) of changed files go undeclared",
+                now.incidental - was.incidental
+            ),
+            format!("{} incidental glob(s)", was.incidental),
+            format!("{} incidental glob(s)", now.incidental),
+        ));
+    }
+    if now.delivered < was.delivered {
+        findings.push(weakened(
+            rule,
+            &format!("delivered-narrowed:{id}"),
+            format!("{id} reads delivered plans in fewer places"),
+            format!("{} delivered glob(s)", was.delivered),
+            format!("{} delivered glob(s)", now.delivered),
+        ));
+    }
     if was.mechanisms.is_some() && now.mechanisms.is_none() {
         findings.push(weakened(
             rule,
@@ -330,6 +373,8 @@ struct Size {
     max_body_lines: Option<usize>,
     require_declaration: bool,
     mechanisms: Option<String>,
+    incidental: usize,
+    delivered: usize,
 }
 
 /// The counts that decide direction, computed on the options a rule will
@@ -363,6 +408,8 @@ fn effective_size(
         max_body_lines: options.max_body_lines,
         require_declaration: options.require_declaration,
         mechanisms: options.mechanisms,
+        incidental: options.incidental.len(),
+        delivered: options.delivered.len(),
     }
 }
 
@@ -506,6 +553,61 @@ mod tests {
     }
 
     #[test]
+    fn widening_incidental_is_a_weakening_and_narrowing_it_is_not() {
+        let catalog = Catalog::builtin().expect("the shipped catalog loads");
+        let rule = catalog
+            .get("L2.POLICY_ONLY_TIGHTENS")
+            .expect("the rule ships");
+        let id = "L4.PLAN_IS_A_LINKED_DECLARATION";
+        let previous: RuleSetting = serde_yaml::from_str("enabled: true\n").expect("parses");
+        let current: RuleSetting = serde_yaml::from_str(
+            "enabled: true\noptions:\n  incidental: [\".software-factory/**\", \"plans/next-steps.md\", \"src/**\"]\n  delivered: []\n",
+        )
+        .expect("parses");
+        let keys = |was: &RuleSetting, now: &RuleSetting| {
+            let mut keys: Vec<_> =
+                rule_findings(rule, &catalog, crate::policy::merge, id, was, now)
+                    .into_iter()
+                    .map(|finding| finding.key)
+                    .collect();
+            keys.sort();
+            keys
+        };
+        assert_eq!(
+            keys(&previous, &current),
+            vec![
+                format!("delivered-narrowed:{id}"),
+                format!("incidental-widened:{id}"),
+            ]
+        );
+        assert!(
+            keys(&current, &previous).is_empty(),
+            "back to the catalog default is a tightening"
+        );
+    }
+
+    #[test]
+    fn dropping_the_default_branch_is_a_weakening() {
+        let catalog = Catalog::builtin().expect("the shipped catalog loads");
+        let rule = catalog
+            .get("L2.POLICY_ONLY_TIGHTENS")
+            .expect("the rule ships");
+        let with: Policy = serde_yaml::from_str(
+            "version: 1\nproject:\n  name: p\n  languages: []\n  default_branch: main\n",
+        )
+        .expect("parses");
+        let without: Policy =
+            serde_yaml::from_str("version: 1\nproject:\n  name: p\n  languages: []\n")
+                .expect("parses");
+        let keys: Vec<_> = super::project_findings(rule, &with, &without)
+            .into_iter()
+            .map(|finding| finding.key)
+            .collect();
+        assert_eq!(keys, vec!["default-branch-removed"]);
+        assert!(super::project_findings(rule, &without, &with).is_empty());
+    }
+
+    #[test]
     fn removing_goal_or_actor_denylist_values_is_a_weakening() {
         let catalog = Catalog::builtin().expect("the shipped catalog loads");
         let rule = catalog
@@ -623,6 +725,7 @@ mod property {
         max_body_lines: u64,
         require_declaration: bool,
         forbidden_in_goal: Vec<String>,
+        incidental: Vec<String>,
     }
 
     impl Setting {
@@ -635,6 +738,7 @@ mod property {
                 "max_body_lines": self.max_body_lines,
                 "require_declaration": self.require_declaration,
                 "forbidden_in_goal": self.forbidden_in_goal,
+                "incidental": self.incidental,
             }))
             .expect("options serialise");
             RuleSetting {
@@ -656,6 +760,7 @@ mod property {
         RaiseMaxBodyLines(u64),
         StopRequiringDeclaration,
         AdmitGoal,
+        WidenIncidental,
     }
 
     impl Weakening {
@@ -679,6 +784,7 @@ mod property {
                 Weakening::AdmitGoal => {
                     after.forbidden_in_goal.pop()?;
                 }
+                Weakening::WidenIncidental => after.incidental.push("widened/**".to_string()),
             }
             Some(after)
         }
@@ -706,17 +812,21 @@ mod property {
             count(),
             any::<bool>(),
             globs("/goal"),
+            globs("incidental"),
         )
             .prop_map(
-                |(max, exclude, scope, max_words, max_body_lines, require, goal)| Setting {
-                    enabled: true,
-                    max,
-                    exclude,
-                    scope,
-                    max_words,
-                    max_body_lines,
-                    require_declaration: require,
-                    forbidden_in_goal: goal,
+                |(max, exclude, scope, max_words, max_body_lines, require, goal, incidental)| {
+                    Setting {
+                        enabled: true,
+                        max,
+                        exclude,
+                        scope,
+                        max_words,
+                        max_body_lines,
+                        require_declaration: require,
+                        forbidden_in_goal: goal,
+                        incidental,
+                    }
                 },
             )
     }
@@ -731,6 +841,7 @@ mod property {
             (1u64..5).prop_map(Weakening::RaiseMaxBodyLines),
             Just(Weakening::StopRequiringDeclaration),
             Just(Weakening::AdmitGoal),
+            Just(Weakening::WidenIncidental),
         ]
     }
 
