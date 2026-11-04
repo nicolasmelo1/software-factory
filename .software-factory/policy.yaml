@@ -245,6 +245,23 @@ rules:
   # L5 — An enabled rule must be capable of producing a finding
   L5.NO_INERT_RULE:
     enabled: true
+  # L5 — Every property a plan cites is proven able to fail
+  L5.EVERY_PROPERTY_HAS_A_FALSIFIER:
+    enabled: true
+    options:
+      # Delivered plans move to `docs/design/` with their criteria, and a
+      # property cited there still has to be able to fail.
+      scope:
+        - "plans/*.md"
+        - "docs/design/*.md"
+      # A property here is a `property` module inside the file the plan
+      # cites, so the path names the test filter: `src/checks/tightening.rs`
+      # runs `checks::tightening::property::`. Only that module runs, and
+      # `SF_FALSIFIER` reaches it through cargo's environment.
+      run: |
+        set -eu
+        module=$(printf '%s' "$SF_PROPERTY" | sed 's#^src/##; s#\.rs$##; s#/#::#g')
+        cargo test --locked --quiet --bin sf -- "$module::property::"
   # L6 — Concurrent code is exercised under a race detector
   L6.DATA_RACES_ARE_DETECTED:
     # Disabled: sf spawns no threads, holds no locks and shares no mutable

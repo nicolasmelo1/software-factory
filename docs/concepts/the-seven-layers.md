@@ -12,7 +12,7 @@ about. Which order to adopt them in is a different question, answered in
 | **L2** | Contract | no drift from the source of truth | 8 | 6 |
 | **L3** | Effect | a real actor achieved the outcome | 3 | 3 |
 | **L4** | Cadence | docs, plans and rules stay attached | 9 | 9 |
-| **L5** | Meta | the guardrail is proven to fire | 2 | 2 |
+| **L5** | Meta | the guardrail is proven to fire | 3 | 3 |
 | **L6** | Hazard | the defect classes this repository hunts | 11 | 8 |
 
 <!-- sf:end layer-index -->

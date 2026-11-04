@@ -86,6 +86,11 @@ exit:      "the externally visible effect that ends it"
 ---
 ```
 
+- **A statement over every input is a `property:`, not a `test:`.**
+  `proof: "property:PATH#FALSIFIER"` cites a property-based test and names
+  the mutation it must reject; the property plants it when `SF_FALSIFIER`
+  names it. `L5.EVERY_PROPERTY_HAS_A_FALSIFIER` refuses one that passes with
+  it planted.
 - **Every criterion names a source, every source is named.** An orphan on
   either side changes nothing that is built: cut it.
 - **Crossings are derived.** With `mechanisms:` set, every mechanism whose

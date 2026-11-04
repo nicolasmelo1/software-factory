@@ -163,6 +163,9 @@ pub enum CadenceMode {
     RuleCommands,
     /// Every promise a page marks is joined to a gate the policy declares.
     ClaimCitations,
+    /// Every property a plan cites names a falsifier, and is proven to pass
+    /// without it and fail with it planted.
+    PropertyFalsifiers,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -371,6 +374,10 @@ pub const BUILTIN: &[(&str, &str)] = &[
     (
         "L5/no-inert-rule.yaml",
         include_str!("../catalog/L5/no-inert-rule.yaml"),
+    ),
+    (
+        "L5/every-property-has-a-falsifier.yaml",
+        include_str!("../catalog/L5/every-property-has-a-falsifier.yaml"),
     ),
     (
         "L2/factory-config-is-locked.yaml",
