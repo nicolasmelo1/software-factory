@@ -11,7 +11,7 @@ sources:
   - { id: S8, kind: decision, said: "`L3.GATE_HAS_FRESH_EVIDENCE` reports `<gate>:<scenario>:report-stale` when a report's digest differs from the manifest's, so a manifest edited by hand cannot get around the seal" }
   - { id: S9, kind: decision, said: "the field is required from the release that ships this, not phased in: the version pin makes the upgrade deliberate, and an optional field would leave the hole open for everyone who never adds it" }
   - { id: S10, kind: reference, ref: "docs/method.md", said: "the factory-evidence skill writes a harness, not a subcommand; `sf init` writes `gates: {}` and no harness, so the skill's procedure has to stamp the digest or a new gate fails its first seal" }
-  - { id: S11, kind: reference, ref: "plans/next-steps.md", said: "a harness the tool generates is row 2, the gate assumes a way to run the product; it is ordered after this row and will have to stamp like any other" }
+  - { id: S11, kind: reference, ref: "plans/next-steps.md", said: "a harness the tool generates is row 3, the gate assumes a way to run the product; it is ordered after this row and will have to stamp like any other" }
 touches:
   - src/checks/evidence.rs
   - src/main.rs
@@ -29,7 +29,7 @@ criteria:
 crosses:
   - { mechanism: evidence, answer: works, proof: "test:src/checks/evidence.rs (A1-A4)" }
   - { mechanism: commands, answer: works, proof: "test:src/checks/evidence.rs (A3): `--digest` is a flag on the existing `seal`, so prose that names it names a real command" }
-  - { mechanism: init-and-interview, answer: n/a, why: "`sf init` writes `gates: {}` and no harness; the harness is the factory-evidence skill's, and a generated one is row 2's (S10, S11)" }
+  - { mechanism: init-and-interview, answer: n/a, why: "`sf init` writes `gates: {}` and no harness; the harness is the factory-evidence skill's, and a generated one is row 3's (S10, S11)" }
   - { mechanism: catalog, answer: works, proof: "test:src/checks/evidence.rs (A4): the rule id is unchanged, only its finding set grows" }
   - { mechanism: generated-docs, answer: works, proof: "`sf docs --check` after the rule's prose changes" }
   - { mechanism: skills, answer: works, proof: "test:.software-factory/evidence/adoption-scenario.sh (A5): a harness following the updated procedure produces a stamped report the new refusal accepts" }
@@ -42,7 +42,7 @@ cut:
   - "inferring staleness from file modification times: refused, a checkout resets them and CI never sees the order things happened in"
   - "an optional field or a warning-only phase: refused (S9)"
   - "proving the harness really ran against the build it names"
-  - "a harness generator: row 2, which stamps like any other harness (S11)"
+  - "a harness generator: row 3, which stamps like any other harness (S11)"
   - "dropping a policy-required assertion by editing the run: refused by the union; retiring it is a policy change (S5)"
 exit: "a gate cannot be sealed, and `sf check` cannot go green, over a report that was produced against an implementation other than the one on disk; re-sealing without re-running fails and says to re-run"
 ---
