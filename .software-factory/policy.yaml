@@ -291,6 +291,9 @@ rules:
   # L6 — Something would notice the code getting slower
   L6.PERFORMANCE_REGRESSION_IS_GUARDED:
     enabled: true
+  # L6 — A private name stays out of this public repository
+  L6.A_PRIVATE_NAME_STAYS_PRIVATE:
+    enabled: true
   # L6 — Something scans for committed secrets
   L6.SECRETS_ARE_SCANNED:
     enabled: true

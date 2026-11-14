@@ -6,8 +6,9 @@
     ".github/workflows/release-plz.yml": "57bab94b235309c9570defdfe5524a888c65bc83c74d10496ce3963fc693b6a0",
     ".github/workflows/release.yml": "cfbf7dfa023db1c52ef6c9fc5111f7df5e151bdb39a0dc992adaf60011579ec3",
     ".github/workflows/software-factory.yml": "0350f6ff218f228765453461949d2c9b7ce5158c0705a7968c332a7b629f7eab",
-    ".software-factory/policy.yaml": "a3782f420b366b9f9c374377e990932e16d9029a65314bb0644aa61ba69ac8f9",
+    ".software-factory/policy.yaml": "5b0dc28c108f05ce61e366dd22229ed33fbac36e43773a027016559049fdcbf2",
     ".software-factory/ratchet.yaml": "42611c9974434ff314625fb33bc49b24517ca5bdf3fb629538c271b2f7a03db5",
+    ".software-factory/rules/a-private-name-stays-private.yaml": "4c52fa572589da5c1f395d3d5e6c9748e0eaf2622b658b67b797e7f1d6e57f13",
     "release-plz.toml": "b307798df7eee1e3a0339c14283aed599c92460e1b2d7d44ed2492fbdc81eced",
     "scripts/prepare-release-pr.sh": "ddd1904a42f77c5331f9e0abfc39fa0fa092db8ea03bf60a1d1ad65dd8cf0a92"
   }

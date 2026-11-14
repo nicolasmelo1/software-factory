@@ -1,5 +1,5 @@
 {
-  "_why": "Digests of names that belong to private work and must never appear in this public repository. Never written out: a plaintext list of what a company is hiding is the leak this check exists to prevent, and a check naming its own terms reports itself on every run. Enforced by tests/private_references.rs. To add a term: `printf '%s' <term> | shasum -a 256` and record it with its length.",
+  "_why": "Digests of names that belong to private work and must never appear in this public repository. Never written out: a plaintext list of what a company is hiding is the leak this check exists to prevent, and a check naming its own terms reports itself on every run. Enforced by tests/private_references.rs. To add a term: `printf '%s' <term> | shasum -a 256` and record it with its length; add `\"word\": true` for a term short enough to hide inside ordinary words, so only a whole word equal to it matches.",
   "denied": [
     {
       "length": 4,
@@ -8,6 +8,11 @@
     {
       "length": 7,
       "sha256": "b7dd07c8913ad307243930ad8876d261a9f1bc729269f81a8e8605684e65ff65"
+    },
+    {
+      "length": 3,
+      "sha256": "065ed379fcd90c9fcc6f60523bc25d182a31a3f102ad9430ab5b477ba1d1504c",
+      "word": true
     }
   ]
 }
