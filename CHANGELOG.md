@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.5](https://github.com/nicolasmelo1/software-factory/compare/v0.4.4...v0.4.5) - 2026-11-14
+
+### Other
+
+- the team's ticket key stays private, and sf check says so ([#78](https://github.com/nicolasmelo1/software-factory/pull/78))
+- *(plans)* plans declare the property that proves a statement over every input ([#76](https://github.com/nicolasmelo1/software-factory/pull/76))
+
 ## [0.4.4](https://github.com/nicolasmelo1/software-factory/compare/v0.4.3...v0.4.4) - 2026-11-04
 
 ### Added
