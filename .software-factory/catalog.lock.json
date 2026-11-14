@@ -332,6 +332,17 @@
       "must_live_in": 0,
       "must_not_live_in": 0
     },
+    "L6.A_PRIVATE_NAME_STAYS_PRIVATE": {
+      "severity": "critical",
+      "scope": 0,
+      "exclude": 0,
+      "forbidden": 0,
+      "narrowed_patterns": 0,
+      "languages": 0,
+      "tools": 0,
+      "must_live_in": 0,
+      "must_not_live_in": 0
+    },
     "L6.DEAD_CODE_IS_DETECTED": {
       "severity": "medium",
       "scope": 6,

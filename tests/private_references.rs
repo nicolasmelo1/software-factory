@@ -19,6 +19,15 @@
 //! way a term standing on its own is. That is what makes the length part of
 //! the policy: without it there is no window to hash. The examples here are
 //! fictional on purpose: this file is read by the check it implements.
+//!
+//! A short term is the exception. Three letters hide inside ordinary words —
+//! a window over `xyz` would also fire on `fooxyzbar` — so a term may be
+//! marked `"word": true`, and then only a whole word equal to it matches:
+//! `XYZ-12` splits into `xyz` and `12` and is found, `fooxyzbar` is not.
+//!
+//! `L6.A_PRIVATE_NAME_STAYS_PRIVATE` runs this test through `sf check`, and
+//! proves it on its mutation fixture by pointing `SF_PRIVATE_ROOT` at the
+//! fixture: the policy and the files are read from there, not from here.
 
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -38,6 +47,9 @@ struct DeniedTerm {
     length: usize,
     /// Lowercase hex sha256 of the lowercased term.
     sha256: String,
+    /// Match only a whole word equal to the term, never a window inside one.
+    #[serde(default)]
+    word: bool,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -62,13 +74,19 @@ fn digest(value: &str) -> String {
 /// did not load".
 fn find_private_references(files: &[(String, String)], denied: &[DeniedTerm]) -> Vec<PrivateRef> {
     let mut found = Vec::new();
-    let mut widths: Vec<usize> = denied.iter().map(|term| term.length).collect();
+    let windowed = denied.iter().filter(|term| !term.word);
+    let mut widths: Vec<usize> = windowed.clone().map(|term| term.length).collect();
     widths.sort_unstable();
     widths.dedup();
-    let digests: HashSet<&str> = denied.iter().map(|term| term.sha256.as_str()).collect();
-    let Some(&narrowest) = widths.first() else {
+    let digests: HashSet<&str> = windowed.map(|term| term.sha256.as_str()).collect();
+    let words: HashSet<&str> = denied
+        .iter()
+        .filter(|term| term.word)
+        .map(|term| term.sha256.as_str())
+        .collect();
+    if denied.is_empty() {
         return found;
-    };
+    }
 
     // A repository repeats its vocabulary constantly, and hashing is the only
     // expensive thing here. One answer per distinct word is the difference
@@ -80,15 +98,16 @@ fn find_private_references(files: &[(String, String)], denied: &[DeniedTerm]) ->
             for word in line
                 .to_lowercase()
                 .split(|ch: char| !ch.is_ascii_alphanumeric())
-                .filter(|word| word.len() >= narrowest)
+                .filter(|word| !word.is_empty())
             {
                 let carries = *judged.entry(word.to_owned()).or_insert_with(|| {
-                    widths.iter().any(|&width| {
-                        word.as_bytes()
-                            .windows(width)
-                            .filter_map(|window| std::str::from_utf8(window).ok())
-                            .any(|window| digests.contains(digest(window).as_str()))
-                    })
+                    (!words.is_empty() && words.contains(digest(word).as_str()))
+                        || widths.iter().any(|&width| {
+                            word.as_bytes()
+                                .windows(width)
+                                .filter_map(|window| std::str::from_utf8(window).ok())
+                                .any(|window| digests.contains(digest(window).as_str()))
+                        })
                 });
 
                 if carries {
@@ -105,14 +124,24 @@ fn find_private_references(files: &[(String, String)], denied: &[DeniedTerm]) ->
     found
 }
 
+/// The tree to judge: this checkout, or the one `SF_PRIVATE_ROOT` names.
 fn repo() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+    std::env::var_os("SF_PRIVATE_ROOT")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")))
 }
 
-/// The tracked text of the repository, which is exactly what is published.
+/// The text of the repository, tracked or new: a new file is exactly where a
+/// name arrives, and the hook runs before anything is staged.
 fn tracked_text(root: &Path) -> Vec<(String, String)> {
     let listing = Command::new("git")
-        .args(["ls-files", "-z"])
+        .args([
+            "ls-files",
+            "-z",
+            "--cached",
+            "--others",
+            "--exclude-standard",
+        ])
         .current_dir(root)
         .output()
         .expect("git ls-files runs in a checkout");
@@ -186,7 +215,47 @@ mod tests {
         DeniedTerm {
             length: term.len(),
             sha256: digest(term),
+            word: false,
         }
+    }
+
+    fn deny_word(term: &str) -> DeniedTerm {
+        DeniedTerm {
+            word: true,
+            ..deny(term)
+        }
+    }
+
+    fn hit(path: &str, line: usize, word: &str) -> PrivateRef {
+        PrivateRef {
+            file: path.into(),
+            line,
+            word: word.into(),
+        }
+    }
+
+    #[test]
+    fn finds_a_whole_word_term_where_a_separator_stands_it_alone() {
+        let files = file("a.md", "first\nsee `XYZ-12`, then xyz alone");
+        assert_eq!(
+            find_private_references(&files, &[deny_word("xyz")]),
+            vec![hit("a.md", 2, "xyz"), hit("a.md", 2, "xyz")]
+        );
+    }
+
+    #[test]
+    fn does_not_find_a_whole_word_term_inside_a_longer_word() {
+        let files = file("a.md", "fooxyzbar and xyzzy");
+        assert_eq!(find_private_references(&files, &[deny_word("xyz")]), vec![]);
+    }
+
+    #[test]
+    fn judges_whole_word_and_windowed_terms_together() {
+        let files = file("a.md", "AcmeDeps\nfooxyz\nXYZ-1");
+        assert_eq!(
+            find_private_references(&files, &[deny("acme"), deny_word("xyz")]),
+            vec![hit("a.md", 1, "acmedeps"), hit("a.md", 3, "xyz")]
+        );
     }
 
     fn file(path: &str, text: &str) -> Vec<(String, String)> {

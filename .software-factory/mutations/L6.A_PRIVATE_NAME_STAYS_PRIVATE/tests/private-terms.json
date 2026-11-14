@@ -1,0 +1,10 @@
+{
+  "_why": "The fixture's own policy: it denies a fictional ticket key as a whole word, so the note beside it must fail.",
+  "denied": [
+    {
+      "length": 3,
+      "sha256": "3608bca1e44ea6c4d268eb6db02260269892c0b42b86bbf1e77a6fa16c3c9282",
+      "word": true
+    }
+  ]
+}

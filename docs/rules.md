@@ -445,6 +445,16 @@ A rule that is switched on must be configured to look at something: a lock rule 
 
 ## L6 — Hazard: the defect classes this repository hunts
 
+### L6.A_PRIVATE_NAME_STAYS_PRIVATE
+
+**A private name stays out of this public repository**
+
+No file in the tree, tracked or new, carries a term denied by tests/private-terms.json — inside a longer word for a windowed term, as a whole word for a term marked `word`.
+
+**Why.** This repository is public and some of the work that drove it is not. A company's name, a colleague's handle, a team's ticket key: each one arrives as an ordinary example, written by somebody who knew exactly what it was, and none looks wrong in review because a realistic example is what a fixture is supposed to look like. Once pushed, a name is in the history, the forks and the pull request refs, where no later commit reaches it, so the only cheap place to stop it is before the commit. The terms are digests, never words, because a published list of what a company is hiding is the leak itself.
+
+**Fix.** Run `cargo test --locked --test private_references` and replace each word it names with a placeholder (`PROJ-` for a ticket, `acme` for a company). If the match is a coincidence, the term is too broad: mark it `"word": true` in tests/private-terms.json rather than excepting the file.
+
 ### L6.DEAD_CODE_IS_DETECTED
 
 **Something detects code nothing reaches**

@@ -1,0 +1,12 @@
+# Mutation fixture for L6.A_PRIVATE_NAME_STAYS_PRIVATE. It is supposed to fail.
+# The denied term is fictional on purpose: a real one here would be the leak.
+version: 1
+project:
+  name: mutation-L6.A_PRIVATE_NAME_STAYS_PRIVATE
+  languages: [rust]
+docs:
+  scan: ["docs/**/*.md"]
+gates: {}
+rules:
+  L6.A_PRIVATE_NAME_STAYS_PRIVATE:
+    enabled: true
