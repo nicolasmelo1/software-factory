@@ -63,6 +63,8 @@ suite comes last, because it needs both to have something to prove end to end.
 
 | 17 | [Any typed decision model can judge](any-typed-decision-model-can-judge.md) | This repository's own tests prove the rule end to end with no account, no key and no tokens spent, and switching a consumer from Jev to a local model is a change to one backend command with no change to the question file or the sealed verdict format. |
 
+| 18 | [Duplicate code is detected](duplicate-code-is-detected.md) | A repository declaring any of typescript, python, go, rust or ruby is told by `sf check` when nothing runs jscpd, and this repository's own CI fails when its Rust sources cross the measured duplication ceiling. |
+
 ## Parked
 
 Nothing is parked. Rule packs waited on version-conditional activation, which
